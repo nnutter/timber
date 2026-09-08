@@ -360,10 +360,24 @@ func TestCreateFailsWhenDirectoryExists(t *testing.T) {
 	testRepository := newTestRepository(t)
 	path := testRepository.worktreePath(branchName)
 	require.NoError(t, os.MkdirAll(path, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(path, "existing.txt"), []byte("existing\n"), 0o644))
 
 	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "already exists")
+}
+
+func TestCreateSucceedsWhenDirectoryExistsButEmpty(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/empty-exists"
+
+	testRepository := newTestRepository(t)
+	path := testRepository.worktreePath(branchName)
+	require.NoError(t, os.MkdirAll(path, 0o755))
+
+	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+	testRepository.assertPathPresent(t, path)
 }
 
 func TestCreateRepairsBareRepoMissingOriginFetch(t *testing.T) {

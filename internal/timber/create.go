@@ -69,10 +69,8 @@ func (x *createCommandOptions) createWorktree(command *cobra.Command, args []str
 	}
 
 	worktreePath := x.runtime.managedWorktreePath(repo.Name, branchName)
-	if _, err := os.Stat(worktreePath); err == nil {
-		return "", fmt.Errorf("worktree directory %q already exists", worktreePath)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("inspect worktree directory %q: %w", worktreePath, err)
+	if err := rejectNonEmptyWorktreeDirectory(worktreePath); err != nil {
+		return "", err
 	}
 
 	if _, err := repository.git("fetch", remoteName); err != nil {
@@ -133,4 +131,25 @@ func (x *createCommandOptions) createWorktree(command *cobra.Command, args []str
 
 func (x *createCommandOptions) shouldCreateHerdrWorkspace() bool {
 	return x.herdr || (!x.noHerdr && x.runtime.HerdrEnvironment)
+}
+
+func rejectNonEmptyWorktreeDirectory(worktreePath string) error {
+	info, err := os.Stat(worktreePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect worktree directory %q: %w", worktreePath, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("cannot create worktree directory %q: a file already exists at that path", worktreePath)
+	}
+	entries, err := os.ReadDir(worktreePath)
+	if err != nil {
+		return fmt.Errorf("read worktree directory %q: %w", worktreePath, err)
+	}
+	if len(entries) > 0 {
+		return fmt.Errorf("worktree directory %q already exists", worktreePath)
+	}
+	return nil
 }
