@@ -149,7 +149,7 @@ func TestSwitchWritesPathFileWhenRequested(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
-	pathFile := filepath.Join(t.TempDir(), "switch-path")
+	pathFile := filepath.Join(resolvedTempDir(t), "switch-path")
 	runtime := testRepository.runtime
 	runtime.SwitchPathFile = pathFile
 
@@ -199,7 +199,7 @@ func TestSwitchCreateFailsWhenWorktreeExists(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
-	pathFile := filepath.Join(t.TempDir(), "switch-path")
+	pathFile := filepath.Join(resolvedTempDir(t), "switch-path")
 	runtime := testRepository.runtime
 	runtime.SwitchPathFile = pathFile
 	result := runTimberCommandWithRuntime(t, runtime, "switch", at(testRepoName, branchName), "-c")
@@ -214,7 +214,7 @@ func TestSwitchCreateNoCdDoesNotReportPath(t *testing.T) {
 	const branchName = "feature/switch-create-nocd"
 
 	testRepository := newTestRepository(t)
-	pathFile := filepath.Join(t.TempDir(), "switch-path")
+	pathFile := filepath.Join(resolvedTempDir(t), "switch-path")
 	runtime := testRepository.runtime
 	runtime.SwitchPathFile = pathFile
 
@@ -231,9 +231,9 @@ func TestSwitchCreateWithHerdrDoesNotReportPath(t *testing.T) {
 	const branchName = "feature/switch-create-herdr"
 
 	testRepository := newTestRepository(t)
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
-	pathFile := filepath.Join(t.TempDir(), "switch-path")
+	pathFile := filepath.Join(resolvedTempDir(t), "switch-path")
 	runtime := testRepository.runtime
 	runtime.SwitchPathFile = pathFile
 

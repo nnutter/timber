@@ -16,7 +16,7 @@ func TestSetupSpaceOpensNamedWorktreeInNewHerdrWorkspace(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
@@ -42,7 +42,7 @@ func TestSetupSpaceDefinesNamedWorktreeTabsInCurrentHerdrSpace(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := testRepository.runTimber(t, "herdr", "space", at(testRepoName, branchName))
@@ -68,7 +68,7 @@ func TestSetupSpaceDoesNotCloseCurrentHerdrSpaceWhenTabCreationFails(t *testing.
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL=tab create")
 
@@ -87,7 +87,7 @@ func TestSetupSpaceUsesCurrentWorktreeFromSubdirectory(t *testing.T) {
 
 	subdirectory := filepath.Join(testRepository.worktreePath(branchName), "nested")
 	require.NoError(t, os.MkdirAll(subdirectory, 0o755))
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := testRepository.runTimberFrom(t, subdirectory, "herdr", "space")
@@ -123,7 +123,7 @@ func TestSetupSpaceClosesNewWorkspaceWhenTabCreationFails(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL=tab create")
 
@@ -140,7 +140,7 @@ func TestSetupSpaceClosesNewWorkspaceWhenShellTabCreationFails(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL_TAB_LABEL=Shell")
 
@@ -157,7 +157,7 @@ func TestSetupSpaceClosesNewWorkspaceWhenTabResponseIsInvalid(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_MALFORM=tab create")
 

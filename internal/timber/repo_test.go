@@ -14,11 +14,11 @@ import (
 
 func TestRepoAddListRemove(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	runtime := testRuntimeForHome(home, home)
 
-	remotePath := filepath.Join(t.TempDir(), "remote.git")
-	runGitCommand(t, t.TempDir(), "init", "--bare", remotePath)
+	remotePath := filepath.Join(resolvedTempDir(t), "remote.git")
+	runGitCommand(t, resolvedTempDir(t), "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)
 
 	addResult := runTimberCommandWithRuntime(t, runtime, "repo", "add", "--name", "demo", remotePath)
@@ -54,12 +54,12 @@ func TestRepoAddListRemove(t *testing.T) {
 
 func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	runtime := testRuntimeForHome(home, home)
 
 	barePath := filepath.Join(runtime.DataHome, "timber", "repos", "local.git")
 	require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
-	runGitCommand(t, t.TempDir(), "init", "--bare", barePath)
+	runGitCommand(t, resolvedTempDir(t), "init", "--bare", barePath)
 
 	result := runTimberCommandWithRuntime(t, runtime, "repo", "list")
 	require.NoError(t, result.err, result.stderr)
@@ -70,7 +70,7 @@ func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 
 func TestRepoListQuietOutputsOnlySortedNames(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	runtime := testRuntimeForHome(home, home)
 
 	repositoryNames := []string{"zeta", "alpha"}
@@ -113,10 +113,10 @@ func TestRepoRenameMovesManagedWorktreesAndPreservesUnmanagedWorktrees(t *testin
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 	testRepository.writeFileInWorktree(t, branchName, "dirty.txt", "dirty\n")
 
-	unmanagedPath := filepath.Join(t.TempDir(), "unmanaged")
+	unmanagedPath := filepath.Join(resolvedTempDir(t), "unmanaged")
 	runGitCommand(t, testRepository.barePath, "branch", "unmanaged", "main")
 	runGitCommand(t, testRepository.barePath, "worktree", "add", unmanagedPath, "unmanaged")
-	detachedPath := filepath.Join(t.TempDir(), "detached")
+	detachedPath := filepath.Join(resolvedTempDir(t), "detached")
 	runGitCommand(t, testRepository.barePath, "worktree", "add", "--detach", detachedPath, "main")
 
 	result := testRepository.runTimber(t, "repo", "rename", testRepoName, newRepoName)
@@ -184,7 +184,7 @@ func TestRepoRenameReportsMovedCurrentDirectory(t *testing.T) {
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 	subdirectory := filepath.Join(testRepository.worktreePath(branchName), "nested")
 	require.NoError(t, os.MkdirAll(subdirectory, 0o755))
-	pathFile := filepath.Join(t.TempDir(), "renamed-path")
+	pathFile := filepath.Join(resolvedTempDir(t), "renamed-path")
 	runtime := testRepository.runtime
 	runtime.CurrentDirectory = subdirectory
 	runtime.RenamePathFile = pathFile
@@ -252,7 +252,7 @@ func TestRepoRenameRejectsUnknownRepository(t *testing.T) {
 func TestRepoRenameRejectsPrunableWorktree(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
-	prunablePath := filepath.Join(t.TempDir(), "prunable")
+	prunablePath := filepath.Join(resolvedTempDir(t), "prunable")
 	runGitCommand(t, testRepository.barePath, "branch", "prunable", "main")
 	runGitCommand(t, testRepository.barePath, "worktree", "add", prunablePath, "prunable")
 	require.NoError(t, os.RemoveAll(prunablePath))

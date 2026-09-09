@@ -23,12 +23,12 @@ func (x stubMigratePrompter) Prompt(input io.Reader, output io.Writer, candidate
 
 func TestMigrateRegistersBareAndRehomesWorktrees(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	worktreeRootPath := filepath.Join(home, "worktrees")
 	runtime := testRuntimeForHome(home, home)
 
 	// Build a plain clone with a feature worktree outside the new layout.
-	base := t.TempDir()
+	base := resolvedTempDir(t)
 	remotePath := filepath.Join(base, "remote.git")
 	runGitCommand(t, base, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)
@@ -77,11 +77,11 @@ func TestMigrateRegistersBareAndRehomesWorktrees(t *testing.T) {
 
 func TestMigrateOmitsSoleDefaultBranchWorktree(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	worktreeRootPath := filepath.Join(home, "worktrees")
 	runtime := testRuntimeForHome(home, home)
 
-	base := t.TempDir()
+	base := resolvedTempDir(t)
 	remotePath := filepath.Join(base, "remote.git")
 	runGitCommand(t, base, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)
@@ -114,10 +114,10 @@ func TestMigrateOmitsSoleDefaultBranchWorktree(t *testing.T) {
 
 func TestMigrateOmitsSoleDefaultRemovesEmptySourceParents(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	runtime := testRuntimeForHome(home, home)
 
-	remoteParent := t.TempDir()
+	remoteParent := resolvedTempDir(t)
 	remotePath := filepath.Join(remoteParent, "remote.git")
 	runGitCommand(t, remoteParent, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)
@@ -141,10 +141,10 @@ func TestMigrateOmitsSoleDefaultRemovesEmptySourceParents(t *testing.T) {
 
 func TestMigrateOmitsSoleDefaultKeepsNonEmptySourceParent(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	runtime := testRuntimeForHome(home, home)
 
-	remoteParent := t.TempDir()
+	remoteParent := resolvedTempDir(t)
 	remotePath := filepath.Join(remoteParent, "remote.git")
 	runGitCommand(t, remoteParent, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)
@@ -171,11 +171,11 @@ func TestMigrateOmitsSoleDefaultKeepsNonEmptySourceParent(t *testing.T) {
 
 func TestMigrateRemovesEmptyParentsOfRehomedWorktrees(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	worktreeRootPath := filepath.Join(home, "worktrees")
 	runtime := testRuntimeForHome(home, home)
 
-	remoteParent := t.TempDir()
+	remoteParent := resolvedTempDir(t)
 	remotePath := filepath.Join(remoteParent, "remote.git")
 	runGitCommand(t, remoteParent, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)
@@ -209,11 +209,11 @@ func TestMigrateRemovesEmptyParentsOfRehomedWorktrees(t *testing.T) {
 
 func TestMigrateKeepsSoleNonDefaultBranchWorktree(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	worktreeRootPath := filepath.Join(home, "worktrees")
 	runtime := testRuntimeForHome(home, home)
 
-	base := t.TempDir()
+	base := resolvedTempDir(t)
 	remotePath := filepath.Join(base, "remote.git")
 	runGitCommand(t, base, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)
@@ -234,10 +234,10 @@ func TestMigrateKeepsSoleNonDefaultBranchWorktree(t *testing.T) {
 
 func TestMigratePromptCanSkipSelectedWorktrees(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	worktreeRootPath := filepath.Join(home, "worktrees")
 
-	base := t.TempDir()
+	base := resolvedTempDir(t)
 	remotePath := filepath.Join(base, "remote.git")
 	runGitCommand(t, base, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)
@@ -350,11 +350,11 @@ func TestMigrateRehomesRegisteredWorktreeNamedLikeRepo(t *testing.T) {
 
 func TestMigrateStripsGitSuffixFromNameFlag(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	worktreeRootPath := filepath.Join(home, "worktrees")
 	runtime := testRuntimeForHome(home, home)
 
-	base := t.TempDir()
+	base := resolvedTempDir(t)
 	remotePath := filepath.Join(base, "remote.git")
 	runGitCommand(t, base, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)

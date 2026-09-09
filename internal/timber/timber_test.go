@@ -108,7 +108,7 @@ func TestCreateListAndRemoveLifecycle(t *testing.T) {
 func installFakeHerdrSpace(t *testing.T, logPath string) string {
 	t.Helper()
 
-	binDir := t.TempDir()
+	binDir := resolvedTempDir(t)
 	scriptPath := filepath.Join(binDir, "herdr")
 	script := fmt.Sprintf(`#!/bin/sh
 first=1
@@ -189,7 +189,7 @@ func skipIfNoPty(t *testing.T) {
 
 func testRuntime(t *testing.T) Runtime {
 	t.Helper()
-	return testRuntimeForHome(t.TempDir(), "")
+	return testRuntimeForHome(resolvedTempDir(t), "")
 }
 
 func testRuntimeForHome(home string, currentDirectory string) Runtime {
@@ -436,11 +436,11 @@ func newTestRepository(t *testing.T) testRepository {
 	fixture := getTestRepositoryFixture()
 	require.NoError(t, fixture.err)
 
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	worktreeRootPath := filepath.Join(home, "worktrees")
 	runtime := testRuntimeForHome(home, home)
 
-	remoteParent := t.TempDir()
+	remoteParent := resolvedTempDir(t)
 	remotePath := filepath.Join(remoteParent, "remote.git")
 	require.NoError(t, os.CopyFS(remotePath, os.DirFS(fixture.fixture.remotePath)))
 
@@ -489,7 +489,7 @@ func replaceGitRemotePath(barePath string, oldPath string, newPath string) error
 
 func seedBareRemote(t *testing.T, remotePath string) {
 	t.Helper()
-	tempClone := filepath.Join(t.TempDir(), "seed")
+	tempClone := filepath.Join(resolvedTempDir(t), "seed")
 	runGitCommand(t, filepath.Dir(tempClone), "clone", remotePath, tempClone)
 	configureGitUser(t, tempClone)
 	require.NoError(t, os.WriteFile(filepath.Join(tempClone, "README.md"), []byte("initial\n"), 0o644))
@@ -603,7 +603,7 @@ func (x testRepository) writeFileInWorktree(t *testing.T, branchName string, fil
 func (x testRepository) mergeWorktreeBranch(t *testing.T, branchName string) {
 	t.Helper()
 	// Create a temporary worktree on main to merge into, then push.
-	mergePath := filepath.Join(t.TempDir(), "merge-main")
+	mergePath := filepath.Join(resolvedTempDir(t), "merge-main")
 	runGitCommand(t, x.barePath, "worktree", "add", mergePath, "main")
 	runGitCommand(t, mergePath, "merge", "--ff-only", branchName)
 	runGitCommand(t, mergePath, "push", remoteName, "main")
@@ -701,4 +701,15 @@ func gitTestEnv() []string {
 func runGitCommandAllowError(t *testing.T, cwd string, args ...string) {
 	t.Helper()
 	_, _ = runGitCommandResult(cwd, args...)
+}
+
+// resolvedTempDir returns a per-test temporary directory with symlinks resolved.
+// On macOS resolvedTempDir(t) lives under /var, a symlink to /private/var, which
+// breaks path comparisons against canonicalized paths reported by git and
+// the shell.
+func resolvedTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	return dir
 }
