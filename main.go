@@ -9,8 +9,8 @@ import (
 	"github.com/nnutter/timber/internal/timber"
 )
 
-// Version is set via ldflags at build time (e.g. Homebrew, GoReleaser).
-var Version string
+// version is set via ldflags at build time (e.g. -X main.version=v1.2.3).
+var version string
 
 func main() {
 	runtime, err := timber.RuntimeFromProcess()
@@ -21,7 +21,7 @@ func main() {
 	if err := fang.Execute(
 		context.Background(),
 		timber.NewRootCommand(runtime),
-		fang.WithVersion(Version),
+		fang.WithVersion(version),
 	); err != nil {
 		os.Exit(1)
 	}
