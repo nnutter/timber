@@ -375,10 +375,19 @@ func (x Runtime) writePathFile(pathFile string, value string) (err error) {
 	if err != nil {
 		return fmt.Errorf("resolve temporary directory: %w", err)
 	}
+	temporaryDirectory, err = filepath.EvalSymlinks(temporaryDirectory)
+	if err != nil {
+		return fmt.Errorf("resolve temporary directory: %w", err)
+	}
 	pathFile, err = x.absolutePath(pathFile)
 	if err != nil {
 		return fmt.Errorf("resolve path file: %w", err)
 	}
+	pathFileDirectory, err := filepath.EvalSymlinks(filepath.Dir(pathFile))
+	if err != nil {
+		return fmt.Errorf("resolve path file: %w", err)
+	}
+	pathFile = filepath.Join(pathFileDirectory, filepath.Base(pathFile))
 
 	relativePath, err := filepath.Rel(temporaryDirectory, pathFile)
 	if err != nil {

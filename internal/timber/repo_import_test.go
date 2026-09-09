@@ -27,8 +27,8 @@ type importFixture struct {
 func installFakeTrash(t *testing.T) (scriptPath string, logPath string) {
 	t.Helper()
 
-	binDir := t.TempDir()
-	logPath = filepath.Join(t.TempDir(), "trash.log")
+	binDir := resolvedTempDir(t)
+	logPath = filepath.Join(resolvedTempDir(t), "trash.log")
 	scriptPath = filepath.Join(binDir, "trash")
 	script := fmt.Sprintf(`#!/bin/sh
 for arg in "$@"; do
@@ -43,12 +43,12 @@ done
 func newImportFixture(t *testing.T) importFixture {
 	t.Helper()
 
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	runtime := testRuntimeForHome(home, home)
 	trashExecutable, trashLog := installFakeTrash(t)
 	runtime.TrashExecutable = trashExecutable
 
-	base := t.TempDir()
+	base := resolvedTempDir(t)
 	remotePath := filepath.Join(base, "remote.git")
 	runGitCommand(t, base, "init", "--bare", remotePath)
 	seedBareRemote(t, remotePath)

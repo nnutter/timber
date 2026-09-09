@@ -11,11 +11,11 @@ import (
 
 func TestHerdrInstallWritesPluginAndLinks(t *testing.T) {
 	t.Parallel()
-	configHome := t.TempDir()
+	configHome := resolvedTempDir(t)
 	runtime := testRuntime(t)
 	runtime.ConfigHome = configHome
 	runtime.Environment = replaceTestEnvironment(runtime.Environment, "XDG_CONFIG_HOME="+configHome)
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := runTimberCommandWithRuntime(t, runtime, "herdr", "install")
@@ -45,7 +45,7 @@ func TestHerdrInstallWritesPluginAndLinks(t *testing.T) {
 
 func TestHerdrInstallFailsWhenPluginLinkFails(t *testing.T) {
 	t.Parallel()
-	configHome := t.TempDir()
+	configHome := resolvedTempDir(t)
 	runtime := testRuntime(t)
 	runtime.ConfigHome = configHome
 	runtime.Environment = replaceTestEnvironment(
@@ -54,7 +54,7 @@ func TestHerdrInstallFailsWhenPluginLinkFails(t *testing.T) {
 		"FAKE_HERDR_FAIL=plugin link",
 	)
 
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := runTimberCommandWithRuntime(t, runtime, "herdr", "install")

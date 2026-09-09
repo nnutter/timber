@@ -25,7 +25,7 @@ func TestRemoveRemovesEmptyParentDirectories(t *testing.T) {
 
 func TestRemoveEmptyParentsStopsAtHome(t *testing.T) {
 	t.Parallel()
-	homeDirectory := t.TempDir()
+	homeDirectory := resolvedTempDir(t)
 
 	leafPath := filepath.Join(homeDirectory, "src", "github.com", "nnutter", "repo")
 	require.NoError(t, os.MkdirAll(leafPath, 0o755))
@@ -42,7 +42,7 @@ func TestRemoveEmptyParentsStopsAtHome(t *testing.T) {
 
 func TestRemoveEmptyParentsLeavesNonEmptyAncestor(t *testing.T) {
 	t.Parallel()
-	homeDirectory := t.TempDir()
+	homeDirectory := resolvedTempDir(t)
 
 	parentPath := filepath.Join(homeDirectory, "src", "github.com", "nnutter")
 	leafPath := filepath.Join(parentPath, "repo")
@@ -62,7 +62,7 @@ func TestRemoveEmptyParentsLeavesNonEmptyAncestor(t *testing.T) {
 
 func TestRemoveEmptyParentsHonorsStopPath(t *testing.T) {
 	t.Parallel()
-	homeDirectory := t.TempDir()
+	homeDirectory := resolvedTempDir(t)
 
 	stopPath := filepath.Join(homeDirectory, "worktrees")
 	leafPath := filepath.Join(stopPath, "feature", "repo")

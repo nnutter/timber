@@ -15,7 +15,7 @@ import (
 func TestGenerateZshGeneratesWrapperCompletionAndAutoloadHelper(t *testing.T) {
 	t.Parallel()
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	result := runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force")
 	require.NoError(t, result.err, result.stderr)
 
@@ -45,7 +45,7 @@ func TestGeneratedZshCompletionHasValidSyntax(t *testing.T) {
 		t.Skip("zsh is not installed")
 	}
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir).err)
 
 	output, err := exec.Command(zshPath, "-n", filepath.Join(outDir, "_t")).CombinedOutput()
@@ -55,7 +55,7 @@ func TestGeneratedZshCompletionHasValidSyntax(t *testing.T) {
 func TestGenerateZshUsesCustomWrapperName(t *testing.T) {
 	t.Parallel()
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	result := runTimberCommand(t, "generate", "zsh", "--name", "foo", "--out", outDir)
 	require.NoError(t, result.err, result.stderr)
 
@@ -90,15 +90,15 @@ func TestGeneratedCreateCompletesUniqueRepoPrefix(t *testing.T) {
 	}
 	skipIfNoPty(t)
 
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	dataHome := filepath.Join(home, ".local", "share")
 	worktreeRoot := filepath.Join(home, "worktrees")
 	require.NoError(t, os.MkdirAll(filepath.Join(dataHome, "timber", "repos", "timber.git"), 0o755))
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	scriptPath := filepath.Join(t.TempDir(), "complete.py")
+	scriptPath := filepath.Join(resolvedTempDir(t), "complete.py")
 	script := `import os, pty, select, time, sys
 
 compdir = sys.argv[1]
@@ -155,7 +155,7 @@ sys.stdout.write(output)
 		"python3",
 		scriptPath,
 		outDir,
-		filepath.Join(t.TempDir(), "zdot"),
+		filepath.Join(resolvedTempDir(t), "zdot"),
 		home,
 		dataHome,
 		worktreeRoot,
@@ -175,7 +175,7 @@ func TestGeneratedSwitchCompletesWorktreeNamesAcrossRepos(t *testing.T) {
 	}
 	skipIfNoPty(t)
 
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	dataHome := filepath.Join(home, ".local", "share")
 	worktreeRoot := filepath.Join(home, "worktrees")
 	require.NoError(t, os.MkdirAll(filepath.Join(dataHome, "timber", "repos", "timber.git"), 0o755))
@@ -189,10 +189,10 @@ func TestGeneratedSwitchCompletesWorktreeNamesAcrossRepos(t *testing.T) {
 	makeWorktree("timber", "feature/login")
 	makeWorktree("other", "feature/api")
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	scriptPath := filepath.Join(t.TempDir(), "complete.py")
+	scriptPath := filepath.Join(resolvedTempDir(t), "complete.py")
 	script := `import os, pty, select, time, sys
 
 compdir, zdot, home, data_home, worktree_root, line = sys.argv[1:7]
@@ -250,7 +250,7 @@ sys.stdout.write(output)
 			"python3",
 			scriptPath,
 			outDir,
-			filepath.Join(t.TempDir(), "zdot"),
+			filepath.Join(resolvedTempDir(t), "zdot"),
 			home,
 			dataHome,
 			worktreeRoot,
@@ -280,10 +280,10 @@ func TestGeneratedZshWrapperAutoloadsAfterCompinit(t *testing.T) {
 		t.Skip("zsh is not installed")
 	}
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir).err)
 
-	binDir := t.TempDir()
+	binDir := resolvedTempDir(t)
 	fakeTimber := `#!/bin/sh
 printf '%s\n' "$@"
 `
@@ -309,15 +309,15 @@ func TestGeneratedZshWrapperChangesToRenamedCurrentWorktree(t *testing.T) {
 		t.Skip("zsh is not installed")
 	}
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	worktreeParent := t.TempDir()
+	worktreeParent := resolvedTempDir(t)
 	oldWorktree := filepath.Join(worktreeParent, "old")
 	oldSubdirectory := filepath.Join(oldWorktree, "nested")
 	require.NoError(t, os.MkdirAll(oldSubdirectory, 0o755))
 
-	binDir := t.TempDir()
+	binDir := resolvedTempDir(t)
 	fakeTimber := `#!/bin/sh
 old_worktree=$(dirname "$PWD")
 new_worktree=$(dirname "$old_worktree")/new
@@ -343,11 +343,11 @@ func TestGeneratedZshWrapperRestoresDirectoryOnFailure(t *testing.T) {
 		t.Skip("zsh is not installed")
 	}
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	startDir := t.TempDir()
-	binDir := t.TempDir()
+	startDir := resolvedTempDir(t)
+	binDir := resolvedTempDir(t)
 	fakeTimber := `#!/bin/sh
 exit 17
 `
@@ -370,11 +370,11 @@ func TestGeneratedZshWrapperChangesDirectoryOnSwitch(t *testing.T) {
 		t.Skip("zsh is not installed")
 	}
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	targetDir := t.TempDir()
-	binDir := t.TempDir()
+	targetDir := resolvedTempDir(t)
+	binDir := resolvedTempDir(t)
 	fakeTimber := `#!/bin/sh
 printf '%s\n' "$TIMBER_SWITCH_PATH_FILE_TARGET" > "$TIMBER_SWITCH_PATH_FILE"
 `
@@ -401,12 +401,12 @@ func TestGeneratedZshWrapperLeavesImportedSourceDirectory(t *testing.T) {
 		t.Skip("zsh is not installed")
 	}
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	startDir := t.TempDir()
-	sourceDir := t.TempDir()
-	binDir := t.TempDir()
+	startDir := resolvedTempDir(t)
+	sourceDir := resolvedTempDir(t)
+	binDir := resolvedTempDir(t)
 	fakeTimber := `#!/bin/sh
 rm -rf "$3"
 `
@@ -429,12 +429,12 @@ func TestGeneratedZshWrapperRestoresDirectoryOnFailedImport(t *testing.T) {
 		t.Skip("zsh is not installed")
 	}
 
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	startDir := t.TempDir()
-	sourceDir := t.TempDir()
-	binDir := t.TempDir()
+	startDir := resolvedTempDir(t)
+	sourceDir := resolvedTempDir(t)
+	binDir := resolvedTempDir(t)
 	fakeTimber := `#!/bin/sh
 exit 17
 `
@@ -453,7 +453,7 @@ exit 17
 
 func TestGenerateZshRefusesOverwriteWithoutForce(t *testing.T) {
 	t.Parallel()
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir).err)
 	result := runTimberCommand(t, "generate", "zsh", "--out", outDir)
 	require.Error(t, result.err)
@@ -462,7 +462,7 @@ func TestGenerateZshRefusesOverwriteWithoutForce(t *testing.T) {
 
 func TestGenerateZshChecksAutoloadHelperCollisionBeforeWriting(t *testing.T) {
 	t.Parallel()
-	outDir := t.TempDir()
+	outDir := resolvedTempDir(t)
 	autoloadPath := filepath.Join(outDir, "_t_autoload")
 	require.NoError(t, os.WriteFile(autoloadPath, []byte("existing helper\n"), 0o644))
 

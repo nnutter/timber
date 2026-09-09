@@ -17,7 +17,7 @@ func TestCreateFetchesOriginBeforeCreatingWorktree(t *testing.T) {
 	const branchName = "feature/fresh"
 
 	testRepository := newTestRepository(t)
-	updaterPath := filepath.Join(t.TempDir(), "updater")
+	updaterPath := filepath.Join(resolvedTempDir(t), "updater")
 	runGitCommand(t, filepath.Dir(updaterPath), "clone", testRepository.remotePath, updaterPath)
 	configureGitUser(t, updaterPath)
 	require.NoError(t, os.WriteFile(filepath.Join(updaterPath, "fresh.txt"), []byte("fresh\n"), 0o644))
@@ -110,7 +110,7 @@ func TestCreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	const branchName = "feature/herdr"
 
 	testRepository := newTestRepository(t)
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := testRepository.runTimber(t, "create", "--herdr", at(testRepoName, branchName))
@@ -136,7 +136,7 @@ func TestCreateWithoutHerdrDoesNotInvokeHerdr(t *testing.T) {
 	const branchName = "feature/no-herdr"
 
 	testRepository := newTestRepository(t)
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
@@ -151,7 +151,7 @@ func TestCreateInHerdrOpensStandardHerdrSpace(t *testing.T) {
 
 	testRepository := newTestRepository(t)
 	testRepository.runtime.HerdrEnvironment = true
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
@@ -165,7 +165,7 @@ func TestCreateWithNoHerdrDoesNotInvokeHerdr(t *testing.T) {
 
 	testRepository := newTestRepository(t)
 	testRepository.runtime.HerdrEnvironment = true
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	result := testRepository.runTimber(t, "create", "--no-herdr", at(testRepoName, branchName))
@@ -216,7 +216,7 @@ func TestTUICreateCancelDoesNotCreateWorktree(t *testing.T) {
 
 func TestTUICreateFailsWhenNoRepositoriesAreRegistered(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
+	home := resolvedTempDir(t)
 	options := &tuiCreateCommandOptions{runtime: testRuntimeForHome(home, home)}
 
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{})
@@ -267,7 +267,7 @@ func TestTUICreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	const branchName = "feature/ui-herdr"
 
 	testRepository := newTestRepository(t)
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	options := new(tuiCreateCommandOptions)
@@ -289,7 +289,7 @@ func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
 
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	prompter := &stubCreateWizardPrompter{
@@ -316,7 +316,7 @@ func TestTUICreateWithNoHerdrDoesNotInvokeHerdr(t *testing.T) {
 
 	testRepository := newTestRepository(t)
 	testRepository.runtime.HerdrEnvironment = true
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
 	options := new(tuiCreateCommandOptions)
@@ -343,7 +343,7 @@ func TestCreateWithHerdrKeepsWorktreeWhenHerdrFails(t *testing.T) {
 	const branchName = "feature/herdr-fail"
 
 	testRepository := newTestRepository(t)
-	logPath := filepath.Join(t.TempDir(), "herdr.log")
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL=workspace create")
 
@@ -360,10 +360,24 @@ func TestCreateFailsWhenDirectoryExists(t *testing.T) {
 	testRepository := newTestRepository(t)
 	path := testRepository.worktreePath(branchName)
 	require.NoError(t, os.MkdirAll(path, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(path, "existing.txt"), []byte("existing\n"), 0o644))
 
 	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "already exists")
+}
+
+func TestCreateSucceedsWhenDirectoryExistsButEmpty(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/empty-exists"
+
+	testRepository := newTestRepository(t)
+	path := testRepository.worktreePath(branchName)
+	require.NoError(t, os.MkdirAll(path, 0o755))
+
+	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+	testRepository.assertPathPresent(t, path)
 }
 
 func TestCreateRepairsBareRepoMissingOriginFetch(t *testing.T) {
@@ -391,7 +405,7 @@ func TestCreateRepairsBareRepoMissingOriginFetch(t *testing.T) {
 func TestCreateWritesPathFileWhenRequested(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
-	pathFile := filepath.Join(t.TempDir(), "created-path")
+	pathFile := filepath.Join(resolvedTempDir(t), "created-path")
 	runtime := testRepository.runtime
 	runtime.CreatePathFile = pathFile
 
