@@ -297,7 +297,6 @@ _` + x.name + `() {
         'herdr:Manage the Herdr plugin and spaces'
         'generate:Generate shell integration'
         'switch:Switch to a worktree'
-        'sw:Switch to a worktree'
         'tui:Interactively create a worktree or open an existing one'
     )
 
