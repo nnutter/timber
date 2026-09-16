@@ -160,6 +160,7 @@ Register a bare repository.
 - Schema-less relative paths map to GitHub: `nnutter/timber` → `https://github.com/nnutter/timber`
 - Full URLs, `git@host:path`, and local paths pass through unchanged
 - `--name` overrides the derived repository name (default: basename of the URL)
+- `--alias` sets a display alias stored in the repository's local `timber.alias` Git config. Without an override, the alias follows the origin URL; GitHub URLs are shortened to `org/repo` (without `.git`), while other origins are unchanged. Aliases do not replace repository names in commands.
 
 Example:
 
@@ -171,8 +172,9 @@ timber repo add /path/to/existing.git
 
 ### `timber repo list`
 
-List registered repositories, including each repository's origin URL.
-Use `-q` or `--quiet` to print only repository names, one name per line.
+List registered repositories, including each repository's alias and origin URL.
+Repositories are sorted by alias (with name as a tie-breaker); use `--sort-name` to sort by name instead.
+Use `-q` or `--quiet` to print only repository names, one name per line, in the selected sort order.
 
 ### `timber repo import <path>`
 

@@ -34,10 +34,10 @@ func TestRepoAddListRemove(t *testing.T) {
 	listResult := runTimberCommandWithRuntime(t, runtime, "repo", "list")
 	require.NoError(t, listResult.err, listResult.stderr)
 	assert.Contains(t, listResult.stdout, "Name")
-	assert.Contains(t, listResult.stdout, "Path")
+	assert.NotContains(t, listResult.stdout, "Path")
 	assert.Contains(t, listResult.stdout, "Origin")
 	assert.Contains(t, listResult.stdout, "demo")
-	assert.Contains(t, listResult.stdout, runtime.displayHomePath(barePath))
+	assert.NotContains(t, listResult.stdout, runtime.displayHomePath(barePath))
 	assert.Contains(t, listResult.stdout, remotePath)
 	assert.NotContains(t, listResult.stdout, home)
 
@@ -47,7 +47,7 @@ func TestRepoAddListRemove(t *testing.T) {
 	listAfter := runTimberCommandWithRuntime(t, runtime, "repo", "list")
 	require.NoError(t, listAfter.err)
 	assert.Contains(t, listAfter.stdout, "Name")
-	assert.Contains(t, listAfter.stdout, "Path")
+	assert.NotContains(t, listAfter.stdout, "Path")
 	assert.Contains(t, listAfter.stdout, "Origin")
 	assert.NotContains(t, listAfter.stdout, "demo")
 }
@@ -65,7 +65,7 @@ func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stdout, "Origin")
 	assert.Contains(t, result.stdout, "local")
-	assert.Contains(t, result.stdout, runtime.displayHomePath(barePath))
+	assert.NotContains(t, result.stdout, runtime.displayHomePath(barePath))
 }
 
 func TestRepoListQuietOutputsOnlySortedNames(t *testing.T) {
