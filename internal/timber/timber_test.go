@@ -232,7 +232,7 @@ func readFakeHerdrLog(t *testing.T, logPath string) []string {
 
 func skipIfNoPty(t *testing.T) {
 	t.Helper()
-	command := exec.Command("python3", "-c", "import pty; pty.openpty()")
+	command := testCommand(t, "python3", "-c", "import pty; pty.openpty()")
 	if err := command.Run(); err != nil {
 		t.Skip("pty devices are not available")
 	}
@@ -664,7 +664,7 @@ func (x testRepository) mergeWorktreeBranch(t *testing.T, branchName string) {
 
 func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
 	t.Helper()
-	command := exec.Command("git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+	command := testCommand(t, "git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
 	err := command.Run()
 	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
 		return
@@ -702,6 +702,7 @@ func runGitCommandResult(cwd string, args ...string) (string, error) {
 	command := exec.Command("git", args...)
 	command.Dir = cwd
 	command.Env = append(gitTestEnv(),
+		"HOME="+cwd,
 		"GIT_AUTHOR_NAME=Test User",
 		"GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=Test User",
@@ -712,41 +713,28 @@ func runGitCommandResult(cwd string, args ...string) (string, error) {
 	return string(output), err
 }
 
-// gitTestEnv returns the process environment without GIT_* location
-// overrides that could redirect test git commands outside their
-// temp directories (e.g. GIT_DIR inherited from a rebase or
-// worktree). Identity and tool configuration are preserved.
+// Start from an allowlist, not os.Environ: rebase Git overrides, user
+// configuration, shell startup hooks, and Timber/Herdr state must not leak
+// into fixtures. Callers supply a temporary HOME and any deliberate overrides.
 func gitTestEnv() []string {
-	scrubbedPrefixes := []string{
-		"GIT_DIR=",
-		"GIT_WORK_TREE=",
-		"GIT_NAMESPACE=",
-		"GIT_INDEX_FILE=",
-		"GIT_PREFIX=",
-		"GIT_CEILING_DIRECTORIES=",
-		"GIT_CONFIG_GLOBAL=",
-		"GIT_CONFIG_SYSTEM=",
-		"GIT_CONFIG_COUNT=",
-		"GIT_CONFIG_KEY_",
-		"GIT_CONFIG_VALUE_",
-		"GIT_OBJECT_DIRECTORY=",
-		"GIT_ALTERNATE_OBJECT_DIRECTORIES=",
-		"GIT_COMMON_DIR=",
+	return []string{
+		"PATH=" + os.Getenv("PATH"),
+		"TMPDIR=" + os.TempDir(),
+		"LANG=C",
+		"LC_ALL=C",
+		"TERM=xterm-256color",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_GLOBAL=" + os.DevNull,
+		"GIT_ATTR_NOSYSTEM=1",
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_CONFIG_COUNT=3",
+		"GIT_CONFIG_KEY_0=core.hooksPath",
+		"GIT_CONFIG_VALUE_0=" + os.DevNull,
+		"GIT_CONFIG_KEY_1=commit.gpgSign",
+		"GIT_CONFIG_VALUE_1=false",
+		"GIT_CONFIG_KEY_2=init.templateDir",
+		"GIT_CONFIG_VALUE_2=",
 	}
-	environment := make([]string, 0, len(os.Environ()))
-	for _, value := range os.Environ() {
-		scrubbed := false
-		for _, prefix := range scrubbedPrefixes {
-			if strings.HasPrefix(value, prefix) {
-				scrubbed = true
-				break
-			}
-		}
-		if !scrubbed {
-			environment = append(environment, value)
-		}
-	}
-	return environment
 }
 
 func runGitCommandAllowError(t *testing.T, cwd string, args ...string) {
