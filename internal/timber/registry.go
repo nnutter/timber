@@ -1,5 +1,13 @@
 package timber
 
+func (x registeredRepo) alias(runtime Runtime, origin string) string {
+	result, err := gitOutput(runtime, x.BarePath, "config", "--local", "--get", "timber.alias")
+	if err == nil && result.stdout != "" {
+		return result.stdout
+	}
+	return defaultRepoAliasFromRemote(origin)
+}
+
 type registeredRepo struct {
 	Name     string
 	BarePath string

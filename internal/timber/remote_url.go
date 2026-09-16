@@ -48,6 +48,32 @@ func looksLikeSSHShorthand(input string) bool {
 	return !strings.Contains(host, "/") && strings.Contains(host, ".")
 }
 
+// defaultRepoAliasFromRemote shortens GitHub origins while preserving other origins.
+func defaultRepoAliasFromRemote(remoteURL string) string {
+	var host, repoPath string
+	if strings.Contains(remoteURL, "://") {
+		parsed, err := url.Parse(remoteURL)
+		if err != nil {
+			return remoteURL
+		}
+		host, repoPath = parsed.Hostname(), parsed.Path
+	} else {
+		host, repoPath, _ = strings.Cut(remoteURL, ":")
+		if _, hostname, found := strings.Cut(host, "@"); found {
+			host = hostname
+		}
+	}
+	if !strings.EqualFold(host, "github.com") && !strings.EqualFold(host, "ssh.github.com") {
+		return remoteURL
+	}
+	repoPath = strings.TrimSuffix(strings.Trim(repoPath, "/"), bareRepoSuffix)
+	owner, repo, found := strings.Cut(repoPath, "/")
+	if !found || owner == "" || repo == "" || strings.Contains(repo, "/") {
+		return remoteURL
+	}
+	return repoPath
+}
+
 func defaultRepoNameFromRemote(remoteURL string) (string, error) {
 	name := remoteURL
 	if strings.HasPrefix(name, "git@") {

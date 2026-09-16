@@ -12,6 +12,7 @@ import (
 type repoAddCommandOptions struct {
 	runtime Runtime
 	name    string
+	alias   string
 }
 
 func NewRepoAddCommand(runtime Runtime) *cobra.Command {
@@ -24,6 +25,7 @@ func NewRepoAddCommand(runtime Runtime) *cobra.Command {
 		RunE:  options.Execute,
 	}
 	command.Flags().StringVar(&options.name, "name", "", "Repository name (default: derived from URL)")
+	command.Flags().StringVar(&options.alias, "alias", "", "Repository display alias (default: derived from origin)")
 
 	return command
 }
@@ -62,6 +64,12 @@ func (x *repoAddCommandOptions) Execute(command *cobra.Command, args []string) e
 
 	if err := configureBareOriginTracking(x.runtime, targetPath); err != nil {
 		return err
+	}
+
+	if x.alias != "" {
+		if _, err := gitOutput(x.runtime, targetPath, "config", "--local", "timber.alias", x.alias); err != nil {
+			return err
+		}
 	}
 
 	_, err = fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("added repository "+repoName+" at "+targetPath))
