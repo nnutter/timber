@@ -34,9 +34,9 @@ func (x *repoListCommandOptions) Execute(command *cobra.Command, args []string) 
 		return writeRepoNames(command, repos)
 	}
 
-	tableView := newOutputTable("Name", "Path", "Origin")
+	tableView := newOutputTable("Name", "Origin")
 	for _, repo := range repos {
-		tableView.Row(repo.Name, x.runtime.displayHomePath(repo.BarePath), repo.originURL(x.runtime))
+		tableView.Row(repo.Name, repo.originURL(x.runtime))
 	}
 
 	_, err = fmt.Fprintln(command.OutOrStdout(), tableView.String())
