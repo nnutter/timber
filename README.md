@@ -173,7 +173,8 @@ timber repo add /path/to/existing.git
 ### `timber repo list`
 
 List registered repositories, including each repository's alias and origin URL.
-Use `-q` or `--quiet` to print only repository names, one name per line.
+Repositories are sorted by alias (with name as a tie-breaker); use `--sort-name` to sort by name instead.
+Use `-q` or `--quiet` to print only repository names, one name per line, in the selected sort order.
 
 ### `timber repo import <path>`
 
