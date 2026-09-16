@@ -20,7 +20,6 @@ type importWorktree struct {
 	CurrentPath string
 	TargetPath  string
 	Detached    bool
-	StagingPath string
 }
 
 // importSkip is a source worktree that cannot be moved; its reason is shown in

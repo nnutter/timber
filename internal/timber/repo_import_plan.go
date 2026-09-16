@@ -31,6 +31,14 @@ func (x *importPlan) collectWorktrees(porcelainWorktrees []porcelainWorktree) er
 			})
 			continue
 		}
+		status, err := gitOutput(x.runtime, porcelainWorktree.Path,
+			"status", "--porcelain", "--untracked-files=all", "--ignored", "--ignore-submodules=none")
+		if err != nil {
+			return fmt.Errorf("inspect worktree %q: %w", porcelainWorktree.Path, err)
+		}
+		if status.stdout != "" {
+			return fmt.Errorf("worktree %q is not clean; commit or remove changes and untracked files (including ignored files) before importing", porcelainWorktree.Path)
+		}
 		if isZeroCommitHash(porcelainWorktree.CommitHash) {
 			x.skips = append(x.skips, importSkip{
 				Path:   porcelainWorktree.Path,
@@ -79,43 +87,15 @@ func (x *importPlan) validateTargets() error {
 
 // run performs the import in fail-safe order:
 //
-//  1. Stage every worktree's contents (including untracked and uncommitted
-//     files) to temporary directories before anything is moved.
-//  2. Clone the source bare and register it.
-//  3. Recreate each worktree from the new bare and restore its staged
-//     contents. Old worktrees are only removed after this succeeds.
-//  4. Move the old worktrees to the system trash with the trash CLI and
+//  1. Clone the clean source bare and register it.
+//  2. Recreate each worktree from the new bare. Old worktrees are only
+//     removed after this succeeds.
+//  3. Move the old worktrees to the system trash with the trash CLI and
 //     remove their empty parent directories.
 //
-// A failure in step 3 rolls back the freshly created worktrees and the bare
+// A failure in step 2 rolls back the freshly created worktrees and the bare
 // clone, leaving the source repository untouched.
-func (x *importPlan) run(command *cobra.Command) (retErr error) {
-	for index := range x.worktrees {
-		worktree := &x.worktrees[index]
-		stagingPath, err := x.runtime.temporaryPath("timber-import-")
-		if err != nil {
-			return fmt.Errorf("create import staging directory: %w", err)
-		}
-		worktree.StagingPath = stagingPath
-	}
-	defer func() {
-		for _, worktree := range x.worktrees {
-			if worktree.StagingPath == "" {
-				continue
-			}
-			if err := os.RemoveAll(worktree.StagingPath); retErr == nil && err != nil {
-				retErr = err
-			}
-		}
-	}()
-
-	for index := range x.worktrees {
-		worktree := &x.worktrees[index]
-		if err := copyDirectoryContents(worktree.CurrentPath, worktree.StagingPath, ".git"); err != nil {
-			return fmt.Errorf("stage worktree %q: %w", worktree.CurrentPath, err)
-		}
-	}
-
+func (x *importPlan) run(command *cobra.Command) error {
 	if err := ensureDirectory(filepath.Dir(x.barePath)); err != nil {
 		return err
 	}
@@ -175,12 +155,6 @@ func (x *importPlan) createWorktree(bareRepository *Repository, worktree *import
 	}
 	if err != nil {
 		return fmt.Errorf("create worktree %q: %w", worktree.TargetPath, err)
-	}
-
-	// Restore uncommitted, untracked, and ignored content over the clean
-	// checkout. The source copy is still intact, so a failure here is safe.
-	if err := copyDirectoryContents(worktree.StagingPath, worktree.TargetPath, ".git"); err != nil {
-		return fmt.Errorf("restore worktree contents to %q: %w", worktree.TargetPath, err)
 	}
 
 	if worktree.Detached {

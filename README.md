@@ -183,11 +183,11 @@ Convert an existing clone into a managed Timber repository.
 Registers a bare clone of the checkout and recreates every worktree (including the former main checkout) under the managed layout.
 
 - `--name` overrides the derived repository name (default: remote URL, then basename of the checkout)
-- Uncommitted, untracked, and gitignored files are preserved in every worktree
+- Every existing worktree must be clean, with no staged changes, unstaged changes, or untracked files (including gitignored files); commit or remove these before importing
 - Detached-HEAD worktrees are recreated detached under a short-hash name
 - Prunable worktrees and worktrees with no commits are reported as skips; their branches survive in the new bare clone
 - Old worktree directories are moved to the system trash with the `trash` CLI instead of being deleted; a `trash` command must be installed or the import refuses to start
-- The import validates all target paths before touching anything and only removes old worktrees after every new worktree was restored; a failure rolls back so the source repository is left untouched
+- The import checks every source worktree and validates all target paths before creating the managed repository; old worktrees are only removed after every new worktree was recreated
 - The summary lists each worktree move
 
 Refuses repositories that are already registered (use `timber migrate`) or already bare (use `timber repo add`).
