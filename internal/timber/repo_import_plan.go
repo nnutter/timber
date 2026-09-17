@@ -103,7 +103,7 @@ func (x *importPlan) run(command *cobra.Command) error {
 		return err
 	}
 	if err := setupImportedBareOrigin(x.runtime, x.source, x.barePath); err != nil {
-		return err
+		return errors.Join(err, x.runtime.trashPaths(x.barePath))
 	}
 
 	stderr := command.ErrOrStderr()
