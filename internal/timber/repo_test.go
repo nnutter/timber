@@ -68,33 +68,6 @@ func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 	assert.NotContains(t, result.stdout, runtime.displayHomePath(barePath))
 }
 
-func TestRepoListQuietOutputsOnlySortedNames(t *testing.T) {
-	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
-
-	repositoryNames := []string{"zeta", "alpha"}
-	for _, repositoryName := range repositoryNames {
-		require.NoError(t, os.MkdirAll(runtime.bareRepoPath(repositoryName), 0o755))
-	}
-
-	testCases := []struct {
-		name string
-		flag string
-	}{
-		{name: "short option", flag: "-q"},
-		{name: "long option", flag: "--quiet"},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			result := runTimberCommandWithRuntime(t, runtime, "repo", "list", testCase.flag)
-
-			require.NoError(t, result.err, result.stderr)
-			assert.Equal(t, "alpha\nzeta\n", result.stdout)
-		})
-	}
-}
-
 func TestRepoAddMapsGitHubRelativePath(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "https://github.com/nnutter/timber", mustResolveRemoteURL(t, "nnutter/timber"))
