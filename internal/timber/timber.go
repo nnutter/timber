@@ -13,7 +13,6 @@ func NewRootCommand(runtime Runtime) *cobra.Command {
 
 	rootCommand.AddCommand(NewCreateCommand(runtime))
 	rootCommand.AddCommand(NewListCommand(runtime))
-	rootCommand.AddCommand(NewMigrateCommand(runtime))
 	rootCommand.AddCommand(NewPruneCommand(runtime))
 	rootCommand.AddCommand(NewRemoveCommand(runtime))
 	rootCommand.AddCommand(NewRepoCommand(runtime))

@@ -563,16 +563,6 @@ func (x testRepository) worktreePath(branchName string) string {
 	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
 }
 
-func addLegacyWorktree(t *testing.T, barePath string, worktreeRoot string, repoName string, branchName string) string {
-	t.Helper()
-	path := filepath.Join(worktreeRoot, branchName, repoName)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	runGitCommand(t, barePath, "branch", branchName, "main")
-	runGitCommand(t, barePath, "worktree", "add", path, branchName)
-	runGitCommand(t, barePath, "branch", "--set-upstream-to", remoteName+"/main", branchName)
-	return path
-}
-
 func (x testRepository) runTimber(t *testing.T, args ...string) commandResult {
 	t.Helper()
 	return x.runTimberFrom(t, x.home, args...)
