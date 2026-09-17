@@ -7,6 +7,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRepoQualifierCompletionOffersRegisteredRepos(t *testing.T) {
+	t.Parallel()
+	testRepository := newTestRepository(t)
+	registerAdditionalRepo(t, testRepository, "other")
+
+	for _, args := range [][]string{
+		{"create", "@"},
+		{"create", ""},
+		{"list", "@"},
+		{"prune", "@"},
+	} {
+		stdout := runCompleteWithRuntime(t, testRepository.runtime, args...)
+		assert.Contains(t, stdout, at(testRepoName, ""), "args=%v", args)
+		assert.Contains(t, stdout, "@other", "args=%v", args)
+	}
+}
+
 func TestWorktreeCompletionAddsAtWhenNameIsAmbiguous(t *testing.T) {
 	t.Parallel()
 	primary := newTestRepository(t)
