@@ -187,19 +187,18 @@ func TestPrunePromptDistinguishesSameNameInTwoRepos(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-func TestPruneKeepsWorktreeWhenUpstreamRefIsMissing(t *testing.T) {
+func TestPruneKeepsWorktreeWhenBranchHasNoUpstream(t *testing.T) {
 	t.Parallel()
-	const branchName = "feature/prune-missing-upstream"
+	const branchName = "feature/prune-no-upstream"
 
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 	runGitCommand(t, testRepository.barePath, "branch", "--unset-upstream", branchName)
 
 	result := testRepository.runTimber(t, "prune", at(testRepoName, ""))
-	// May error on enrich or keep worktree; either is acceptable if worktree remains when not merged.
-	if result.err == nil {
-		testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
-	}
+	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
+	runGitCommand(t, testRepository.barePath, "show-ref", "--verify", "refs/heads/"+branchName)
+	require.ErrorContains(t, result.err, "no upstream branch")
 }
 
 func TestPrunePromptCanForceRemoveSelectedWorktrees(t *testing.T) {
