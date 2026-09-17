@@ -102,7 +102,7 @@ func isZeroCommitHash(hash string) bool {
 	return strings.Trim(hash, "0") == ""
 }
 
-func defaultRepoNameForMigrate(source *Repository, mainPath string) string {
+func defaultRepoNameForImport(source *Repository, mainPath string) string {
 	if result, err := source.git("remote", "get-url", remoteName); err == nil {
 		if name, err := defaultRepoNameFromRemote(result.stdout); err == nil {
 			return name
@@ -115,7 +115,7 @@ func defaultRepoNameFromPath(mainPath string) string {
 	return normalizeRepoName(filepath.Base(mainPath))
 }
 
-func setupMigratedBareOrigin(runtime Runtime, source *Repository, barePath string) error {
+func setupImportedBareOrigin(runtime Runtime, source *Repository, barePath string) error {
 	bare, err := openBareRepository(runtime, barePath)
 	if err != nil {
 		return err

@@ -728,7 +728,7 @@ func (x Runtime) buildImportPlan(sourcePath string, requestedName string) (impor
 
 	repoName := requestedName
 	if repoName == "" {
-		repoName = defaultRepoNameForMigrate(sourceRepository, mainPath)
+		repoName = defaultRepoNameForImport(sourceRepository, mainPath)
 	}
 	if err := validateRepoName(repoName); err != nil {
 		return importPlan{}, err

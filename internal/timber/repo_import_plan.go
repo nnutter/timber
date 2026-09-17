@@ -102,7 +102,7 @@ func (x *importPlan) run(command *cobra.Command) error {
 	if _, err := gitOutput(x.runtime, x.mainPath, "clone", "--bare", x.mainPath, x.barePath); err != nil {
 		return err
 	}
-	if err := setupMigratedBareOrigin(x.runtime, x.source, x.barePath); err != nil {
+	if err := setupImportedBareOrigin(x.runtime, x.source, x.barePath); err != nil {
 		return err
 	}
 
