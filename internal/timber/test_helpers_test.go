@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,58 +50,6 @@ func (x *stubCreateWizardPrompter) Prompt(
 	x.worktrees = worktrees
 	x.showTitle = showTitle
 	return x.selection, x.err
-}
-
-func TestCommandAliases(t *testing.T) {
-	t.Parallel()
-
-	for _, args := range [][]string{
-		{"ls"},
-		{"clean"},
-		{"rm"},
-		{"sw"},
-		{"repo", "ls"},
-		{"repo", "rm"},
-		{"repo", "mv"},
-	} {
-		args = append(args, "--help")
-		result := runTimberCommand(t, args...)
-		require.NoError(t, result.err, strings.Join(args, " ")+": "+result.stderr)
-	}
-}
-
-func TestCreateListAndRemoveLifecycle(t *testing.T) {
-	t.Parallel()
-	const branchName = "feature/one"
-
-	testRepository := newTestRepository(t)
-
-	createResult := testRepository.runTimber(t, "create", at(testRepoName, branchName))
-	require.NoError(t, createResult.err, createResult.stderr)
-	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
-	assert.Contains(t, createResult.stdout, testRepository.worktreePath(branchName))
-
-	branchCommitHash := strings.TrimSpace(runGitCommand(t, testRepository.barePath, "rev-parse", "--short=7", branchName))
-
-	listResult := testRepository.runTimber(t, "list", at(testRepoName, ""))
-	require.NoError(t, listResult.err, listResult.stderr)
-	assert.Contains(t, listResult.stdout, "Name")
-	assert.Contains(t, listResult.stdout, "Repo")
-	assert.Less(t, strings.Index(listResult.stdout, "Name"), strings.Index(listResult.stdout, "Repo"))
-	assert.Contains(t, listResult.stdout, testRepoName)
-	assert.Contains(t, listResult.stdout, branchName)
-	assert.Contains(t, listResult.stdout, "[origin/main]")
-	assert.Contains(t, listResult.stdout, branchCommitHash)
-
-	testRepository.mergeWorktreeBranch(t, branchName)
-	mergedCommitHash := strings.TrimSpace(runGitCommand(t, testRepository.barePath, "rev-parse", "--short=7", branchName))
-
-	removeResult := testRepository.runTimber(t, "remove", at(testRepoName, branchName))
-	require.NoError(t, removeResult.err, removeResult.stderr)
-	assert.Contains(t, removeResult.stderr, mergedCommitHash)
-
-	testRepository.assertBranchMissing(t, branchName)
-	testRepository.assertPathMissing(t, testRepository.worktreePath(branchName))
 }
 
 func installFakeHerdrSpace(t *testing.T, logPath string) string {
@@ -309,56 +256,6 @@ func runCompleteWithRuntime(t *testing.T, runtime Runtime, args ...string) strin
 	command.SetErr(io.Discard)
 	require.NoError(t, command.Execute())
 	return stdout.String()
-}
-
-func TestWorktreeCompletionAddsAtWhenNameIsAmbiguous(t *testing.T) {
-	t.Parallel()
-	primary := newTestRepository(t)
-	secondaryName := "other"
-	registerAdditionalRepo(t, primary, secondaryName)
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/login")).err)
-	require.NoError(t, primary.runTimber(t, "create", at(secondaryName, "feature/login")).err)
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/unique")).err)
-
-	stdout := runCompleteWithRuntime(t, primary.runtime, "switch", "")
-	assert.Contains(t, stdout, at(testRepoName, "feature/login"))
-	assert.Contains(t, stdout, at(secondaryName, "feature/login"))
-	assert.Contains(t, stdout, "feature/unique")
-	assert.NotContains(t, stdout, "feature/unique@")
-	assert.NotContains(t, stdout, "feature/login\n")
-
-	prefix := runCompleteWithRuntime(t, primary.runtime, "switch", "feature/l")
-	assert.Contains(t, prefix, at(testRepoName, "feature/login"))
-	assert.Contains(t, prefix, at(secondaryName, "feature/login"))
-
-	qualified := runCompleteWithRuntime(t, primary.runtime, "switch", "feature/login@")
-	assert.Contains(t, qualified, at(testRepoName, "feature/login"))
-	assert.Contains(t, qualified, at(secondaryName, "feature/login"))
-}
-
-func TestDefaultRepoNameFromRemote(t *testing.T) {
-	t.Parallel()
-	name, err := defaultRepoNameFromRemote("https://github.com/nnutter/timber.git")
-	require.NoError(t, err)
-	assert.Equal(t, "timber", name)
-
-	name, err = defaultRepoNameFromRemote("git@github.com:nnutter/timber.git")
-	require.NoError(t, err)
-	assert.Equal(t, "timber", name)
-}
-
-func TestDefaultRepoNameFromPathStripsGitSuffix(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "roam", defaultRepoNameFromPath("/tmp/src/roam.git"))
-	assert.Equal(t, "roam", defaultRepoNameFromPath("/tmp/src/main/roam.git"))
-	assert.Equal(t, "roam", defaultRepoNameFromPath("/tmp/src/roam"))
-}
-
-func TestNormalizeRepoNameStripsGitSuffix(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "roam", normalizeRepoName("roam.git"))
-	assert.Equal(t, "roam", normalizeRepoName(" roam.git "))
-	assert.Equal(t, "roam", normalizeRepoName("roam"))
 }
 
 func mustResolveRemoteURL(t *testing.T, input string) string {

@@ -4,7 +4,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestDefaultRepoNameFromRemote(t *testing.T) {
+	t.Parallel()
+	name, err := defaultRepoNameFromRemote("https://github.com/nnutter/timber.git")
+	require.NoError(t, err)
+	assert.Equal(t, "timber", name)
+
+	name, err = defaultRepoNameFromRemote("git@github.com:nnutter/timber.git")
+	require.NoError(t, err)
+	assert.Equal(t, "timber", name)
+}
 
 func TestDefaultRepoAliasFromRemote(t *testing.T) {
 	t.Parallel()
