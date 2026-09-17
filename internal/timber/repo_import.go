@@ -2,6 +2,7 @@ package timber
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -99,4 +100,57 @@ func shortCommitHash(hash string) string {
 // reports an all-zero HEAD.
 func isZeroCommitHash(hash string) bool {
 	return strings.Trim(hash, "0") == ""
+}
+
+func defaultRepoNameForMigrate(source *Repository, mainPath string) string {
+	if result, err := source.git("remote", "get-url", remoteName); err == nil {
+		if name, err := defaultRepoNameFromRemote(result.stdout); err == nil {
+			return name
+		}
+	}
+	return defaultRepoNameFromPath(mainPath)
+}
+
+func defaultRepoNameFromPath(mainPath string) string {
+	return normalizeRepoName(filepath.Base(mainPath))
+}
+
+func setupMigratedBareOrigin(runtime Runtime, source *Repository, barePath string) error {
+	bare, err := openBareRepository(runtime, barePath)
+	if err != nil {
+		return err
+	}
+
+	originURL := ""
+	if result, err := source.git("remote", "get-url", remoteName); err == nil {
+		originURL = result.stdout
+	}
+
+	// Drop the clone-default origin (it points at the ephemeral source checkout).
+	_, _ = bare.git("remote", "remove", remoteName)
+
+	if originURL == "" {
+		// Local-only source repositories have no origin to track.
+		return nil
+	}
+
+	if _, err := bare.git("remote", "add", remoteName, originURL); err != nil {
+		return err
+	}
+	return configureBareOriginTracking(runtime, barePath)
+}
+
+func ensureBranchUpstream(repository *Repository, branchName string) error {
+	_, err := repository.upstreamReference(branchName)
+	if err == nil {
+		return nil
+	}
+
+	upstreamBranch, resolveErr := repository.remoteHeadBranch()
+	if resolveErr != nil {
+		// Local-only repositories may have no origin; leave upstream unset.
+		return nil
+	}
+	_, err = repository.git("branch", "--set-upstream-to", upstreamBranch, branchName)
+	return err
 }
