@@ -124,10 +124,11 @@ func (x *importPlan) run(command *cobra.Command) error {
 	created := make([]*importWorktree, 0, len(x.worktrees))
 	for index := range x.worktrees {
 		worktree := &x.worktrees[index]
+		// Git can leave a worktree behind even when add reports a failure.
+		created = append(created, worktree)
 		if err := x.createWorktree(bareRepository, worktree); err != nil {
 			return errors.Join(err, x.rollbackCreated(bareRepository, created))
 		}
-		created = append(created, worktree)
 	}
 
 	trashablePaths := make([]string, 0, len(x.worktrees))
@@ -170,6 +171,9 @@ func (x *importPlan) createWorktree(bareRepository *Repository, worktree *import
 func (x *importPlan) rollbackCreated(bareRepository *Repository, created []*importWorktree) error {
 	var rollbackErrors []error
 	for _, worktree := range created {
+		if _, err := os.Stat(worktree.TargetPath); errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if _, err := bareRepository.git("worktree", "remove", "--force", worktree.TargetPath); err != nil {
 			rollbackErrors = append(rollbackErrors, err)
 		}
