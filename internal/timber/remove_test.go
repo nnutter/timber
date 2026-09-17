@@ -87,8 +87,11 @@ func TestRemoveFailsWhenDirtyWithoutForce(t *testing.T) {
 	testRepository.writeFileInWorktree(t, branchName, "dirty.txt", "dirty\n")
 
 	result := testRepository.runTimber(t, "remove", at(testRepoName, branchName))
-	require.Error(t, result.err)
-	assert.Contains(t, result.err.Error(), "not clean")
+	contents, err := os.ReadFile(filepath.Join(testRepository.worktreePath(branchName), "dirty.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "dirty\n", string(contents))
+	runGitCommand(t, testRepository.barePath, "show-ref", "--verify", "refs/heads/"+branchName)
+	require.ErrorContains(t, result.err, "not clean")
 }
 
 func TestRemoveWithNoArgsRemovesCurrentWorktree(t *testing.T) {
