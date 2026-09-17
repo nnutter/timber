@@ -70,7 +70,8 @@ mise run all
 `mise run all` runs formatting, fixes, tests, and static analysis.
 `mise run format` (or `mise run fmt`) formats Go files.
 `mise run fix` applies `go fix`, tidies the modules, and runs `go vet -fix`.
-`mise run tests` (or `mise run test`) runs the test suite with the race detector.
+`mise run tests` (or `mise run test`) runs the Go and plugin shell tests with the race detector and shuffled test order.
+Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-tests` requires these dependencies rather than silently skipping those tests.
 `mise run static-analysis` runs the configured static-analysis tools, including gitleaks.
 `mise run coverage` (or `mise run cover`) runs the tests and prints coverage.
 `lefthook install` enables the pre-commit hook, which runs `mise run pre-commit` to format staged Go files.
