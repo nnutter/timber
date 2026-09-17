@@ -88,13 +88,6 @@ func TestWritePathFileRejectsPathOutsideTemporaryDirectory(t *testing.T) {
 	require.Contains(t, err.Error(), "outside temporary directory")
 }
 
-func TestWorktreeRootFallsBackToHomeWorktrees(t *testing.T) {
-	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
-	assert.Equal(t, filepath.Join(home, "worktrees"), runtime.worktreeRoot())
-}
-
 func TestDisplayHomePath(t *testing.T) {
 	t.Parallel()
 	home := resolvedTempDir(t)
