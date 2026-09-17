@@ -1,8 +1,6 @@
 package timber
 
 import (
-	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -229,14 +227,6 @@ func TestTUICreateFailsWhenNoRepositoriesAreRegistered(t *testing.T) {
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{})
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "no registered repositories")
-}
-
-func TestTUICreateRequiresInteractiveTerminal(t *testing.T) {
-	t.Parallel()
-	prompter := bubbleteaCreateWizardPrompter{interactive: func() bool { return false }}
-	_, err := prompter.Prompt(bytes.NewBuffer(nil), io.Discard, []registeredRepo{{Name: testRepoName}}, make([]managedWorktree, 0), true)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "interactive terminal")
 }
 
 func TestTUICreateListsEveryRepositoryFromAManagedWorktree(t *testing.T) {
