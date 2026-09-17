@@ -366,30 +366,14 @@ exit 17
 
 func TestGeneratedZshWrapperChangesDirectoryOnSwitch(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("zsh"); err != nil {
-		t.Skip("zsh is not installed")
-	}
-
-	outDir := resolvedTempDir(t)
-	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
-
 	targetDir := resolvedTempDir(t)
-	binDir := resolvedTempDir(t)
 	fakeTimber := `#!/bin/sh
 printf '%s\n' "$TIMBER_SWITCH_PATH_FILE_TARGET" > "$TIMBER_SWITCH_PATH_FILE"
 `
-	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
-
-	command := testCommand(t,
-		"zsh", "-f", "-c",
+	command := generatedZshCommand(t, fakeTimber,
 		`source "$1"; t switch feature@repo >/dev/null; pwd -P`,
-		"--", filepath.Join(outDir, "t"),
 	)
-	command.Env = replaceTestEnvironment(
-		command.Env,
-		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"TIMBER_SWITCH_PATH_FILE_TARGET="+targetDir,
-	)
+	command.Env = replaceTestEnvironment(command.Env, "TIMBER_SWITCH_PATH_FILE_TARGET="+targetDir)
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
 	assert.Equal(t, canonicalPath(targetDir), strings.TrimSpace(string(output)))
