@@ -19,7 +19,7 @@ type bubbleteaRepoPrompter struct {
 	output io.Writer
 }
 
-func (x bubbleteaRepoPrompter) Prompt(repos []registeredRepo) (registeredRepo, error) {
+func newRepoPickerModel(repos []registeredRepo) repoPickerModel {
 	items := make([]list.Item, 0, len(repos))
 	for _, repo := range repos {
 		items = append(items, repoListItem{repo: repo})
@@ -34,7 +34,11 @@ func (x bubbleteaRepoPrompter) Prompt(repos []registeredRepo) (registeredRepo, e
 	repoList.SetFilteringEnabled(true)
 	repoList.Styles.Title = lipgloss.NewStyle().Bold(true)
 
-	model := repoPickerModel{list: repoList}
+	return repoPickerModel{list: repoList}
+}
+
+func (x bubbleteaRepoPrompter) Prompt(repos []registeredRepo) (registeredRepo, error) {
+	model := newRepoPickerModel(repos)
 	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
 	if x.input != nil {
 		programOptions = append(programOptions, tea.WithInput(x.input))
