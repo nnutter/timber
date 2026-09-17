@@ -130,10 +130,12 @@ func TestRemoveFailsWhenUnmergedWithoutForce(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 	testRepository.commitFileInWorktree(t, branchName, "extra.txt", "extra\n")
+	head := runGitCommand(t, testRepository.worktreePath(branchName), "rev-parse", "HEAD")
 
 	result := testRepository.runTimber(t, "remove", at(testRepoName, branchName))
-	require.Error(t, result.err)
-	assert.Contains(t, result.err.Error(), "not merged")
+	assert.Equal(t, head, runGitCommand(t, testRepository.worktreePath(branchName), "rev-parse", "HEAD"))
+	assert.Equal(t, head, runGitCommand(t, testRepository.barePath, "rev-parse", "refs/heads/"+branchName))
+	require.ErrorContains(t, result.err, "not merged")
 }
 
 func TestRemoveForceRemovesDirtyUnmergedWorktree(t *testing.T) {
