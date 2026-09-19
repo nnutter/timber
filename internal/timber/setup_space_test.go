@@ -24,14 +24,106 @@ func TestSetupSpaceOpensNamedWorktreeInNewHerdrWorkspace(t *testing.T) {
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
 
 	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
+	barePath := canonicalPath(testRepository.barePath)
 	assert.Equal(t, []string{
-		fakeHerdrLogLine("workspace", "create", "--cwd", worktreePath, "--label", testRepoName, "--no-focus"),
-		fakeHerdrLogLine("tab", "rename", "w1:t1", "Agent"),
-		fakeHerdrLogLine("pane", "rename", "w1:p1", branchName),
-		fakeHerdrLogLine("tab", "create", "--workspace", "w1", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
-		fakeHerdrLogLine("pane", "run", "w1:p1", "pi"),
-		fakeHerdrLogLine("workspace", "focus", "w1"),
-		fakeHerdrLogLine("tab", "focus", "w1:t1"),
+		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
+		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
+		fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", worktreePath, "--label", branchName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w2:t1", "Agent"),
+		fakeHerdrLogLine("pane", "rename", "w2:p1", branchName),
+		fakeHerdrLogLine("tab", "create", "--workspace", "w2", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
+		fakeHerdrLogLine("pane", "run", "w2:p1", "pi"),
+		fakeHerdrLogLine("workspace", "focus", "w2"),
+		fakeHerdrLogLine("tab", "focus", "w2:t1"),
+	}, readFakeHerdrLog(t, logPath))
+}
+
+func TestSetupSpaceReusesExistingParentWorkspace(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/shared-parent"
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
+	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_PARENT_ID=w7")
+
+	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
+
+	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
+	barePath := canonicalPath(testRepository.barePath)
+	assert.Equal(t, []string{
+		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
+		fakeHerdrLogLine("workspace", "get", "w7"),
+		fakeHerdrLogLine("worktree", "open", "--workspace", "w7", "--path", worktreePath, "--label", branchName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w2:t1", "Agent"),
+		fakeHerdrLogLine("pane", "rename", "w2:p1", branchName),
+		fakeHerdrLogLine("tab", "create", "--workspace", "w2", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
+		fakeHerdrLogLine("pane", "run", "w2:p1", "pi"),
+		fakeHerdrLogLine("workspace", "focus", "w2"),
+		fakeHerdrLogLine("tab", "focus", "w2:t1"),
+	}, readFakeHerdrLog(t, logPath))
+}
+
+func TestSetupSpaceRenamesLegacyParentLabel(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/legacy-parent"
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
+	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime = withTestEnvironment(
+		testRepository.runtime,
+		"FAKE_HERDR_PARENT_ID=w7",
+		"FAKE_HERDR_PARENT_LABEL="+testRepoName+".git",
+	)
+
+	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+
+	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
+	barePath := canonicalPath(testRepository.barePath)
+	assert.Equal(t, []string{
+		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
+		fakeHerdrLogLine("workspace", "get", "w7"),
+		fakeHerdrLogLine("workspace", "rename", "w7", testRepoName),
+		fakeHerdrLogLine("worktree", "open", "--workspace", "w7", "--path", worktreePath, "--label", branchName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w2:t1", "Agent"),
+		fakeHerdrLogLine("pane", "rename", "w2:p1", branchName),
+		fakeHerdrLogLine("tab", "create", "--workspace", "w2", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
+		fakeHerdrLogLine("pane", "run", "w2:p1", "pi"),
+		fakeHerdrLogLine("workspace", "focus", "w2"),
+		fakeHerdrLogLine("tab", "focus", "w2:t1"),
+	}, readFakeHerdrLog(t, logPath))
+}
+
+func TestSetupSpaceFocusesAlreadyOpenWorktreeWithoutReconfiguring(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/already-open"
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
+	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_ALREADY_OPEN=1")
+
+	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
+
+	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
+	barePath := canonicalPath(testRepository.barePath)
+	assert.Equal(t, []string{
+		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
+		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
+		fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", worktreePath, "--label", branchName, "--no-focus"),
+		fakeHerdrLogLine("workspace", "focus", "w2"),
 	}, readFakeHerdrLog(t, logPath))
 }
 
@@ -130,7 +222,7 @@ func TestSetupSpaceClosesNewWorkspaceWhenTabCreationFails(t *testing.T) {
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "herdr tab create")
-	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w1"), readFakeHerdrLog(t, logPath)[4])
+	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[6])
 }
 
 func TestSetupSpaceClosesNewWorkspaceWhenShellTabCreationFails(t *testing.T) {
@@ -147,7 +239,7 @@ func TestSetupSpaceClosesNewWorkspaceWhenShellTabCreationFails(t *testing.T) {
 	result := testRepository.runTimber(t, "herdr", "space", "-n", at(testRepoName, branchName))
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "herdr tab create")
-	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w1"), readFakeHerdrLog(t, logPath)[4])
+	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[6])
 }
 
 func TestSetupSpaceClosesNewWorkspaceWhenTabResponseIsInvalid(t *testing.T) {
@@ -164,7 +256,26 @@ func TestSetupSpaceClosesNewWorkspaceWhenTabResponseIsInvalid(t *testing.T) {
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "decode herdr tab create response")
-	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w1"), readFakeHerdrLog(t, logPath)[4])
+	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[6])
+}
+
+func TestSetupSpaceFailsWhenParentLookupFails(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/space-parent-failure"
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
+	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL=worktree list")
+
+	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
+	require.Error(t, result.err)
+	assert.Contains(t, result.err.Error(), "herdr worktree list")
+	assert.Equal(t, []string{
+		fakeHerdrLogLine("worktree", "list", "--cwd", canonicalPath(testRepository.barePath)),
+	}, readFakeHerdrLog(t, logPath))
 }
 
 func TestSetupSpaceCompletionOffersManagedWorktreeNames(t *testing.T) {

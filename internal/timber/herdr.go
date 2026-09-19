@@ -20,9 +20,29 @@ type herdrResource struct {
 
 type herdrWorkspaceCreateResponse struct {
 	Result struct {
-		Workspace herdrResource `json:"workspace"`
-		Tab       herdrResource `json:"tab"`
-		RootPane  herdrResource `json:"root_pane"`
+		Workspace   herdrResource `json:"workspace"`
+		Tab         herdrResource `json:"tab"`
+		RootPane    herdrResource `json:"root_pane"`
+		AlreadyOpen bool          `json:"already_open"`
+	} `json:"result"`
+}
+
+type herdrWorktreeListResponse struct {
+	Result struct {
+		Source struct {
+			RepoName          string  `json:"repo_name"`
+			RepoRoot          string  `json:"repo_root"`
+			SourceWorkspaceID *string `json:"source_workspace_id"`
+		} `json:"source"`
+	} `json:"result"`
+}
+
+type herdrWorkspaceGetResponse struct {
+	Result struct {
+		Workspace struct {
+			WorkspaceID string `json:"workspace_id"`
+			Label       string `json:"label"`
+		} `json:"workspace"`
 	} `json:"result"`
 }
 
@@ -46,6 +66,7 @@ type herdrSpace struct {
 	agentTabID     string
 	agentPaneID    string
 	agentPaneLabel string
+	alreadyOpen    bool
 }
 
 func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktreeName string) (herdrSpace, error) {
@@ -61,8 +82,45 @@ func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktr
 		agentTabID:     response.Result.Tab.TabID,
 		agentPaneID:    response.Result.RootPane.PaneID,
 		agentPaneLabel: worktreeName,
+		alreadyOpen:    response.Result.AlreadyOpen,
 	}
 	return space, space.validateInitialResources()
+}
+
+func parseHerdrWorkspaceID(output []byte) (string, error) {
+	var response herdrWorkspaceCreateResponse
+	if err := json.Unmarshal(output, &response); err != nil {
+		return "", fmt.Errorf("decode herdr workspace create response: %w", err)
+	}
+	if response.Result.Workspace.WorkspaceID == "" {
+		return "", errors.New("herdr workspace create response has no workspace ID")
+	}
+	return response.Result.Workspace.WorkspaceID, nil
+}
+
+func parseHerdrWorktreeListParent(output []byte) (string, error) {
+	var response herdrWorktreeListResponse
+	if err := json.Unmarshal(output, &response); err != nil {
+		return "", fmt.Errorf("decode herdr worktree list response: %w", err)
+	}
+	if response.Result.Source.SourceWorkspaceID == nil {
+		return "", nil
+	}
+	return *response.Result.Source.SourceWorkspaceID, nil
+}
+
+func parseHerdrWorkspaceLabel(output []byte, workspaceID string) (string, error) {
+	var response herdrWorkspaceGetResponse
+	if err := json.Unmarshal(output, &response); err != nil {
+		return "", fmt.Errorf("decode herdr workspace get response: %w", err)
+	}
+	if response.Result.Workspace.WorkspaceID == "" {
+		return "", errors.New("herdr workspace get response has no workspace ID")
+	}
+	if response.Result.Workspace.WorkspaceID != workspaceID {
+		return "", fmt.Errorf("herdr workspace get response has unexpected workspace ID %q", response.Result.Workspace.WorkspaceID)
+	}
+	return response.Result.Workspace.Label, nil
 }
 
 func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktreeName string) (herdrSpace, error) {
@@ -144,6 +202,11 @@ func (x herdrSpace) focus(ctx context.Context) error {
 		return err
 	}
 	_, err := x.runtime.runHerdr(ctx, "tab", "focus", x.agentTabID)
+	return err
+}
+
+func (x herdrSpace) focusWorkspace(ctx context.Context) error {
+	_, err := x.runtime.runHerdr(ctx, "workspace", "focus", x.workspaceID)
 	return err
 }
 

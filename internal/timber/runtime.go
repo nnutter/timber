@@ -175,6 +175,9 @@ func (x Runtime) openHerdrSpace(ctx context.Context, worktree managedWorktree) (
 	if space.workspaceID == "" {
 		return returnErr
 	}
+	if space.alreadyOpen {
+		return space.focusWorkspace(ctx)
+	}
 
 	defer func() {
 		if returnErr != nil {
@@ -208,16 +211,65 @@ func (x Runtime) createHerdrSpace(ctx context.Context, worktree managedWorktree)
 		return herdrSpace{}, err
 	}
 
+	parentID, err := x.ensureHerdrParentWorkspace(ctx, worktree.Repo)
+	if err != nil {
+		return herdrSpace{}, err
+	}
+
 	output, err := x.runHerdr(
 		ctx,
-		"workspace", "create", "--cwd", absolutePath,
-		"--label", worktree.Repo, "--no-focus",
+		"worktree", "open", "--workspace", parentID, "--path", absolutePath,
+		"--label", worktree.Name, "--no-focus",
 	)
 	if err != nil {
 		return herdrSpace{}, err
 	}
 
 	return parseHerdrSpace(x, output, absolutePath, worktree.Name)
+}
+
+// ensureHerdrParentWorkspace returns the ID of the Herdr workspace rooted at
+// the repository's bare directory, creating it when no such workspace exists.
+// A parent left behind by an earlier workflow keeps its label unless it is
+// exactly the bare directory name; only that artifact is renamed to the
+// repository name.
+func (x Runtime) ensureHerdrParentWorkspace(ctx context.Context, repoName string) (string, error) {
+	barePath := filepath.Clean(x.bareRepoPath(repoName))
+
+	output, err := x.runHerdr(ctx, "worktree", "list", "--cwd", barePath)
+	if err != nil {
+		return "", err
+	}
+	parentID, err := parseHerdrWorktreeListParent(output)
+	if err != nil {
+		return "", err
+	}
+	if parentID == "" {
+		output, err := x.runHerdr(
+			ctx,
+			"workspace", "create", "--cwd", barePath,
+			"--label", repoName, "--no-focus",
+		)
+		if err != nil {
+			return "", err
+		}
+		return parseHerdrWorkspaceID(output)
+	}
+
+	output, err = x.runHerdr(ctx, "workspace", "get", parentID)
+	if err != nil {
+		return "", err
+	}
+	label, err := parseHerdrWorkspaceLabel(output, parentID)
+	if err != nil {
+		return "", err
+	}
+	if label == repoName+bareRepoSuffix {
+		if _, err := x.runHerdr(ctx, "workspace", "rename", parentID, repoName); err != nil {
+			return "", err
+		}
+	}
+	return parentID, nil
 }
 
 func (x Runtime) currentHerdrSpace(ctx context.Context, worktree managedWorktree) (herdrSpace, error) {
