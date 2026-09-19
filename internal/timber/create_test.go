@@ -120,14 +120,18 @@ func TestCreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 
 	worktreePath, err := filepath.Abs(testRepository.worktreePath(branchName))
 	require.NoError(t, err)
+	barePath, err := filepath.Abs(testRepository.barePath)
+	require.NoError(t, err)
 	assert.Equal(t, []string{
-		fakeHerdrLogLine("workspace", "create", "--cwd", worktreePath, "--label", testRepoName, "--no-focus"),
-		fakeHerdrLogLine("tab", "rename", "w1:t1", "Agent"),
-		fakeHerdrLogLine("pane", "rename", "w1:p1", branchName),
-		fakeHerdrLogLine("tab", "create", "--workspace", "w1", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
-		fakeHerdrLogLine("pane", "run", "w1:p1", "pi"),
-		fakeHerdrLogLine("workspace", "focus", "w1"),
-		fakeHerdrLogLine("tab", "focus", "w1:t1"),
+		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
+		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
+		fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", worktreePath, "--label", branchName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w2:t1", "Agent"),
+		fakeHerdrLogLine("pane", "rename", "w2:p1", branchName),
+		fakeHerdrLogLine("tab", "create", "--workspace", "w2", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
+		fakeHerdrLogLine("pane", "run", "w2:p1", "pi"),
+		fakeHerdrLogLine("workspace", "focus", "w2"),
+		fakeHerdrLogLine("tab", "focus", "w2:t1"),
 	}, readFakeHerdrLog(t, logPath))
 }
 
@@ -156,7 +160,7 @@ func TestCreateInHerdrOpensStandardHerdrSpace(t *testing.T) {
 
 	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
 	require.NoError(t, result.err, result.stderr)
-	assert.Len(t, readFakeHerdrLog(t, logPath), 7)
+	assert.Len(t, readFakeHerdrLog(t, logPath), 9)
 }
 
 func TestCreateWithNoHerdrDoesNotInvokeHerdr(t *testing.T) {
@@ -280,7 +284,7 @@ func TestTUICreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
-	assert.Len(t, readFakeHerdrLog(t, logPath), 7)
+	assert.Len(t, readFakeHerdrLog(t, logPath), 9)
 }
 
 func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
@@ -304,7 +308,7 @@ func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
 
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
-	assert.Len(t, readFakeHerdrLog(t, logPath), 7)
+	assert.Len(t, readFakeHerdrLog(t, logPath), 9)
 	require.Len(t, prompter.worktrees, 1)
 	assert.Equal(t, testRepoName, prompter.worktrees[0].Repo)
 	assert.Equal(t, branchName, prompter.worktrees[0].Name)

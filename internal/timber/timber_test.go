@@ -125,12 +125,18 @@ printf '\n' >> %q
 operation="$1 $2"
 tab_label=""
 workspace_id=""
+list_cwd=""
+open_path=""
 previous=""
 for arg in "$@"; do
   if [ "$previous" = "--label" ]; then
     tab_label="$arg"
   elif [ "$previous" = "--workspace" ]; then
     workspace_id="$arg"
+  elif [ "$previous" = "--cwd" ]; then
+    list_cwd="$arg"
+  elif [ "$previous" = "--path" ]; then
+    open_path="$arg"
   fi
   previous="$arg"
 done
@@ -147,6 +153,25 @@ fi
 case "$operation" in
   "workspace create")
     printf '{"result":{"workspace":{"workspace_id":"w1"},"tab":{"tab_id":"w1:t1"},"root_pane":{"pane_id":"w1:p1"}}}'
+    ;;
+  "workspace get")
+    printf '{"result":{"workspace":{"workspace_id":"%%s","label":"%%s"}}}' "$3" "${FAKE_HERDR_PARENT_LABEL:-repo}"
+    ;;
+  "worktree list")
+    if [ -z "${FAKE_HERDR_PARENT_ID:-}" ]; then
+      parent_ref="null"
+    else
+      parent_ref="\"$FAKE_HERDR_PARENT_ID\""
+    fi
+    printf '{"result":{"source":{"repo_key":"test","repo_name":"repo","repo_root":"%%s","source_checkout_path":"%%s","source_workspace_id":%%s},"worktrees":[]}}' "$list_cwd" "$list_cwd" "$parent_ref"
+    ;;
+  "worktree open")
+    if [ "${FAKE_HERDR_ALREADY_OPEN:-}" = "1" ]; then
+      already="true"
+    else
+      already="false"
+    fi
+    printf '{"result":{"workspace":{"workspace_id":"w2"},"tab":{"tab_id":"w2:t1"},"root_pane":{"pane_id":"w2:p1"},"worktree":{"path":"%%s"},"already_open":%%s}}' "$open_path" "$already"
     ;;
   "pane current")
     printf '{"result":{"pane":{"workspace_id":"w9","tab_id":"w9:t1","pane_id":"w9:p1"}}}'
