@@ -25,6 +25,7 @@ func TestParseHerdrSpaceReadsAlreadyOpen(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, space.alreadyOpen)
 	assert.Equal(t, "w2", space.workspaceID)
+	assert.Equal(t, "feature", space.agentPaneLabel)
 }
 
 func TestParseHerdrSpaceDefaultsToNotAlreadyOpen(t *testing.T) {
@@ -64,6 +65,33 @@ func TestParseHerdrWorktreeListParent(t *testing.T) {
 
 	_, err = parseHerdrWorktreeListParent([]byte(`{`))
 	require.ErrorContains(t, err, "decode herdr worktree list response")
+}
+
+func TestParentDashboardCommand(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t,
+		"while :; do clear; timber list '@repo' --pr; sleep 60; done",
+		parentDashboardCommand("repo", true),
+	)
+	assert.Equal(t,
+		"while :; do clear; timber list '@repo'; sleep 60; done",
+		parentDashboardCommand("repo", false),
+	)
+}
+
+func TestQualifiedWorktreeName(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "feature/login@timber", qualifiedWorktreeName("feature/login", "timber"))
+}
+
+func TestShellQuote(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "''", shellQuote(""))
+	assert.Equal(t, "'plain'", shellQuote("plain"))
+	assert.Equal(t, "'it'\\''s'", shellQuote("it's"))
 }
 
 func TestParseHerdrWorkspaceLabel(t *testing.T) {

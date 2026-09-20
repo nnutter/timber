@@ -48,6 +48,7 @@ That command writes the plugin to `~/.config/herdr/plugins/timber` (`$XDG_CONFIG
 Copying the files is not enough on its own: Herdr only registers actions after `plugin link` or `plugin install`.
 The popup runs `timber tui --herdr --no-title` after it adds common tool paths.
 The TUI can create a new worktree or open a Herdr space for an existing one.
+Worktree spaces open grouped under a parent space for the repository; the parent runs a `Status` tab that refreshes `timber list @<repo>` (with `--pr` when `gh` is authenticated).
 The command prints a keybinding snippet to add to `~/.config/herdr/config.toml`:
 
 ```toml
@@ -341,6 +342,8 @@ Columns:
 - `Status`: aligned ahead (`↑`, green) and behind (`↓`, blue) counts, followed by the upstream branch
 - `Commit`: short commit hash
 - `Dirty`: whether the worktree has uncommitted changes (`true` is highlighted in yellow)
+- `Merged`: whether the branch is merged into its upstream (same signal `prune` uses)
+- `--pr`: add a `PR` column with the open pull request and check status (`#56 ✓`, `#56 ✗`, `#56 …`), one `gh` lookup per repository
 
 ### `timber migrate`
 

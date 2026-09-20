@@ -18,6 +18,7 @@ type managedWorktree struct {
 	ListStatus      listStatus
 	Clean           bool
 	Merged          bool
+	PullRequest     string
 }
 
 func (x managedWorktree) shortCommitHash() string {

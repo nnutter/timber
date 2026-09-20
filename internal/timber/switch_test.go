@@ -233,6 +233,7 @@ func TestSwitchCreateWithHerdrDoesNotReportPath(t *testing.T) {
 	testRepository := newTestRepository(t)
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	pathFile := filepath.Join(resolvedTempDir(t), "switch-path")
 	runtime := testRepository.runtime
 	runtime.SwitchPathFile = pathFile

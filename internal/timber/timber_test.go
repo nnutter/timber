@@ -193,6 +193,32 @@ esac
 	return scriptPath
 }
 
+func installFakeGh(t *testing.T) string {
+	t.Helper()
+
+	binDir := resolvedTempDir(t)
+	scriptPath := filepath.Join(binDir, "gh")
+	script := `#!/bin/sh
+operation="$1 $2"
+if [ "$operation" = "auth status" ]; then
+  if [ "${FAKE_GH_AUTH_OK:-1}" = "1" ]; then
+    exit 0
+  fi
+  echo "not logged in" >&2
+  exit 1
+fi
+if [ "$operation" = "pr list" ]; then
+  printf '%s' "${FAKE_GH_PR_JSON:-[]}"
+  exit 0
+fi
+echo "unexpected gh call: $*" >&2
+exit 1
+`
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755))
+
+	return scriptPath
+}
+
 func fakeHerdrLogLine(args ...string) string {
 	return strings.Join(args, "\x1f")
 }

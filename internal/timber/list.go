@@ -10,6 +10,7 @@ import (
 
 type listCommandOptions struct {
 	repoSelection
+	pullRequests bool
 }
 
 func NewListCommand(runtime Runtime) *cobra.Command {
@@ -23,6 +24,7 @@ func NewListCommand(runtime Runtime) *cobra.Command {
 		RunE:              options.Execute,
 		ValidArgsFunction: runtime.completeRepoQualifiers,
 	}
+	command.Flags().BoolVar(&options.pullRequests, "pr", false, "Include open pull request status from gh")
 	return command
 }
 
@@ -35,10 +37,19 @@ func (x *listCommandOptions) Execute(command *cobra.Command, args []string) erro
 	if err != nil {
 		return err
 	}
+	if x.pullRequests {
+		if err := x.runtime.enrichListedWorktreesWithPullRequests(command.Context(), worktrees); err != nil {
+			return err
+		}
+	}
 
+	headers := []string{"Name", "Repo", "Status", "Commit", "Dirty", "Merged"}
+	if x.pullRequests {
+		headers = append(headers, "PR")
+	}
 	statusFormatter := newListStatusFormatter(worktrees)
-	tableView := newOutputTable("Name", "Repo", "Status", "Commit", "Dirty").BorderRow(true)
-	tableView.Rows(groupListTableRows(worktrees, statusFormatter)...)
+	tableView := newOutputTable(headers...).BorderRow(true)
+	tableView.Rows(groupListTableRows(worktrees, statusFormatter, x.pullRequests)...)
 
 	_, err = fmt.Fprintln(command.OutOrStdout(), dottedListRowRules(tableView.String()))
 	return err
@@ -60,7 +71,7 @@ func dottedListRowRules(tableOutput string) string {
 	return strings.Join(lines, "\n")
 }
 
-func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusFormatter) [][]string {
+func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusFormatter, showPullRequests bool) [][]string {
 	rows := make([][]string, 0, (len(worktrees)+1)/2)
 	for index, worktree := range worktrees {
 		row := []string{
@@ -69,6 +80,10 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 			statusFormatter.format(worktree.ListStatus),
 			worktree.shortCommitHash(),
 			formatDirtyStatus(worktree.Clean),
+			strconv.FormatBool(worktree.Merged),
+		}
+		if showPullRequests {
+			row = append(row, worktree.PullRequest)
 		}
 		if index%2 == 0 {
 			rows = append(rows, row)

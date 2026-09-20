@@ -5,11 +5,15 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const (
 	agentTabLabel = "Agent"
 	shellTabLabel = "Shell"
+
+	parentDashboardTabLabel       = "Status"
+	parentDashboardRefreshSeconds = 60
 )
 
 type herdrResource struct {
@@ -69,7 +73,7 @@ type herdrSpace struct {
 	alreadyOpen    bool
 }
 
-func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktreeName string) (herdrSpace, error) {
+func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, agentPaneLabel string) (herdrSpace, error) {
 	var response herdrWorkspaceCreateResponse
 	if err := json.Unmarshal(output, &response); err != nil {
 		return herdrSpace{}, fmt.Errorf("decode herdr workspace create response: %w", err)
@@ -81,10 +85,15 @@ func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktr
 		worktreePath:   worktreePath,
 		agentTabID:     response.Result.Tab.TabID,
 		agentPaneID:    response.Result.RootPane.PaneID,
-		agentPaneLabel: worktreeName,
+		agentPaneLabel: agentPaneLabel,
 		alreadyOpen:    response.Result.AlreadyOpen,
 	}
 	return space, space.validateInitialResources()
+}
+
+// qualifiedWorktreeName formats the worktree label Herdr panes display.
+func qualifiedWorktreeName(worktreeName string, repoName string) string {
+	return worktreeName + "@" + repoName
 }
 
 func parseHerdrWorkspaceID(output []byte) (string, error) {
@@ -123,7 +132,7 @@ func parseHerdrWorkspaceLabel(output []byte, workspaceID string) (string, error)
 	return response.Result.Workspace.Label, nil
 }
 
-func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktreeName string) (herdrSpace, error) {
+func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string, agentPaneLabel string) (herdrSpace, error) {
 	var response herdrPaneCurrentResponse
 	if err := json.Unmarshal(output, &response); err != nil {
 		return herdrSpace{}, fmt.Errorf("decode herdr pane current response: %w", err)
@@ -135,7 +144,7 @@ func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string,
 		worktreePath:   worktreePath,
 		agentTabID:     response.Result.Pane.TabID,
 		agentPaneID:    response.Result.Pane.PaneID,
-		agentPaneLabel: worktreeName,
+		agentPaneLabel: agentPaneLabel,
 	}
 	if space.workspaceID == "" || space.agentTabID == "" || space.agentPaneID == "" {
 		return herdrSpace{}, errors.New("herdr pane current response has incomplete pane resources")
@@ -208,6 +217,24 @@ func (x herdrSpace) focus(ctx context.Context) error {
 func (x herdrSpace) focusWorkspace(ctx context.Context) error {
 	_, err := x.runtime.runHerdr(ctx, "workspace", "focus", x.workspaceID)
 	return err
+}
+
+// parentDashboardCommand builds the refresh loop a parent workspace runs in
+// its Status tab. Pull request status is included only when gh proved usable
+// at setup; a later login takes effect the next time the parent is created.
+func parentDashboardCommand(repoName string, withPullRequests bool) string {
+	command := "timber list " + shellQuote("@"+repoName)
+	if withPullRequests {
+		command += " --pr"
+	}
+	return fmt.Sprintf("while :; do clear; %s; sleep %d; done", command, parentDashboardRefreshSeconds)
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
 func (x herdrSpace) close(ctx context.Context) error {

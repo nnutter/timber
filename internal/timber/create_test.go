@@ -112,6 +112,7 @@ func TestCreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	testRepository := newTestRepository(t)
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 
 	result := testRepository.runTimber(t, "create", "--herdr", at(testRepoName, branchName))
 	require.NoError(t, result.err, result.stderr)
@@ -125,9 +126,11 @@ func TestCreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
 		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w1:t1", "Status"),
+		parentDashboardLogLine(),
 		fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", worktreePath, "--label", branchName, "--no-focus"),
 		fakeHerdrLogLine("tab", "rename", "w2:t1", "Agent"),
-		fakeHerdrLogLine("pane", "rename", "w2:p1", branchName),
+		fakeHerdrLogLine("pane", "rename", "w2:p1", at(testRepoName, branchName)),
 		fakeHerdrLogLine("tab", "create", "--workspace", "w2", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
 		fakeHerdrLogLine("pane", "run", "w2:p1", "pi"),
 		fakeHerdrLogLine("workspace", "focus", "w2"),
@@ -160,7 +163,7 @@ func TestCreateInHerdrOpensStandardHerdrSpace(t *testing.T) {
 
 	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
 	require.NoError(t, result.err, result.stderr)
-	assert.Len(t, readFakeHerdrLog(t, logPath), 9)
+	assert.Len(t, readFakeHerdrLog(t, logPath), 11)
 }
 
 func TestCreateWithNoHerdrDoesNotInvokeHerdr(t *testing.T) {
@@ -273,6 +276,7 @@ func TestTUICreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	testRepository := newTestRepository(t)
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 
 	options := new(tuiCreateCommandOptions)
 	options.runtime = testRepository.runtime
@@ -284,7 +288,7 @@ func TestTUICreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
-	assert.Len(t, readFakeHerdrLog(t, logPath), 9)
+	assert.Len(t, readFakeHerdrLog(t, logPath), 11)
 }
 
 func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
@@ -295,6 +299,7 @@ func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 
 	prompter := &stubCreateWizardPrompter{
 		selection: createWizardSelection{
@@ -308,7 +313,7 @@ func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
 
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
-	assert.Len(t, readFakeHerdrLog(t, logPath), 9)
+	assert.Len(t, readFakeHerdrLog(t, logPath), 11)
 	require.Len(t, prompter.worktrees, 1)
 	assert.Equal(t, testRepoName, prompter.worktrees[0].Repo)
 	assert.Equal(t, branchName, prompter.worktrees[0].Name)
@@ -322,6 +327,7 @@ func TestTUICreateWithNoHerdrDoesNotInvokeHerdr(t *testing.T) {
 	testRepository.runtime.HerdrEnvironment = true
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 
 	options := new(tuiCreateCommandOptions)
 	options.runtime = testRepository.runtime
