@@ -1,6 +1,7 @@
 package timber
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -233,6 +234,21 @@ func TestListOutsideManagedWorktreeListsAllRepos(t *testing.T) {
 	assert.Contains(t, result.stdout, secondaryName)
 	assert.Contains(t, result.stdout, "feature/secondary")
 	assert.DirExists(t, secondaryBare)
+}
+
+func TestListShowsErrorWhenWorktreeStatusFails(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/healthy")).err)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/broken")).err)
+	require.NoError(t, os.RemoveAll(testRepository.worktreePath("feature/broken")))
+
+	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stdout, "feature/healthy")
+	assert.Contains(t, result.stdout, "feature/broken")
+	assert.Contains(t, result.stdout, "error")
 }
 
 func TestListInsideManagedWorktreeListsAllRepos(t *testing.T) {

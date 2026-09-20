@@ -16,6 +16,7 @@ type managedWorktree struct {
 	UpstreamRef     referenceName
 	Status          string
 	ListStatus      listStatus
+	ListError       bool
 	Clean           bool
 	Merged          bool
 	PullRequest     string
