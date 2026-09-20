@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -47,6 +48,10 @@ type Runtime struct {
 	// primarily useful for tests; an empty value uses PATH lookup.
 	HerdrExecutable string
 
+	// GhExecutable overrides the executable used for GitHub commands. It is
+	// primarily useful for tests; an empty value uses PATH lookup.
+	GhExecutable string
+
 	// TrashExecutable overrides the executable used to move removed paths to
 	// the system trash. It is primarily useful for tests; an empty value uses
 	// PATH lookup of "trash".
@@ -83,6 +88,9 @@ func RuntimeFromProcess() (Runtime, error) {
 func (x Runtime) command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	if name == "herdr" && x.HerdrExecutable != "" {
 		name = x.HerdrExecutable
+	}
+	if name == "gh" && x.GhExecutable != "" {
+		name = x.GhExecutable
 	}
 
 	command := exec.CommandContext(ctx, name, args...)
@@ -1075,7 +1083,7 @@ func (x Runtime) collectWorktrees(repos []registeredRepo, enrich worktreeEnriche
 	return worktrees, nil
 }
 
-func (x Runtime) enrichWorktreeForList(_ *Repository, worktree managedWorktree) (managedWorktree, error) {
+func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
 	result, err := gitOutput(x, worktree.Path, "status", "--porcelain=v2", "--branch")
 	if err != nil {
 		return managedWorktree{}, fmt.Errorf("read worktree status: %w", err)
@@ -1087,7 +1095,70 @@ func (x Runtime) enrichWorktreeForList(_ *Repository, worktree managedWorktree) 
 	}
 	worktree.ListStatus = status
 	worktree.Clean = clean
+
+	// A branch without a resolvable upstream is not merged anywhere timber
+	// tracks; list stays read-only and reports it as unmerged.
+	if upstreamRef, err := repository.upstreamReference(worktree.Name); err == nil {
+		merged, err := repository.branchMergedToUpstream(worktree.BranchReference, upstreamRef)
+		if err != nil {
+			return managedWorktree{}, err
+		}
+		worktree.Merged = merged
+	}
 	return worktree, nil
+}
+
+// enrichListedWorktreesWithPullRequests attaches one gh pull request lookup
+// per repository. It runs after collection so each repo needs a single call.
+func (x Runtime) enrichListedWorktreesWithPullRequests(ctx context.Context, worktrees []managedWorktree) error {
+	byRepo := make(map[string][]int)
+	for index, worktree := range worktrees {
+		byRepo[worktree.Repo] = append(byRepo[worktree.Repo], index)
+	}
+
+	repoNames := make([]string, 0, len(byRepo))
+	for repoName := range byRepo {
+		repoNames = append(repoNames, repoName)
+	}
+	slices.Sort(repoNames)
+
+	for _, repoName := range repoNames {
+		repo, err := x.registeredRepoByName(repoName)
+		if err != nil {
+			return err
+		}
+		output, err := x.runGh(ctx, repo.BarePath, "pr", "list",
+			"--json", "number,headRefName,state,statusCheckRollup",
+			"--limit", strconv.Itoa(pullRequestListLimit),
+		)
+		if err != nil {
+			return err
+		}
+		pullRequests, err := parsePullRequestList(output)
+		if err != nil {
+			return err
+		}
+		for _, index := range byRepo[repoName] {
+			worktrees[index].PullRequest = pullRequests[worktrees[index].Name]
+		}
+	}
+	return nil
+}
+
+func (x Runtime) runGh(ctx context.Context, directory string, args ...string) ([]byte, error) {
+	command := x.command(ctx, "gh", args...)
+	command.Dir = directory
+	output, err := command.CombinedOutput()
+	if err == nil {
+		return output, nil
+	}
+
+	operation := strings.Join(args[:min(2, len(args))], " ")
+	message := strings.TrimSpace(string(output))
+	if message == "" {
+		return nil, fmt.Errorf("gh %s: %w", operation, err)
+	}
+	return nil, fmt.Errorf("gh %s: %w: %s", operation, err, message)
 }
 
 func (x Runtime) selectManagedWorktree(worktrees []managedWorktree, name string) (managedWorktree, error) {

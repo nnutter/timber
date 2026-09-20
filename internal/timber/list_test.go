@@ -43,13 +43,13 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			rows := groupListTableRows(testCase.worktrees, newListStatusFormatter(testCase.worktrees))
+			rows := groupListTableRows(testCase.worktrees, newListStatusFormatter(testCase.worktrees), false)
 			require.Len(t, rows, len(testCase.groupedNames))
 			for index, names := range testCase.groupedNames {
 				assert.Equal(t, names, rows[index][0])
 			}
 
-			tableView := newOutputTable("Name", "Repo", "Status", "Commit", "Dirty").BorderRow(true)
+			tableView := newOutputTable("Name", "Repo", "Status", "Commit", "Dirty", "Merged").BorderRow(true)
 			tableView.Rows(rows...)
 			tableOutput := dottedListRowRules(tableView.String())
 			assert.Equal(t, testCase.horizontalRuleRows, strings.Count(tableOutput, "├"))
@@ -57,6 +57,22 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 			assert.Equal(t, testCase.horizontalRuleRows-1, strings.Count(tableOutput, "├┈"))
 		})
 	}
+}
+
+func TestGroupListTableRowsIncludesPullRequestColumnWhenEnabled(t *testing.T) {
+	t.Parallel()
+	worktrees := []managedWorktree{
+		{Name: "one", Clean: true, PullRequest: "#42 ✓"},
+		{Name: "two", Clean: true},
+	}
+
+	rows := groupListTableRows(worktrees, newListStatusFormatter(worktrees), true)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "#42 ✓\n", rows[0][6])
+
+	rows = groupListTableRows(worktrees, newListStatusFormatter(worktrees), false)
+	require.Len(t, rows, 1)
+	assert.Len(t, rows[0], 6)
 }
 
 func TestFormatDirtyStatusColorsTrueYellow(t *testing.T) {
@@ -118,6 +134,57 @@ func TestListSucceedsWhenBranchHasNoUpstream(t *testing.T) {
 	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stdout, branchName)
+}
+
+func TestListShowsMergedStatus(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/fresh")).err)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/ahead")).err)
+	testRepository.commitFileInWorktree(t, "feature/ahead", "change.txt", "change\n")
+
+	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stdout, "Merged")
+	assert.Contains(t, result.stdout, "feature/fresh")
+	assert.Contains(t, result.stdout, "feature/ahead")
+	assert.Contains(t, result.stdout, "true")
+	assert.Contains(t, result.stdout, "false")
+}
+
+func TestListPullRequests(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/with-pr")).err)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/without-pr")).err)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
+	testRepository.runtime = withTestEnvironment(testRepository.runtime,
+		`FAKE_GH_PR_JSON=[{"number":42,"headRefName":"feature/with-pr","state":"OPEN","statusCheckRollup":[{"conclusion":"SUCCESS","status":"COMPLETED"}]}]`,
+	)
+
+	result := testRepository.runTimber(t, "list", "--pr", at(testRepoName, ""))
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stdout, "PR")
+	assert.Contains(t, result.stdout, "#42 ✓")
+
+	withoutPR := testRepository.runTimber(t, "list", at(testRepoName, ""))
+	require.NoError(t, withoutPR.err, withoutPR.stderr)
+	assert.NotContains(t, withoutPR.stdout, "#42")
+}
+
+func TestListPullRequestsFailsWhenGhFails(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/pr-fail")).err)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
+	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_GH_PR_JSON=not-json")
+
+	result := testRepository.runTimber(t, "list", "--pr", at(testRepoName, ""))
+	require.Error(t, result.err)
+	assert.Contains(t, result.err.Error(), "decode gh pull request list")
 }
 
 func TestListAutoDetectsRepoFromManagedWorktree(t *testing.T) {

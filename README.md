@@ -341,6 +341,8 @@ Columns:
 - `Status`: aligned ahead (`↑`, green) and behind (`↓`, blue) counts, followed by the upstream branch
 - `Commit`: short commit hash
 - `Dirty`: whether the worktree has uncommitted changes (`true` is highlighted in yellow)
+- `Merged`: whether the branch is merged into its upstream (same signal `prune` uses)
+- `--pr`: add a `PR` column with the open pull request and check status (`#56 ✓`, `#56 ✗`, `#56 …`), one `gh` lookup per repository
 
 ### `timber migrate`
 
