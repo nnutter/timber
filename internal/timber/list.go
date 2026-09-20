@@ -1,6 +1,7 @@
 package timber
 
 import (
+	"encoding/json/v2"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 type listCommandOptions struct {
 	repoSelection
 	pullRequests bool
+	jsonOutput   bool
 }
 
 func NewListCommand(runtime Runtime) *cobra.Command {
@@ -25,6 +27,7 @@ func NewListCommand(runtime Runtime) *cobra.Command {
 		ValidArgsFunction: runtime.completeRepoQualifiers,
 	}
 	command.Flags().BoolVar(&options.pullRequests, "pr", false, "Include open pull request status from gh")
+	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Output worktrees as JSON instead of a table")
 	return command
 }
 
@@ -43,6 +46,10 @@ func (x *listCommandOptions) Execute(command *cobra.Command, args []string) erro
 		}
 	}
 
+	if x.jsonOutput {
+		return x.reportJSON(command, worktrees)
+	}
+
 	headers := []string{"Name", "Repo", "Status", "Commit", "Dirty", "Merged"}
 	if x.pullRequests {
 		headers = append(headers, "PR")
@@ -52,6 +59,54 @@ func (x *listCommandOptions) Execute(command *cobra.Command, args []string) erro
 	tableView.Rows(groupListTableRows(worktrees, statusFormatter, x.pullRequests)...)
 
 	_, err = fmt.Fprintln(command.OutOrStdout(), dottedListRowRules(tableView.String()))
+	return err
+}
+
+// listJSONWorktree is the JSON record for one worktree in `list --json`
+// output. It carries the same information as a table row: identity,
+// upstream divergence, full commit hash, dirtiness, merge state, and the
+// pull request display string when --pr is used. Worktrees whose git status
+// could not be read report statusError instead of divergence data.
+type listJSONWorktree struct {
+	Name        string `json:"name"`
+	Repo        string `json:"repo"`
+	Path        string `json:"path"`
+	Upstream    string `json:"upstream"`
+	Ahead       int    `json:"ahead"`
+	Behind      int    `json:"behind"`
+	Commit      string `json:"commit"`
+	Clean       bool   `json:"clean"`
+	Merged      bool   `json:"merged"`
+	StatusError bool   `json:"statusError"`
+	PullRequest string `json:"pullRequest"`
+}
+
+func worktreesToListJSON(worktrees []managedWorktree) []listJSONWorktree {
+	records := make([]listJSONWorktree, 0, len(worktrees))
+	for _, worktree := range worktrees {
+		records = append(records, listJSONWorktree{
+			Name:        worktree.Name,
+			Repo:        worktree.Repo,
+			Path:        worktree.Path,
+			Upstream:    worktree.ListStatus.Upstream,
+			Ahead:       worktree.ListStatus.Ahead,
+			Behind:      worktree.ListStatus.Behind,
+			Commit:      worktree.CommitHash,
+			Clean:       worktree.Clean,
+			Merged:      worktree.Merged,
+			StatusError: worktree.ListError,
+			PullRequest: worktree.PullRequest,
+		})
+	}
+	return records
+}
+
+func (x *listCommandOptions) reportJSON(command *cobra.Command, worktrees []managedWorktree) error {
+	output, err := json.Marshal(worktreesToListJSON(worktrees))
+	if err != nil {
+		return fmt.Errorf("encode worktrees as JSON: %w", err)
+	}
+	_, err = fmt.Fprintln(command.OutOrStdout(), string(output))
 	return err
 }
 
