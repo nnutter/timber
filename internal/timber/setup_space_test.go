@@ -9,6 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func parentDashboardLogLine() string {
+	return fakeHerdrLogLine("pane", "run", "w1:p1", "while :; do clear; timber list '@"+testRepoName+"' --pr; sleep 60; done")
+}
+
+func parentDashboardLogLineWithoutPR() string {
+	return fakeHerdrLogLine("pane", "run", "w1:p1", "while :; do clear; timber list '@"+testRepoName+"'; sleep 60; done")
+}
+
 func TestSetupSpaceOpensNamedWorktreeInNewHerdrWorkspace(t *testing.T) {
 	t.Parallel()
 	const branchName = "feature/space"
@@ -18,6 +26,7 @@ func TestSetupSpaceOpensNamedWorktreeInNewHerdrWorkspace(t *testing.T) {
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
 	require.NoError(t, result.err, result.stderr)
@@ -28,6 +37,41 @@ func TestSetupSpaceOpensNamedWorktreeInNewHerdrWorkspace(t *testing.T) {
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
 		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w1:t1", "Status"),
+		parentDashboardLogLine(),
+		fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", worktreePath, "--label", branchName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w2:t1", "Agent"),
+		fakeHerdrLogLine("pane", "rename", "w2:p1", branchName),
+		fakeHerdrLogLine("tab", "create", "--workspace", "w2", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
+		fakeHerdrLogLine("pane", "run", "w2:p1", "pi"),
+		fakeHerdrLogLine("workspace", "focus", "w2"),
+		fakeHerdrLogLine("tab", "focus", "w2:t1"),
+	}, readFakeHerdrLog(t, logPath))
+}
+
+func TestSetupSpaceDashboardOmitsPullRequestsWithoutGhAuth(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/no-gh-auth"
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
+	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
+	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_GH_AUTH_OK=0")
+
+	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
+
+	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
+	barePath := canonicalPath(testRepository.barePath)
+	assert.Equal(t, []string{
+		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
+		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w1:t1", "Status"),
+		parentDashboardLogLineWithoutPR(),
 		fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", worktreePath, "--label", branchName, "--no-focus"),
 		fakeHerdrLogLine("tab", "rename", "w2:t1", "Agent"),
 		fakeHerdrLogLine("pane", "rename", "w2:p1", branchName),
@@ -47,6 +91,7 @@ func TestSetupSpaceReusesExistingParentWorkspace(t *testing.T) {
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_PARENT_ID=w7")
 
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
@@ -77,6 +122,7 @@ func TestSetupSpaceRenamesLegacyParentLabel(t *testing.T) {
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	testRepository.runtime = withTestEnvironment(
 		testRepository.runtime,
 		"FAKE_HERDR_PARENT_ID=w7",
@@ -111,6 +157,7 @@ func TestSetupSpaceFocusesAlreadyOpenWorktreeWithoutReconfiguring(t *testing.T) 
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_ALREADY_OPEN=1")
 
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
@@ -122,6 +169,8 @@ func TestSetupSpaceFocusesAlreadyOpenWorktreeWithoutReconfiguring(t *testing.T) 
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
 		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
+		fakeHerdrLogLine("tab", "rename", "w1:t1", "Status"),
+		parentDashboardLogLine(),
 		fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", worktreePath, "--label", branchName, "--no-focus"),
 		fakeHerdrLogLine("workspace", "focus", "w2"),
 	}, readFakeHerdrLog(t, logPath))
@@ -136,6 +185,7 @@ func TestSetupSpaceDefinesNamedWorktreeTabsInCurrentHerdrSpace(t *testing.T) {
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 
 	result := testRepository.runTimber(t, "herdr", "space", at(testRepoName, branchName))
 	require.NoError(t, result.err, result.stderr)
@@ -162,6 +212,7 @@ func TestSetupSpaceDoesNotCloseCurrentHerdrSpaceWhenTabCreationFails(t *testing.
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL=tab create")
 
 	result := testRepository.runTimber(t, "herdr", "space", at(testRepoName, branchName))
@@ -181,6 +232,7 @@ func TestSetupSpaceUsesCurrentWorktreeFromSubdirectory(t *testing.T) {
 	require.NoError(t, os.MkdirAll(subdirectory, 0o755))
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 
 	result := testRepository.runTimberFrom(t, subdirectory, "herdr", "space")
 	require.NoError(t, result.err, result.stderr)
@@ -217,12 +269,13 @@ func TestSetupSpaceClosesNewWorkspaceWhenTabCreationFails(t *testing.T) {
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL=tab create")
 
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "herdr tab create")
-	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[6])
+	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[8])
 }
 
 func TestSetupSpaceClosesNewWorkspaceWhenShellTabCreationFails(t *testing.T) {
@@ -234,12 +287,13 @@ func TestSetupSpaceClosesNewWorkspaceWhenShellTabCreationFails(t *testing.T) {
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL_TAB_LABEL=Shell")
 
 	result := testRepository.runTimber(t, "herdr", "space", "-n", at(testRepoName, branchName))
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "herdr tab create")
-	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[6])
+	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[8])
 }
 
 func TestSetupSpaceClosesNewWorkspaceWhenTabResponseIsInvalid(t *testing.T) {
@@ -251,12 +305,13 @@ func TestSetupSpaceClosesNewWorkspaceWhenTabResponseIsInvalid(t *testing.T) {
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_MALFORM=tab create")
 
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "decode herdr tab create response")
-	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[6])
+	assert.Equal(t, fakeHerdrLogLine("workspace", "close", "w2"), readFakeHerdrLog(t, logPath)[8])
 }
 
 func TestSetupSpaceFailsWhenParentLookupFails(t *testing.T) {
@@ -268,6 +323,7 @@ func TestSetupSpaceFailsWhenParentLookupFails(t *testing.T) {
 
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+	testRepository.runtime.GhExecutable = installFakeGh(t)
 	testRepository.runtime = withTestEnvironment(testRepository.runtime, "FAKE_HERDR_FAIL=worktree list")
 
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))

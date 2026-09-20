@@ -5,11 +5,15 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const (
 	agentTabLabel = "Agent"
 	shellTabLabel = "Shell"
+
+	parentDashboardTabLabel       = "Status"
+	parentDashboardRefreshSeconds = 60
 )
 
 type herdrResource struct {
@@ -208,6 +212,24 @@ func (x herdrSpace) focus(ctx context.Context) error {
 func (x herdrSpace) focusWorkspace(ctx context.Context) error {
 	_, err := x.runtime.runHerdr(ctx, "workspace", "focus", x.workspaceID)
 	return err
+}
+
+// parentDashboardCommand builds the refresh loop a parent workspace runs in
+// its Status tab. Pull request status is included only when gh proved usable
+// at setup; a later login takes effect the next time the parent is created.
+func parentDashboardCommand(repoName string, withPullRequests bool) string {
+	command := "timber list " + shellQuote("@"+repoName)
+	if withPullRequests {
+		command += " --pr"
+	}
+	return fmt.Sprintf("while :; do clear; %s; sleep %d; done", command, parentDashboardRefreshSeconds)
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
 func (x herdrSpace) close(ctx context.Context) error {

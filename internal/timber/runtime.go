@@ -261,7 +261,7 @@ func (x Runtime) ensureHerdrParentWorkspace(ctx context.Context, repoName string
 		if err != nil {
 			return "", err
 		}
-		return parseHerdrWorkspaceID(output)
+		return x.setupHerdrParentDashboard(ctx, output, repoName, barePath)
 	}
 
 	output, err = x.runHerdr(ctx, "workspace", "get", parentID)
@@ -278,6 +278,21 @@ func (x Runtime) ensureHerdrParentWorkspace(ctx context.Context, repoName string
 		}
 	}
 	return parentID, nil
+}
+
+func (x Runtime) setupHerdrParentDashboard(ctx context.Context, output []byte, repoName string, barePath string) (string, error) {
+	space, err := parseHerdrSpace(x, output, barePath, repoName)
+	if err != nil {
+		return "", err
+	}
+	if _, err := x.runHerdr(ctx, "tab", "rename", space.agentTabID, parentDashboardTabLabel); err != nil {
+		return "", err
+	}
+	dashboard := parentDashboardCommand(repoName, x.ghAuthOK(ctx))
+	if _, err := x.runHerdr(ctx, "pane", "run", space.agentPaneID, dashboard); err != nil {
+		return "", err
+	}
+	return space.workspaceID, nil
 }
 
 func (x Runtime) currentHerdrSpace(ctx context.Context, worktree managedWorktree) (herdrSpace, error) {
@@ -1159,6 +1174,13 @@ func (x Runtime) runGh(ctx context.Context, directory string, args ...string) ([
 		return nil, fmt.Errorf("gh %s: %w", operation, err)
 	}
 	return nil, fmt.Errorf("gh %s: %w: %s", operation, err, message)
+}
+
+// ghAuthOK reports whether gh can talk to GitHub. The dashboard probes once
+// at setup; a missing CLI or login only drops the PR column, never the space.
+func (x Runtime) ghAuthOK(ctx context.Context) bool {
+	command := x.command(ctx, "gh", "auth", "status")
+	return command.Run() == nil
 }
 
 func (x Runtime) selectManagedWorktree(worktrees []managedWorktree, name string) (managedWorktree, error) {
