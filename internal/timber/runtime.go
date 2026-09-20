@@ -1101,12 +1101,14 @@ func (x Runtime) collectWorktrees(repos []registeredRepo, enrich worktreeEnriche
 func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
 	result, err := gitOutput(x, worktree.Path, "status", "--porcelain=v2", "--branch")
 	if err != nil {
-		return managedWorktree{}, fmt.Errorf("read worktree status: %w", err)
+		worktree.ListError = true
+		return worktree, nil
 	}
 
 	status, clean, err := parsePorcelainStatus(result.stdout)
 	if err != nil {
-		return managedWorktree{}, fmt.Errorf("parse worktree status: %w", err)
+		worktree.ListError = true
+		return worktree, nil
 	}
 	worktree.ListStatus = status
 	worktree.Clean = clean

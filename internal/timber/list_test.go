@@ -1,6 +1,8 @@
 package timber
 
 import (
+	"encoding/json/v2"
+	"os"
 	"strings"
 	"testing"
 
@@ -233,6 +235,56 @@ func TestListOutsideManagedWorktreeListsAllRepos(t *testing.T) {
 	assert.Contains(t, result.stdout, secondaryName)
 	assert.Contains(t, result.stdout, "feature/secondary")
 	assert.DirExists(t, secondaryBare)
+}
+
+func TestListShowsErrorWhenWorktreeStatusFails(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/healthy")).err)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/broken")).err)
+	require.NoError(t, os.RemoveAll(testRepository.worktreePath("feature/broken")))
+
+	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stdout, "feature/healthy")
+	assert.Contains(t, result.stdout, "feature/broken")
+	assert.Contains(t, result.stdout, "error")
+}
+
+func TestListJSONOutputsWorktrees(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/healthy")).err)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/broken")).err)
+	require.NoError(t, os.RemoveAll(testRepository.worktreePath("feature/broken")))
+
+	result := testRepository.runTimber(t, "list", "--json", at(testRepoName, ""))
+	require.NoError(t, result.err, result.stderr)
+
+	var records []listJSONWorktree
+	require.NoError(t, json.Unmarshal([]byte(result.stdout), &records))
+	require.Len(t, records, 2)
+
+	byName := make(map[string]listJSONWorktree, len(records))
+	for _, record := range records {
+		byName[record.Name] = record
+	}
+
+	healthy, found := byName["feature/healthy"]
+	require.True(t, found, "expected feature/healthy in %s", result.stdout)
+	assert.Equal(t, testRepoName, healthy.Repo)
+	assert.Equal(t, testRepository.worktreePath("feature/healthy"), healthy.Path)
+	assert.Equal(t, "origin/main", healthy.Upstream)
+	assert.NotEmpty(t, healthy.Commit)
+	assert.True(t, healthy.Clean)
+	assert.False(t, healthy.StatusError)
+
+	broken, found := byName["feature/broken"]
+	require.True(t, found, "expected feature/broken in %s", result.stdout)
+	assert.True(t, broken.StatusError)
+	assert.NotEmpty(t, broken.Commit)
 }
 
 func TestListInsideManagedWorktreeListsAllRepos(t *testing.T) {
