@@ -73,7 +73,7 @@ type herdrSpace struct {
 	alreadyOpen    bool
 }
 
-func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktreeName string) (herdrSpace, error) {
+func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, agentPaneLabel string) (herdrSpace, error) {
 	var response herdrWorkspaceCreateResponse
 	if err := json.Unmarshal(output, &response); err != nil {
 		return herdrSpace{}, fmt.Errorf("decode herdr workspace create response: %w", err)
@@ -85,10 +85,15 @@ func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktr
 		worktreePath:   worktreePath,
 		agentTabID:     response.Result.Tab.TabID,
 		agentPaneID:    response.Result.RootPane.PaneID,
-		agentPaneLabel: worktreeName,
+		agentPaneLabel: agentPaneLabel,
 		alreadyOpen:    response.Result.AlreadyOpen,
 	}
 	return space, space.validateInitialResources()
+}
+
+// qualifiedWorktreeName formats the worktree label Herdr panes display.
+func qualifiedWorktreeName(worktreeName string, repoName string) string {
+	return worktreeName + "@" + repoName
 }
 
 func parseHerdrWorkspaceID(output []byte) (string, error) {
@@ -127,7 +132,7 @@ func parseHerdrWorkspaceLabel(output []byte, workspaceID string) (string, error)
 	return response.Result.Workspace.Label, nil
 }
 
-func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string, worktreeName string) (herdrSpace, error) {
+func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string, agentPaneLabel string) (herdrSpace, error) {
 	var response herdrPaneCurrentResponse
 	if err := json.Unmarshal(output, &response); err != nil {
 		return herdrSpace{}, fmt.Errorf("decode herdr pane current response: %w", err)
@@ -139,7 +144,7 @@ func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string,
 		worktreePath:   worktreePath,
 		agentTabID:     response.Result.Pane.TabID,
 		agentPaneID:    response.Result.Pane.PaneID,
-		agentPaneLabel: worktreeName,
+		agentPaneLabel: agentPaneLabel,
 	}
 	if space.workspaceID == "" || space.agentTabID == "" || space.agentPaneID == "" {
 		return herdrSpace{}, errors.New("herdr pane current response has incomplete pane resources")

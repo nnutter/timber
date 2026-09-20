@@ -233,7 +233,7 @@ func (x Runtime) createHerdrSpace(ctx context.Context, worktree managedWorktree)
 		return herdrSpace{}, err
 	}
 
-	return parseHerdrSpace(x, output, absolutePath, worktree.Name)
+	return parseHerdrSpace(x, output, absolutePath, qualifiedWorktreeName(worktree.Name, worktree.Repo))
 }
 
 // ensureHerdrParentWorkspace returns the ID of the Herdr workspace rooted at
@@ -305,7 +305,7 @@ func (x Runtime) currentHerdrSpace(ctx context.Context, worktree managedWorktree
 	if err != nil {
 		return herdrSpace{}, err
 	}
-	return parseCurrentHerdrSpace(x, output, absolutePath, worktree.Name)
+	return parseCurrentHerdrSpace(x, output, absolutePath, qualifiedWorktreeName(worktree.Name, worktree.Repo))
 }
 
 func (x Runtime) herdrWorktreePath(worktree managedWorktree) (string, error) {

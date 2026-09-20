@@ -130,7 +130,7 @@ func TestCreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 		parentDashboardLogLine(),
 		fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", worktreePath, "--label", branchName, "--no-focus"),
 		fakeHerdrLogLine("tab", "rename", "w2:t1", "Agent"),
-		fakeHerdrLogLine("pane", "rename", "w2:p1", branchName),
+		fakeHerdrLogLine("pane", "rename", "w2:p1", at(testRepoName, branchName)),
 		fakeHerdrLogLine("tab", "create", "--workspace", "w2", "--cwd", worktreePath, "--label", "Shell", "--no-focus"),
 		fakeHerdrLogLine("pane", "run", "w2:p1", "pi"),
 		fakeHerdrLogLine("workspace", "focus", "w2"),
