@@ -2,8 +2,10 @@ package timber
 
 import (
 	"encoding/json/v2"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -15,9 +17,9 @@ func TestListSortValue(t *testing.T) {
 	command := NewListCommand(Runtime{})
 	flag := command.Flags().Lookup("sort")
 	require.NotNil(t, flag)
-	assert.Equal(t, "repo", flag.DefValue)
+	assert.Equal(t, "recency", flag.DefValue)
 	assert.Equal(t, "sort", flag.Value.Type())
-	for _, value := range []string{"worktree", "repo"} {
+	for _, value := range []string{"recency", "worktree", "repo"} {
 		require.NoError(t, flag.Value.Set(value))
 		assert.Equal(t, value, flag.Value.String())
 	}
@@ -36,8 +38,9 @@ func TestListSortCompletion(t *testing.T) {
 		prefix string
 		want   []string
 	}{
-		{"", []string{"repo", "worktree"}},
-		{"re", []string{"repo"}},
+		{"", []string{"recency", "repo", "worktree"}},
+		{"re", []string{"recency", "repo"}},
+		{"rec", []string{"recency"}},
 		{"w", []string{"worktree"}},
 		{"unknown", nil},
 	} {
@@ -86,4 +89,61 @@ func TestListSortModes(t *testing.T) {
 	}
 	result := fixture.runTimber(t, "list", "--sort", "unknown")
 	require.ErrorContains(t, result.err, "invalid sort mode")
+}
+
+func TestListRecencyOrdering(t *testing.T) {
+	t.Parallel()
+	worktrees := []managedWorktree{
+		{Repo: "b", Name: "a", CommitTime: time.Unix(100, 0)},
+		{Repo: "a", Name: "z", CommitTime: time.Unix(100, 0)},
+		{Repo: "a", Name: "a", CommitTime: time.Unix(100, 0)},
+		{Name: "unborn"},
+		{Name: "newest", CommitTime: time.Unix(200, 0)},
+		{Name: "oldest", CommitTime: time.Unix(-100, 0)},
+	}
+	listSortRecency.sort(worktrees)
+	var names []string
+	for _, worktree := range worktrees {
+		names = append(names, worktree.Name+"@"+worktree.Repo)
+	}
+	assert.Equal(t, []string{"newest@", "a@a", "z@a", "a@b", "oldest@", "unborn@"}, names)
+}
+
+func TestListDefaultsToCommitterRecency(t *testing.T) {
+	t.Parallel()
+	fixture := newTestRepository(t)
+	registerAdditionalRepo(t, fixture, "aaa")
+	for _, name := range []string{"older@aaa", "newer@" + testRepoName} {
+		require.NoError(t, fixture.runTimber(t, "create", name).err)
+	}
+	// Deliberately reverse author dates: recency must use committer dates.
+	for _, tc := range []struct{ repo, name, author, committer string }{
+		{"aaa", "older", "2025-01-01T00:00:00Z", "2020-01-01T00:00:00Z"},
+		{testRepoName, "newer", "2010-01-01T00:00:00Z", "2021-01-01T00:00:00Z"},
+	} {
+		runtime := withTestEnvironment(fixture.runtime,
+			"GIT_AUTHOR_DATE="+tc.author, "GIT_COMMITTER_DATE="+tc.committer,
+			"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
+		_, err := gitOutput(runtime, runtime.managedWorktreePath(tc.repo, tc.name), "commit", "--allow-empty", "-m", tc.name)
+		require.NoError(t, err)
+	}
+	// A missing checkout must not prevent timestamp lookup or listing.
+	require.NoError(t, os.RemoveAll(fixture.worktreePath("newer")))
+	for _, args := range [][]string{
+		{"list", "--json"},
+		{"list", "--json", "--sort", "recency"},
+	} {
+		result := fixture.runTimber(t, args...)
+		require.NoError(t, result.err, result.stderr)
+		var records []listJSONWorktree
+		require.NoError(t, json.Unmarshal([]byte(result.stdout), &records))
+		require.Len(t, records, 2)
+		assert.Equal(t, "newer", records[0].Name)
+		assert.True(t, records[0].StatusError)
+		assert.Equal(t, "older", records[1].Name)
+	}
+	result := fixture.runTimber(t, "list")
+	require.NoError(t, result.err, result.stderr)
+	assert.Less(t, strings.Index(result.stdout, "newer"), strings.Index(result.stdout, "older"))
 }

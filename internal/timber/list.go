@@ -17,7 +17,7 @@ type listCommandOptions struct {
 }
 
 func NewListCommand(runtime Runtime) *cobra.Command {
-	options := &listCommandOptions{runtime: runtime, sortBy: listSortRepo}
+	options := &listCommandOptions{runtime: runtime, sortBy: listSortRecency}
 
 	command := &cobra.Command{
 		Use:               "list [@repo]",
@@ -29,7 +29,7 @@ func NewListCommand(runtime Runtime) *cobra.Command {
 	}
 	command.Flags().BoolVar(&options.pullRequests, "pr", false, "Include open pull request status from gh")
 	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Output worktrees as JSON instead of a table")
-	command.Flags().Var(&options.sortBy, "sort", "Sort worktrees by repo or worktree")
+	command.Flags().Var(&options.sortBy, "sort", "Sort worktrees by recency (newest commit first), repo, or worktree")
 	if err := command.RegisterFlagCompletionFunc("sort", completeListSort); err != nil {
 		panic(err)
 	}
@@ -174,7 +174,7 @@ func (x *listCommandOptions) collectWorktrees() ([]managedWorktree, error) {
 	if err != nil {
 		return nil, err
 	}
-	return x.runtime.collectListedWorktrees(repos)
+	return x.runtime.collectWorktrees(repos, x.enrichWorktreeForSort)
 }
 
 func (x *listCommandOptions) applyRepoArg(args []string) error {

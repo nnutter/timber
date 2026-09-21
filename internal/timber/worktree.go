@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"time"
 )
 
 type managedWorktree struct {
@@ -12,6 +13,7 @@ type managedWorktree struct {
 	Path            string
 	DisplayPath     string
 	CommitHash      string
+	CommitTime      time.Time
 	BranchReference referenceName
 	UpstreamRef     referenceName
 	Status          string
