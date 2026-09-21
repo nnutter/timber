@@ -134,9 +134,26 @@ def recv(timeout=1.0):
 def send(data):
     os.write(fd, data.encode() if isinstance(data, str) else data)
 
+def wait_compinit(timeout=30.0):
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end and b"COMPINIT_DONE" not in out:
+        out += recv(1.0)
+    return out
+
+def wait_expansion(timeout=10.0):
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end and b"feature/login" not in out and b"@timber" not in out:
+        out += recv(0.5)
+    return out
+
 recv(0.3)
-send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D\n")
-recv(0.5)
+log = b""
+send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D; echo COMPINIT_DONE:$SECONDS\n")
+log += wait_compinit()
+send("(( $+_comps[t] )) && echo HAVE_T_COMP || echo NO_T_COMP\n")
+log += recv(1.0)
 send("zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'\n")
 recv(0.2)
 send("\x15")
@@ -144,10 +161,10 @@ recv(0.1)
 send("t create @t")
 time.sleep(0.05)
 send("\t")
-output = recv(0.8).decode("utf-8", "replace")
+log += wait_expansion()
 send("exit\n")
 recv(0.2)
-sys.stdout.write(output)
+sys.stdout.write(log.decode("utf-8", "replace"))
 `
 	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o644))
 
@@ -227,20 +244,37 @@ def recv(timeout=1.0):
 def send(data):
     os.write(fd, data.encode() if isinstance(data, str) else data)
 
+def wait_compinit(timeout=30.0):
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end and b"COMPINIT_DONE" not in out:
+        out += recv(1.0)
+    return out
+
+def wait_expansion(timeout=10.0):
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end and b"feature/login" not in out and b"@timber" not in out:
+        out += recv(0.5)
+    return out
+
 recv(0.3)
+log = b""
 send("cd " + home + "\n")
 recv(0.2)
-send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D\n")
-recv(0.5)
+send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D; echo COMPINIT_DONE:$SECONDS\n")
+log += wait_compinit()
+send("(( $+_comps[t] )) && echo HAVE_T_COMP || echo NO_T_COMP\n")
+log += recv(1.0)
 send("\x15")
 recv(0.1)
 send(line)
 time.sleep(0.05)
 send("\t")
-output = recv(0.8).decode("utf-8", "replace")
+log += wait_expansion()
 send("exit\n")
 recv(0.2)
-sys.stdout.write(output)
+sys.stdout.write(log.decode("utf-8", "replace"))
 `
 	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o644))
 
