@@ -4,7 +4,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestRepoAddMapsGitHubRelativePath(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "https://github.com/nnutter/timber", mustResolveRemoteURL(t, "nnutter/timber"))
+	assert.Equal(t, "https://example.com/r.git", mustResolveRemoteURL(t, "https://example.com/r.git"))
+	assert.Equal(t, "git@github.com:nnutter/timber.git", mustResolveRemoteURL(t, "git@github.com:nnutter/timber.git"))
+}
+
+func TestDefaultRepoNameFromRemote(t *testing.T) {
+	t.Parallel()
+	name, err := defaultRepoNameFromRemote("https://github.com/nnutter/timber.git")
+	require.NoError(t, err)
+	assert.Equal(t, "timber", name)
+
+	name, err = defaultRepoNameFromRemote("git@github.com:nnutter/timber.git")
+	require.NoError(t, err)
+	assert.Equal(t, "timber", name)
+}
 
 func TestDefaultRepoAliasFromRemote(t *testing.T) {
 	t.Parallel()

@@ -234,10 +234,8 @@ func (x *zshCommandOptions) writeFunctionFile(target string) error {
             ;;
         esac
         ;;
-    remove|rm|migrate)
-        # Snapshot cwd, then leave it before the source path may disappear.
-        # remove deletes the current worktree; migrate may delete a sole default
-        # checkout or move the source tree out from under the shell.
+    remove|rm)
+        # Snapshot cwd, then leave it before remove deletes the current worktree.
         local previous_dir=$PWD
         cd "$HOME" || return $?
         local command_status

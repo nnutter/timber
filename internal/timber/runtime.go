@@ -126,10 +126,6 @@ func (x Runtime) managedWorktreePath(repoName string, worktreeName string) strin
 	return filepath.Join(x.worktreeRoot(), repoName, worktreeName, repoName)
 }
 
-func (x Runtime) temporaryPath(pattern string) (string, error) {
-	return os.MkdirTemp(x.TemporaryDirectory, pattern)
-}
-
 func (x Runtime) absolutePath(path string) (string, error) {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path), nil
@@ -359,90 +355,6 @@ func (x Runtime) reportHerdrPluginInstall(command *cobra.Command, destination st
 
 func (x Runtime) removeEmptySourceParents(path string) error {
 	return removeEmptyParents(path, x.HomeDirectory)
-}
-
-func (x Runtime) applyMigrationCandidate(repository *Repository, candidate migrateCandidate) (retErr error) {
-	currentPath := filepath.Clean(candidate.CurrentPath)
-	targetPath := filepath.Clean(candidate.TargetPath)
-
-	stagingDirectory, err := x.temporaryPath("timber-migrate-")
-	if err != nil {
-		return fmt.Errorf("create migration staging directory: %w", err)
-	}
-	defer func() {
-		if err := os.RemoveAll(stagingDirectory); retErr == nil {
-			retErr = err
-		}
-	}()
-
-	if err := copyDirectoryContents(currentPath, stagingDirectory, ".git"); err != nil {
-		return fmt.Errorf("stage worktree %q: %w", currentPath, err)
-	}
-
-	// Remove the old worktree path so git worktree add can create targetPath.
-	if err := os.RemoveAll(currentPath); err != nil {
-		return fmt.Errorf("remove old worktree %q: %w", currentPath, err)
-	}
-	if err := x.removeEmptySourceParents(currentPath); err != nil {
-		return err
-	}
-	if currentPath != targetPath {
-		if _, err := os.Stat(targetPath); err == nil {
-			return fmt.Errorf("worktree directory %q already exists", targetPath)
-		}
-	}
-
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return fmt.Errorf("create worktree parent directory %q: %w", filepath.Dir(targetPath), err)
-	}
-
-	if _, err := repository.git("worktree", "add", targetPath, candidate.BranchName); err != nil {
-		return err
-	}
-
-	// Restore local modifications over the clean checkout.
-	if err := copyDirectoryContents(stagingDirectory, targetPath, ".git"); err != nil {
-		return fmt.Errorf("restore worktree contents to %q: %w", targetPath, err)
-	}
-
-	if err := ensureBranchUpstream(repository, candidate.BranchName); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (x Runtime) moveLinkedWorktree(repository *Repository, candidate migrateCandidate) error {
-	currentPath := filepath.Clean(candidate.CurrentPath)
-	targetPath := filepath.Clean(candidate.TargetPath)
-	if currentPath == targetPath {
-		return nil
-	}
-
-	sourcePath := currentPath
-	if pathIsWithin(currentPath, targetPath) {
-		stagingPath, err := unusedTempPathIn(x.worktreeRoot(), "timber-migrate-")
-		if err != nil {
-			return err
-		}
-		if _, err := repository.git("worktree", "move", currentPath, stagingPath); err != nil {
-			return err
-		}
-		sourcePath = stagingPath
-	}
-
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return fmt.Errorf("create worktree parent directory %q: %w", filepath.Dir(targetPath), err)
-	}
-	if _, err := os.Stat(targetPath); err == nil {
-		return fmt.Errorf("worktree directory %q already exists", targetPath)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("inspect worktree directory %q: %w", targetPath, err)
-	}
-
-	if _, err := repository.git("worktree", "move", sourcePath, targetPath); err != nil {
-		return err
-	}
-	return x.removeEmptySourceParents(currentPath)
 }
 
 func (x Runtime) writePathFile(pathFile string, value string) (err error) {
@@ -816,7 +728,7 @@ func (x Runtime) buildImportPlan(sourcePath string, requestedName string) (impor
 
 	repoName := requestedName
 	if repoName == "" {
-		repoName = defaultRepoNameForMigrate(sourceRepository, mainPath)
+		repoName = defaultRepoNameForImport(sourceRepository, mainPath)
 	}
 	if err := validateRepoName(repoName); err != nil {
 		return importPlan{}, err

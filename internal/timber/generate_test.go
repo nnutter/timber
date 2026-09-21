@@ -48,7 +48,7 @@ func TestGeneratedZshCompletionHasValidSyntax(t *testing.T) {
 	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir).err)
 
-	output, err := exec.Command(zshPath, "-n", filepath.Join(outDir, "_t")).CombinedOutput()
+	output, err := testCommand(t, zshPath, "-n", filepath.Join(outDir, "_t")).CombinedOutput()
 	require.NoError(t, err, string(output))
 }
 
@@ -134,9 +134,26 @@ def recv(timeout=1.0):
 def send(data):
     os.write(fd, data.encode() if isinstance(data, str) else data)
 
+def wait_compinit(timeout=30.0):
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end and b"COMPINIT_DONE" not in out:
+        out += recv(1.0)
+    return out
+
+def wait_expansion(timeout=10.0):
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end and b"feature/login" not in out and b"@timber" not in out:
+        out += recv(0.5)
+    return out
+
 recv(0.3)
-send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D\n")
-recv(0.5)
+log = b""
+send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D; echo COMPINIT_DONE:$SECONDS\n")
+log += wait_compinit()
+send("(( $+_comps[t] )) && echo HAVE_T_COMP || echo NO_T_COMP\n")
+log += recv(1.0)
 send("zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'\n")
 recv(0.2)
 send("\x15")
@@ -144,14 +161,14 @@ recv(0.1)
 send("t create @t")
 time.sleep(0.05)
 send("\t")
-output = recv(0.8).decode("utf-8", "replace")
+log += wait_expansion()
 send("exit\n")
 recv(0.2)
-sys.stdout.write(output)
+sys.stdout.write(log.decode("utf-8", "replace"))
 `
 	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o644))
 
-	command := exec.Command(
+	command := testCommand(t,
 		"python3",
 		scriptPath,
 		outDir,
@@ -227,26 +244,43 @@ def recv(timeout=1.0):
 def send(data):
     os.write(fd, data.encode() if isinstance(data, str) else data)
 
+def wait_compinit(timeout=30.0):
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end and b"COMPINIT_DONE" not in out:
+        out += recv(1.0)
+    return out
+
+def wait_expansion(timeout=10.0):
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end and b"feature/login" not in out and b"@timber" not in out:
+        out += recv(0.5)
+    return out
+
 recv(0.3)
+log = b""
 send("cd " + home + "\n")
 recv(0.2)
-send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D\n")
-recv(0.5)
+send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D; echo COMPINIT_DONE:$SECONDS\n")
+log += wait_compinit()
+send("(( $+_comps[t] )) && echo HAVE_T_COMP || echo NO_T_COMP\n")
+log += recv(1.0)
 send("\x15")
 recv(0.1)
 send(line)
 time.sleep(0.05)
 send("\t")
-output = recv(0.8).decode("utf-8", "replace")
+log += wait_expansion()
 send("exit\n")
 recv(0.2)
-sys.stdout.write(output)
+sys.stdout.write(log.decode("utf-8", "replace"))
 `
 	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o644))
 
 	runComplete := func(line string) string {
 		t.Helper()
-		command := exec.Command(
+		command := testCommand(t,
 			"python3",
 			scriptPath,
 			outDir,
@@ -289,15 +323,18 @@ printf '%s\n' "$@"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := exec.Command(
+	command := testCommand(t,
 		"zsh", "-f", "-c",
 		`fpath=("$1" $fpath)
 autoload -Uz compinit
-compinit -D 2>/dev/null
+compinit -u -D 2>/dev/null
 t list`,
 		"--", outDir,
 	)
-	command.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// -u keeps compinit from aborting on insecure directories (as on CI),
+	// and PATH limited to the fake timber keeps an installed t from
+	// masking a broken autoload.
+	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir)
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
 	assert.Equal(t, "list", strings.TrimSpace(string(output)))
@@ -326,12 +363,12 @@ printf '%s\n' "$new_worktree/nested" > "$TIMBER_RENAME_PATH_FILE"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := exec.Command(
+	command := testCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t repo rename old new >/dev/null; pwd -P`,
 		"--", filepath.Join(outDir, "t"), oldSubdirectory,
 	)
-	command.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
 	assert.Equal(t, canonicalPath(filepath.Join(worktreeParent, "new", "nested")), strings.TrimSpace(string(output)))
@@ -353,12 +390,12 @@ exit 17
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := exec.Command(
+	command := testCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t remove feature@repo >/dev/null; exit_status=$?; printf '%s %s\n' "$exit_status" "$PWD"`,
 		"--", filepath.Join(outDir, "t"), startDir,
 	)
-	command.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
 	assert.Equal(t, fmt.Sprintf("17 %s", canonicalPath(startDir)), strings.TrimSpace(string(output)))
@@ -366,30 +403,14 @@ exit 17
 
 func TestGeneratedZshWrapperChangesDirectoryOnSwitch(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("zsh"); err != nil {
-		t.Skip("zsh is not installed")
-	}
-
-	outDir := resolvedTempDir(t)
-	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
-
 	targetDir := resolvedTempDir(t)
-	binDir := resolvedTempDir(t)
 	fakeTimber := `#!/bin/sh
 printf '%s\n' "$TIMBER_SWITCH_PATH_FILE_TARGET" > "$TIMBER_SWITCH_PATH_FILE"
 `
-	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
-
-	command := exec.Command(
-		"zsh", "-f", "-c",
+	command := generatedZshCommand(t, fakeTimber,
 		`source "$1"; t switch feature@repo >/dev/null; pwd -P`,
-		"--", filepath.Join(outDir, "t"),
 	)
-	command.Env = append(
-		os.Environ(),
-		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"TIMBER_SWITCH_PATH_FILE_TARGET="+targetDir,
-	)
+	command.Env = replaceTestEnvironment(command.Env, "TIMBER_SWITCH_PATH_FILE_TARGET="+targetDir)
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
 	assert.Equal(t, canonicalPath(targetDir), strings.TrimSpace(string(output)))
@@ -412,15 +433,15 @@ rm -rf "$3"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := exec.Command(
+	command := testCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t repo import "$3" >/dev/null; printf '%s' "$PWD"`,
 		"--", filepath.Join(outDir, "t"), startDir, sourceDir,
 	)
-	command.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
-	assert.Equal(t, canonicalPath(os.Getenv("HOME")), strings.TrimSpace(string(output)))
+	assert.Equal(t, canonicalPath(command.Dir), strings.TrimSpace(string(output)))
 }
 
 func TestGeneratedZshWrapperRestoresDirectoryOnFailedImport(t *testing.T) {
@@ -440,12 +461,12 @@ exit 17
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := exec.Command(
+	command := testCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t repo import "$3" >/dev/null; exit_status=$?; printf '%s %s' "$exit_status" "$PWD"`,
 		"--", filepath.Join(outDir, "t"), startDir, sourceDir,
 	)
-	command.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
 	assert.Equal(t, fmt.Sprintf("17 %s", canonicalPath(startDir)), strings.TrimSpace(string(output)))

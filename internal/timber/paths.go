@@ -3,6 +3,7 @@ package timber
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -19,4 +20,23 @@ func ensureDirectory(path string) error {
 		return fmt.Errorf("create directory %q: %w", path, err)
 	}
 	return nil
+}
+
+// pathIsWithin reports whether child is the same as parent or nested under it.
+func pathIsWithin(parent string, child string) bool {
+	parent = canonicalPath(parent)
+	child = canonicalPath(child)
+	relativePath, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	return relativePath == "." || (relativePath != ".." && !strings.HasPrefix(relativePath, ".."+string(filepath.Separator)))
+}
+
+func canonicalPath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	return resolved
 }

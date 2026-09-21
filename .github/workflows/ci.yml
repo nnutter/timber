@@ -30,6 +30,9 @@ jobs:
       - name: Run fixers
         run: mise run fixers
 
+      - name: Install shell test dependencies
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y zsh python3
+
       - name: Run tests
         run: mise run ci-tests
 

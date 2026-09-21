@@ -21,10 +21,8 @@ Example:
 - branch: `nn/my-feature`
 - worktree path: `~/worktrees/timber/nn/my-feature/timber`
 
-Use `timber migrate` inside an existing clone to register it as a bare repo and rehome its worktrees (including the former main checkout) into this layout.
-Use `timber migrate` inside a registered worktree to move that repository’s worktrees into this layout.
-Use `timber migrate --all` to rehome worktrees for every registered repository.
-When invoked through the shell wrapper (`t migrate`), the shell also `cd`s to `$HOME` after success.
+Use `timber repo import <path>` to register an existing clean clone and recreate its worktrees (including the former main checkout) in this layout.
+When invoked through the shell wrapper (`t repo import <path>`), the shell also `cd`s to `$HOME` after success.
 
 ## Installation
 
@@ -72,7 +70,8 @@ mise run all
 `mise run all` runs formatting, fixes, tests, and static analysis.
 `mise run format` (or `mise run fmt`) formats Go files.
 `mise run fix` applies `go fix`, tidies the modules, and runs `go vet -fix`.
-`mise run tests` (or `mise run test`) runs the test suite with the race detector.
+`mise run tests` (or `mise run test`) runs the Go and plugin shell tests with the race detector and shuffled test order.
+Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-tests` requires these dependencies rather than silently skipping those tests.
 `mise run static-analysis` runs the configured static-analysis tools, including gitleaks.
 `mise run coverage` (or `mise run cover`) runs the tests and prints coverage.
 `lefthook install` enables the pre-commit hook, which runs `mise run pre-commit` to format staged Go files.
@@ -101,7 +100,7 @@ The generated function:
 - `t switch <Tab>` completes worktree names from every registered repository
 - Unique names complete without `@`
 - If a name exists in more than one repository, completion offers `<name>@<repo>` for each one (`artisinal@liaison`, `artisinal@persona`)
-- after a successful `t remove`, `t migrate`, or `t repo import`, `cd`s to `$HOME`
+- after a successful `t remove` or `t repo import`, `cd`s to `$HOME`
 
 ```bash
 t repo add nnutter/timber
@@ -183,14 +182,14 @@ Convert an existing clone into a managed Timber repository.
 Registers a bare clone of the checkout and recreates every worktree (including the former main checkout) under the managed layout.
 
 - `--name` overrides the derived repository name (default: remote URL, then basename of the checkout)
-- Uncommitted, untracked, and gitignored files are preserved in every worktree
+- Every existing worktree must be clean, with no staged changes, unstaged changes, or untracked files (including gitignored files); commit or remove these before importing
 - Detached-HEAD worktrees are recreated detached under a short-hash name
 - Prunable worktrees and worktrees with no commits are reported as skips; their branches survive in the new bare clone
 - Old worktree directories are moved to the system trash with the `trash` CLI instead of being deleted; a `trash` command must be installed or the import refuses to start
-- The import validates all target paths before touching anything and only removes old worktrees after every new worktree was restored; a failure rolls back so the source repository is left untouched
+- The import checks every source worktree and validates all target paths before creating the managed repository; old worktrees are only removed after every new worktree was recreated
 - The summary lists each worktree move
 
-Refuses repositories that are already registered (use `timber migrate`) or already bare (use `timber repo add`).
+Refuses repositories that are already registered or already bare (use `timber repo add` for bare repositories).
 
 Example:
 
@@ -344,30 +343,6 @@ Columns:
 - `Dirty`: whether the worktree has uncommitted changes (`true` is highlighted in yellow)
 - `Merged`: whether the branch is merged into its upstream (same signal `prune` uses)
 - `--pr`: add a `PR` column with the open pull request and check status (`#56 ✓`, `#56 ✗`, `#56 …`), one `gh` lookup per repository
-
-### `timber migrate`
-
-Register a clone as a bare repo, or rehome existing worktrees into the managed layout.
-
-- Inside an unregistered clone: creates `$XDG_DATA_HOME/timber/repos/<name>.git` (override name with `--name`)
-- Moves every branched worktree (including the former main checkout) to `$TIMBER_WORKTREE_ROOT/<repo-name>/<branch>/<repo-name>` (fallback: `~/worktrees/...`)
-- Inside a registered worktree: moves that repository’s worktrees that are not already at the managed path
-- `--all` | `-a`: rehomes worktrees for every registered repository
-- Removes empty parent directories of the old checkout, up to `$HOME`
-- If the clone has no linked worktrees and HEAD is the default branch (`origin/HEAD`, else `origin/master` / `origin/main`), only the bare repo is registered (no managed worktree is created)
-- Does not create worktrees for local branches that do not already have one
-- Use `--prompt` | `-p` to choose which worktrees to migrate
-
-Example:
-
-```bash
-cd ~/src/github.com/nnutter/timber
-timber migrate
-timber migrate --name timber --prompt
-cd ~/worktrees/next/timber
-timber migrate
-timber migrate --all
-```
 
 ### `timber prune [@repo]`
 

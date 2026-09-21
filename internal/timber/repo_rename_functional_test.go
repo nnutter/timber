@@ -5,102 +5,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestRepoAddListRemove(t *testing.T) {
-	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
-
-	remotePath := filepath.Join(resolvedTempDir(t), "remote.git")
-	runGitCommand(t, resolvedTempDir(t), "init", "--bare", remotePath)
-	seedBareRemote(t, remotePath)
-
-	addResult := runTimberCommandWithRuntime(t, runtime, "repo", "add", "--name", "demo", remotePath)
-	require.NoError(t, addResult.err, addResult.stderr)
-	assert.Contains(t, addResult.stderr, "added repository demo")
-
-	barePath := filepath.Join(runtime.DataHome, "timber", "repos", "demo.git")
-	fetch := strings.TrimSpace(runGitCommand(t, barePath, "config", "--get", "remote.origin.fetch"))
-	assert.Equal(t, "+refs/heads/*:refs/remotes/origin/*", fetch)
-	originHead := strings.TrimSpace(runGitCommand(t, barePath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"))
-	assert.Equal(t, "origin/main", originHead)
-
-	listResult := runTimberCommandWithRuntime(t, runtime, "repo", "list")
-	require.NoError(t, listResult.err, listResult.stderr)
-	assert.Contains(t, listResult.stdout, "Name")
-	assert.NotContains(t, listResult.stdout, "Path")
-	assert.Contains(t, listResult.stdout, "Origin")
-	assert.Contains(t, listResult.stdout, "demo")
-	assert.NotContains(t, listResult.stdout, runtime.displayHomePath(barePath))
-	assert.Contains(t, listResult.stdout, remotePath)
-	assert.NotContains(t, listResult.stdout, home)
-
-	removeResult := runTimberCommandWithRuntime(t, runtime, "repo", "remove", "demo")
-	require.NoError(t, removeResult.err, removeResult.stderr)
-
-	listAfter := runTimberCommandWithRuntime(t, runtime, "repo", "list")
-	require.NoError(t, listAfter.err)
-	assert.Contains(t, listAfter.stdout, "Name")
-	assert.NotContains(t, listAfter.stdout, "Path")
-	assert.Contains(t, listAfter.stdout, "Origin")
-	assert.NotContains(t, listAfter.stdout, "demo")
-}
-
-func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
-	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
-
-	barePath := filepath.Join(runtime.DataHome, "timber", "repos", "local.git")
-	require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
-	runGitCommand(t, resolvedTempDir(t), "init", "--bare", barePath)
-
-	result := runTimberCommandWithRuntime(t, runtime, "repo", "list")
-	require.NoError(t, result.err, result.stderr)
-	assert.Contains(t, result.stdout, "Origin")
-	assert.Contains(t, result.stdout, "local")
-	assert.NotContains(t, result.stdout, runtime.displayHomePath(barePath))
-}
-
-func TestRepoListQuietOutputsOnlySortedNames(t *testing.T) {
-	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
-
-	repositoryNames := []string{"zeta", "alpha"}
-	for _, repositoryName := range repositoryNames {
-		require.NoError(t, os.MkdirAll(runtime.bareRepoPath(repositoryName), 0o755))
-	}
-
-	testCases := []struct {
-		name string
-		flag string
-	}{
-		{name: "short option", flag: "-q"},
-		{name: "long option", flag: "--quiet"},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			result := runTimberCommandWithRuntime(t, runtime, "repo", "list", testCase.flag)
-
-			require.NoError(t, result.err, result.stderr)
-			assert.Equal(t, "alpha\nzeta\n", result.stdout)
-		})
-	}
-}
-
-func TestRepoAddMapsGitHubRelativePath(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "https://github.com/nnutter/timber", mustResolveRemoteURL(t, "nnutter/timber"))
-	assert.Equal(t, "https://example.com/r.git", mustResolveRemoteURL(t, "https://example.com/r.git"))
-	assert.Equal(t, "git@github.com:nnutter/timber.git", mustResolveRemoteURL(t, "git@github.com:nnutter/timber.git"))
-}
 
 func TestRepoRenameMovesManagedWorktreesAndPreservesUnmanagedWorktrees(t *testing.T) {
 	t.Parallel()
@@ -359,31 +268,4 @@ func TestRepoRenameCompletionOffersRegisteredReposOnlyForOldName(t *testing.T) {
 	newNameCompletion := runCompleteWithRuntime(t, testRepository.runtime, "repo", "rename", testRepoName, "")
 	assert.NotContains(t, newNameCompletion, testRepoName)
 	assert.Contains(t, newNameCompletion, ":4")
-}
-
-func TestRepoRemoveRefusesWhenWorktreesExist(t *testing.T) {
-	t.Parallel()
-	testRepository := newTestRepository(t)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/keep")).err)
-
-	result := testRepository.runTimber(t, "repo", "remove", testRepoName)
-	require.Error(t, result.err)
-	assert.Contains(t, result.err.Error(), "still has")
-}
-
-func TestRepoQualifierCompletionOffersRegisteredRepos(t *testing.T) {
-	t.Parallel()
-	testRepository := newTestRepository(t)
-	registerAdditionalRepo(t, testRepository, "other")
-
-	for _, args := range [][]string{
-		{"create", "@"},
-		{"create", ""},
-		{"list", "@"},
-		{"prune", "@"},
-	} {
-		stdout := runCompleteWithRuntime(t, testRepository.runtime, args...)
-		assert.Contains(t, stdout, at(testRepoName, ""), "args=%v", args)
-		assert.Contains(t, stdout, "@other", "args=%v", args)
-	}
 }

@@ -1,12 +1,30 @@
 package timber
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
+	t.Parallel()
+	home := resolvedTempDir(t)
+	runtime := testRuntimeForHome(home, home)
+
+	barePath := filepath.Join(runtime.DataHome, "timber", "repos", "local.git")
+	require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
+	runGitCommand(t, resolvedTempDir(t), "init", "--bare", barePath)
+
+	result := runTimberCommandWithRuntime(t, runtime, "repo", "list")
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stdout, "Origin")
+	assert.Contains(t, result.stdout, "local")
+	assert.NotContains(t, result.stdout, runtime.displayHomePath(barePath))
+}
 
 func TestRepoListSortOrder(t *testing.T) {
 	t.Parallel()

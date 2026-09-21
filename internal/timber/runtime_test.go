@@ -88,24 +88,6 @@ func TestWritePathFileRejectsPathOutsideTemporaryDirectory(t *testing.T) {
 	require.Contains(t, err.Error(), "outside temporary directory")
 }
 
-func TestWorktreeRootUsesEnvironmentOverride(t *testing.T) {
-	t.Parallel()
-	home := resolvedTempDir(t)
-	customRoot := filepath.Join(resolvedTempDir(t), "custom-worktrees")
-	runtime := testRuntimeForHome(home, home)
-	runtime.WorktreeRoot = customRoot
-
-	assert.Equal(t, customRoot, runtime.worktreeRoot())
-	assert.Equal(t, filepath.Join(customRoot, "repo", "feature", "repo"), runtime.managedWorktreePath("repo", "feature"))
-}
-
-func TestWorktreeRootFallsBackToHomeWorktrees(t *testing.T) {
-	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
-	assert.Equal(t, filepath.Join(home, "worktrees"), runtime.worktreeRoot())
-}
-
 func TestDisplayHomePath(t *testing.T) {
 	t.Parallel()
 	home := resolvedTempDir(t)

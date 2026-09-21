@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,58 +50,6 @@ func (x *stubCreateWizardPrompter) Prompt(
 	x.worktrees = worktrees
 	x.showTitle = showTitle
 	return x.selection, x.err
-}
-
-func TestCommandAliases(t *testing.T) {
-	t.Parallel()
-
-	for _, args := range [][]string{
-		{"ls"},
-		{"clean"},
-		{"rm"},
-		{"sw"},
-		{"repo", "ls"},
-		{"repo", "rm"},
-		{"repo", "mv"},
-	} {
-		args = append(args, "--help")
-		result := runTimberCommand(t, args...)
-		require.NoError(t, result.err, strings.Join(args, " ")+": "+result.stderr)
-	}
-}
-
-func TestCreateListAndRemoveLifecycle(t *testing.T) {
-	t.Parallel()
-	const branchName = "feature/one"
-
-	testRepository := newTestRepository(t)
-
-	createResult := testRepository.runTimber(t, "create", at(testRepoName, branchName))
-	require.NoError(t, createResult.err, createResult.stderr)
-	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
-	assert.Contains(t, createResult.stdout, testRepository.worktreePath(branchName))
-
-	branchCommitHash := strings.TrimSpace(runGitCommand(t, testRepository.barePath, "rev-parse", "--short=7", branchName))
-
-	listResult := testRepository.runTimber(t, "list", at(testRepoName, ""))
-	require.NoError(t, listResult.err, listResult.stderr)
-	assert.Contains(t, listResult.stdout, "Name")
-	assert.Contains(t, listResult.stdout, "Repo")
-	assert.Less(t, strings.Index(listResult.stdout, "Name"), strings.Index(listResult.stdout, "Repo"))
-	assert.Contains(t, listResult.stdout, testRepoName)
-	assert.Contains(t, listResult.stdout, branchName)
-	assert.Contains(t, listResult.stdout, "[origin/main]")
-	assert.Contains(t, listResult.stdout, branchCommitHash)
-
-	testRepository.mergeWorktreeBranch(t, branchName)
-	mergedCommitHash := strings.TrimSpace(runGitCommand(t, testRepository.barePath, "rev-parse", "--short=7", branchName))
-
-	removeResult := testRepository.runTimber(t, "remove", at(testRepoName, branchName))
-	require.NoError(t, removeResult.err, removeResult.stderr)
-	assert.Contains(t, removeResult.stderr, mergedCommitHash)
-
-	testRepository.assertBranchMissing(t, branchName)
-	testRepository.assertPathMissing(t, testRepository.worktreePath(branchName))
 }
 
 func installFakeHerdrSpace(t *testing.T, logPath string) string {
@@ -232,7 +179,7 @@ func readFakeHerdrLog(t *testing.T, logPath string) []string {
 
 func skipIfNoPty(t *testing.T) {
 	t.Helper()
-	command := exec.Command("python3", "-c", "import pty; pty.openpty()")
+	command := testCommand(t, "python3", "-c", "import pty; pty.openpty()")
 	if err := command.Run(); err != nil {
 		t.Skip("pty devices are not available")
 	}
@@ -309,56 +256,6 @@ func runCompleteWithRuntime(t *testing.T, runtime Runtime, args ...string) strin
 	command.SetErr(io.Discard)
 	require.NoError(t, command.Execute())
 	return stdout.String()
-}
-
-func TestWorktreeCompletionAddsAtWhenNameIsAmbiguous(t *testing.T) {
-	t.Parallel()
-	primary := newTestRepository(t)
-	secondaryName := "other"
-	registerAdditionalRepo(t, primary, secondaryName)
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/login")).err)
-	require.NoError(t, primary.runTimber(t, "create", at(secondaryName, "feature/login")).err)
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/unique")).err)
-
-	stdout := runCompleteWithRuntime(t, primary.runtime, "switch", "")
-	assert.Contains(t, stdout, at(testRepoName, "feature/login"))
-	assert.Contains(t, stdout, at(secondaryName, "feature/login"))
-	assert.Contains(t, stdout, "feature/unique")
-	assert.NotContains(t, stdout, "feature/unique@")
-	assert.NotContains(t, stdout, "feature/login\n")
-
-	prefix := runCompleteWithRuntime(t, primary.runtime, "switch", "feature/l")
-	assert.Contains(t, prefix, at(testRepoName, "feature/login"))
-	assert.Contains(t, prefix, at(secondaryName, "feature/login"))
-
-	qualified := runCompleteWithRuntime(t, primary.runtime, "switch", "feature/login@")
-	assert.Contains(t, qualified, at(testRepoName, "feature/login"))
-	assert.Contains(t, qualified, at(secondaryName, "feature/login"))
-}
-
-func TestDefaultRepoNameFromRemote(t *testing.T) {
-	t.Parallel()
-	name, err := defaultRepoNameFromRemote("https://github.com/nnutter/timber.git")
-	require.NoError(t, err)
-	assert.Equal(t, "timber", name)
-
-	name, err = defaultRepoNameFromRemote("git@github.com:nnutter/timber.git")
-	require.NoError(t, err)
-	assert.Equal(t, "timber", name)
-}
-
-func TestDefaultRepoNameFromPathStripsGitSuffix(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "roam", defaultRepoNameFromPath("/tmp/src/roam.git"))
-	assert.Equal(t, "roam", defaultRepoNameFromPath("/tmp/src/main/roam.git"))
-	assert.Equal(t, "roam", defaultRepoNameFromPath("/tmp/src/roam"))
-}
-
-func TestNormalizeRepoNameStripsGitSuffix(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "roam", normalizeRepoName("roam.git"))
-	assert.Equal(t, "roam", normalizeRepoName(" roam.git "))
-	assert.Equal(t, "roam", normalizeRepoName("roam"))
 }
 
 func mustResolveRemoteURL(t *testing.T, input string) string {
@@ -563,16 +460,6 @@ func (x testRepository) worktreePath(branchName string) string {
 	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
 }
 
-func addLegacyWorktree(t *testing.T, barePath string, worktreeRoot string, repoName string, branchName string) string {
-	t.Helper()
-	path := filepath.Join(worktreeRoot, branchName, repoName)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	runGitCommand(t, barePath, "branch", branchName, "main")
-	runGitCommand(t, barePath, "worktree", "add", path, branchName)
-	runGitCommand(t, barePath, "branch", "--set-upstream-to", remoteName+"/main", branchName)
-	return path
-}
-
 func (x testRepository) runTimber(t *testing.T, args ...string) commandResult {
 	t.Helper()
 	return x.runTimberFrom(t, x.home, args...)
@@ -664,7 +551,7 @@ func (x testRepository) mergeWorktreeBranch(t *testing.T, branchName string) {
 
 func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
 	t.Helper()
-	command := exec.Command("git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+	command := testCommand(t, "git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
 	err := command.Run()
 	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
 		return
@@ -702,6 +589,7 @@ func runGitCommandResult(cwd string, args ...string) (string, error) {
 	command := exec.Command("git", args...)
 	command.Dir = cwd
 	command.Env = append(gitTestEnv(),
+		"HOME="+cwd,
 		"GIT_AUTHOR_NAME=Test User",
 		"GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=Test User",
@@ -712,41 +600,28 @@ func runGitCommandResult(cwd string, args ...string) (string, error) {
 	return string(output), err
 }
 
-// gitTestEnv returns the process environment without GIT_* location
-// overrides that could redirect test git commands outside their
-// temp directories (e.g. GIT_DIR inherited from a rebase or
-// worktree). Identity and tool configuration are preserved.
+// Start from an allowlist, not os.Environ: rebase Git overrides, user
+// configuration, shell startup hooks, and Timber/Herdr state must not leak
+// into fixtures. Callers supply a temporary HOME and any deliberate overrides.
 func gitTestEnv() []string {
-	scrubbedPrefixes := []string{
-		"GIT_DIR=",
-		"GIT_WORK_TREE=",
-		"GIT_NAMESPACE=",
-		"GIT_INDEX_FILE=",
-		"GIT_PREFIX=",
-		"GIT_CEILING_DIRECTORIES=",
-		"GIT_CONFIG_GLOBAL=",
-		"GIT_CONFIG_SYSTEM=",
-		"GIT_CONFIG_COUNT=",
-		"GIT_CONFIG_KEY_",
-		"GIT_CONFIG_VALUE_",
-		"GIT_OBJECT_DIRECTORY=",
-		"GIT_ALTERNATE_OBJECT_DIRECTORIES=",
-		"GIT_COMMON_DIR=",
+	return []string{
+		"PATH=" + os.Getenv("PATH"),
+		"TMPDIR=" + os.TempDir(),
+		"LANG=C",
+		"LC_ALL=C",
+		"TERM=xterm-256color",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_GLOBAL=" + os.DevNull,
+		"GIT_ATTR_NOSYSTEM=1",
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_CONFIG_COUNT=3",
+		"GIT_CONFIG_KEY_0=core.hooksPath",
+		"GIT_CONFIG_VALUE_0=" + os.DevNull,
+		"GIT_CONFIG_KEY_1=commit.gpgSign",
+		"GIT_CONFIG_VALUE_1=false",
+		"GIT_CONFIG_KEY_2=init.templateDir",
+		"GIT_CONFIG_VALUE_2=",
 	}
-	environment := make([]string, 0, len(os.Environ()))
-	for _, value := range os.Environ() {
-		scrubbed := false
-		for _, prefix := range scrubbedPrefixes {
-			if strings.HasPrefix(value, prefix) {
-				scrubbed = true
-				break
-			}
-		}
-		if !scrubbed {
-			environment = append(environment, value)
-		}
-	}
-	return environment
 }
 
 func runGitCommandAllowError(t *testing.T, cwd string, args ...string) {

@@ -203,19 +203,6 @@ func (x *Repository) listPorcelainWorktrees() ([]porcelainWorktree, error) {
 	return worktrees, nil
 }
 
-func (x *Repository) mainWorktreePath() (string, error) {
-	worktrees, err := x.listPorcelainWorktrees()
-	if err != nil {
-		return "", err
-	}
-
-	if len(worktrees) == 0 {
-		return "", errors.New("no worktrees found")
-	}
-
-	return worktrees[0].Path, nil
-}
-
 func (x *Repository) remoteHeadBranch() (string, error) {
 	if branch, err := x.resolvedRemoteHeadBranch(); err == nil {
 		return branch, nil

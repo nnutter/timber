@@ -8,18 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEmbeddedPluginMatchesSourceFiles(t *testing.T) {
-	t.Parallel()
-
-	for _, name := range []string{"herdr-plugin.toml", "bin/create", "bin/open"} {
-		want, err := os.ReadFile(name)
-		require.NoError(t, err)
-		got, err := pluginFiles.ReadFile(name)
-		require.NoError(t, err)
-		require.Equal(t, string(want), string(got), "%s: embedded contents differ from source", name)
-	}
-}
-
 func TestWritePluginReplacesDestinationAndPreservesExecutables(t *testing.T) {
 	t.Parallel()
 

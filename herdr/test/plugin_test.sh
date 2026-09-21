@@ -34,7 +34,7 @@ assert_file_contains() {
 }
 
 install_fake_commands() {
-    mkdir -p "$fake_bin_directory"
+    mkdir -p "$fake_bin_directory" "$test_directory/home"
 
     cat >"$fake_bin_directory/timber" <<'FAKE_TIMBER'
 #!/usr/bin/env bash
@@ -52,8 +52,10 @@ FAKE_TIMBER
 
 run_create_command() (
     cd "$plugin_root"
-    env \
+    env -i \
+        HOME="$test_directory/home" \
         PATH="$fake_bin_directory:/usr/bin:/bin" \
+        FAKE_CREATE_FAILURE="${FAKE_CREATE_FAILURE:-}" \
         CREATE_ARGUMENTS_FILE="$test_directory/create-arguments" \
         /bin/bash bin/create
 )

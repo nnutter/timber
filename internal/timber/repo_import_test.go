@@ -189,66 +189,6 @@ func TestRepoImportMovesLinkedWorktrees(t *testing.T) {
 	assert.Contains(t, listResult.stdout, "feature/login")
 }
 
-func TestRepoImportPreservesUncommittedChanges(t *testing.T) {
-	t.Parallel()
-	fixture := newImportFixture(t)
-	featurePath := filepath.Join(filepath.Dir(fixture.clonePath), "feature-worktree")
-	runGitCommand(t, fixture.clonePath, "branch", "feature/login")
-	runGitCommand(t, fixture.clonePath, "worktree", "add", featurePath, "feature/login")
-
-	require.NoError(t, os.WriteFile(filepath.Join(fixture.clonePath, "README.md"), []byte("uncommitted edit\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(featurePath, "README.md"), []byte("feature edit\n"), 0o644))
-
-	result := fixture.importRun(t, "--name", "project")
-	require.NoError(t, result.err, result.stderr)
-
-	mainContents, err := os.ReadFile(filepath.Join(fixture.managedWorktreePath("project", "main"), "README.md"))
-	require.NoError(t, err)
-	assert.Equal(t, "uncommitted edit\n", string(mainContents))
-
-	featureContents, err := os.ReadFile(filepath.Join(fixture.managedWorktreePath("project", "feature/login"), "README.md"))
-	require.NoError(t, err)
-	assert.Equal(t, "feature edit\n", string(featureContents))
-}
-
-func TestRepoImportPreservesUntrackedFiles(t *testing.T) {
-	t.Parallel()
-	fixture := newImportFixture(t)
-
-	nestedDirectory := filepath.Join(fixture.clonePath, "notes", "deep")
-	require.NoError(t, os.MkdirAll(nestedDirectory, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(nestedDirectory, "todo.txt"), []byte("keep me\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(fixture.clonePath, "scratch.txt"), []byte("scratch\n"), 0o644))
-
-	result := fixture.importRun(t, "--name", "project")
-	require.NoError(t, result.err, result.stderr)
-
-	mainTarget := fixture.managedWorktreePath("project", "main")
-	contents, err := os.ReadFile(filepath.Join(mainTarget, "notes", "deep", "todo.txt"))
-	require.NoError(t, err)
-	assert.Equal(t, "keep me\n", string(contents))
-	contents, err = os.ReadFile(filepath.Join(mainTarget, "scratch.txt"))
-	require.NoError(t, err)
-	assert.Equal(t, "scratch\n", string(contents))
-}
-
-func TestRepoImportPreservesGitignoredFiles(t *testing.T) {
-	t.Parallel()
-	fixture := newImportFixture(t)
-
-	require.NoError(t, os.WriteFile(filepath.Join(fixture.clonePath, ".gitignore"), []byte("build/\n"), 0o644))
-	buildDirectory := filepath.Join(fixture.clonePath, "build")
-	require.NoError(t, os.MkdirAll(buildDirectory, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(buildDirectory, "artifact.bin"), []byte("binary\n"), 0o644))
-
-	result := fixture.importRun(t, "--name", "project")
-	require.NoError(t, result.err, result.stderr)
-
-	contents, err := os.ReadFile(filepath.Join(fixture.managedWorktreePath("project", "main"), "build", "artifact.bin"))
-	require.NoError(t, err)
-	assert.Equal(t, "binary\n", string(contents))
-}
-
 func TestRepoImportRecreatesDetachedWorktree(t *testing.T) {
 	t.Parallel()
 	fixture := newImportFixture(t)

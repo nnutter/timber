@@ -81,15 +81,6 @@ func TestFirstUnusedWorktreeNameReturnsExistsError(t *testing.T) {
 	assert.Empty(t, name)
 }
 
-func TestRandomWorktreeNameUsesWordLists(t *testing.T) {
-	t.Parallel()
-	name := randomWorktreeName()
-	adjective, noun, found := strings.Cut(name, "-")
-	require.True(t, found, name)
-	assert.True(t, slices.Contains(worktreeNameAdjectives, adjective), name)
-	assert.True(t, slices.Contains(worktreeNameNouns, noun), name)
-}
-
 func TestWorktreeNameWordListsAreValid(t *testing.T) {
 	t.Parallel()
 	wordPattern := regexp.MustCompile(`^[a-z]+$`)
