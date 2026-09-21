@@ -293,11 +293,14 @@ printf '%s\n' "$@"
 		"zsh", "-f", "-c",
 		`fpath=("$1" $fpath)
 autoload -Uz compinit
-compinit -D 2>/dev/null
+compinit -u -D 2>/dev/null
 t list`,
 		"--", outDir,
 	)
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// -u keeps compinit from aborting on insecure directories (as on CI),
+	// and PATH limited to the fake timber keeps an installed t from
+	// masking a broken autoload.
+	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir)
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
 	assert.Equal(t, "list", strings.TrimSpace(string(output)))
