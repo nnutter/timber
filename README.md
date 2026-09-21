@@ -333,6 +333,9 @@ List managed worktrees in a table.
 
 - Default: list worktrees from every registered repository
 - `@<repo>`: list only the named repository
+- `--sort repo` (default): sort by repository, then worktree name
+- `--sort worktree`: sort by worktree name, then repository
+- Sort modes support tab completion and apply to both table and `--json` output
 
 Columns:
 
