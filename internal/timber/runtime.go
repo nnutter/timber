@@ -980,10 +980,6 @@ func (x Runtime) collectManagedWorktrees(repos []registeredRepo) ([]managedWorkt
 	return x.collectWorktrees(repos, x.enrichManagedWorktree)
 }
 
-func (x Runtime) collectListedWorktrees(repos []registeredRepo) ([]managedWorktree, error) {
-	return x.collectWorktrees(repos, x.enrichWorktreeForList)
-}
-
 func (x Runtime) collectWorktrees(repos []registeredRepo, enrich worktreeEnricher) ([]managedWorktree, error) {
 	worktrees := make([]managedWorktree, 0)
 	for _, repo := range repos {

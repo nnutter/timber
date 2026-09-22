@@ -22,7 +22,7 @@ set -euo pipefail
 command -v zsh
 command -v python3
 python3 -c 'import os, pty; master, slave = pty.openpty(); os.close(master); os.close(slave)'
-mise run tests
+go test -race -shuffle=on -cover ./...
 '''
 
 [tasks.coverage]
@@ -33,6 +33,10 @@ run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cov
 [tasks.install-hooks]
 description = "Install Lefthook git hooks"
 run = "go tool lefthook install"
+
+[tasks.refresh-template]
+description = "Refresh from template"
+run = "git tpl update && git tpl merge"
 
 [tasks.pre-commit]
 description = "Format staged files"
@@ -46,7 +50,7 @@ mise run fixers ${usage_staged_files}
 [tasks.tests]
 alias = "test"
 description = "Run tests (with the race detector)"
-run = "go test -race -shuffle=on -cover ./..."
+run = "go test -cover ./..."
 
 #############
 # Fix Tasks #
@@ -134,7 +138,7 @@ run = "go tool gitleaks dir --verbose --redact ."
 
 [tasks.lint-go-check-sumtype]
 description = "Check sealed sum-type switches for exhaustiveness"
-run = "go tool go-check-sumtype ./..."
+run = "go tool go-check-sumtype -default-signifies-exhaustive=false -include-shared-interfaces ./..."
 
 [tasks.lint-go-vet]
 description = "Run go vet static analysis"
@@ -159,3 +163,26 @@ run = "go tool staticcheck ./..."
 [tasks.lint-testifylint]
 description = "Run testifylint static analysis"
 run = "go tool testifylint ./..."
+
+#####################
+# Agent Hooks       #
+#####################
+
+[tasks.on-start]
+description = "Pi mise-hooks: run fixers, tests, and linters before agent starts"
+run = "mise run all"
+
+[tasks.on-edit]
+description = "Pi mise-hooks: run fixers on edited file after edit"
+usage = 'arg "[staged_files]" var=#true'
+run = "mise run fixers ${usage_staged_files}"
+
+[tasks.on-stop]
+description = "Pi mise-hooks: fix edited files, then test and lint"
+usage = 'arg "[staged_files]" var=#true'
+run = '''
+#!/usr/bin/env bash
+mise run fixers ${usage_staged_files}
+mise run tests
+mise run linters
+'''
