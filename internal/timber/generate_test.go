@@ -52,6 +52,20 @@ func TestGeneratedZshCompletionHasValidSyntax(t *testing.T) {
 	require.NoError(t, err, string(output))
 }
 
+func TestGeneratedTodoCompletesWorktrees(t *testing.T) {
+	t.Parallel()
+
+	outDir := resolvedTempDir(t)
+	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir).err)
+
+	completionContents, err := os.ReadFile(filepath.Join(outDir, "_t"))
+	require.NoError(t, err)
+	completion := string(completionContents)
+	assert.Contains(t, completion, "'todo:Open the worktree-specific TODO.md'")
+	assert.Contains(t, completion, "todo)")
+	assert.Contains(t, completion, "'1:worktree name:->worktrees'")
+}
+
 func TestGenerateZshUsesCustomWrapperName(t *testing.T) {
 	t.Parallel()
 
