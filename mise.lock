@@ -222,3 +222,28 @@ url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524226
 checksum = "sha256:c111b68123d4fb738d09184d8dae37211488431259150c658a4b80d7ef3c1c2c"
 url = "https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_windows_amd64.tar.gz"
 url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524233774"
+
+[[tools.ttyd]]
+version = "1.7.7"
+backend = "aqua:tsl0922/ttyd"
+
+[tools.ttyd."platforms.linux-arm64"]
+url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.aarch64"
+url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377644"
+
+[tools.ttyd."platforms.linux-arm64-musl"]
+url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.aarch64"
+url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377644"
+
+[tools.ttyd."platforms.linux-x64"]
+checksum = "blake3:6ed0d916345e111411cdc7f7d649bcb984ec1ee603d470b2151ac0a31b9585a4"
+url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64"
+url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377628"
+
+[tools.ttyd."platforms.linux-x64-musl"]
+url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64"
+url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377628"
+
+[tools.ttyd."platforms.windows-x64"]
+url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.win32.exe"
+url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377630"
