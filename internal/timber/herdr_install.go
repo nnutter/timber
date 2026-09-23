@@ -14,6 +14,12 @@ key = "prefix+shift+s"
 type = "plugin_action"
 command = "nnutter.timber.open"
 description = "open or create Timber Space"
+
+[[keys.command]]
+key = "prefix+shift+d"
+type = "plugin_action"
+command = "nnutter.timber.delete"
+description = "delete Timber worktree"
 `
 )
 
