@@ -64,6 +64,12 @@ type Runtime struct {
 	// visibility checks. It is primarily useful for tests; an empty value
 	// uses https://api.github.com.
 	GitHubAPIBaseURL string
+
+	// TodoSkillContent holds the embedded skills/timber-todo/SKILL.md
+	// installed by `timber todo --install-skill`. It is set by main from
+	// the embedded file; an empty value reports an error instead of
+	// writing an empty skill.
+	TodoSkillContent string
 }
 
 // RuntimeFromProcess captures the process state needed by a timber command.

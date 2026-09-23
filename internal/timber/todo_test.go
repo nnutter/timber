@@ -132,6 +132,60 @@ func TestTodoPathPrintsPathWithoutEditor(t *testing.T) {
 	testRepository.assertPathPresent(t, expectedTodoPath)
 }
 
+func TestTodoInstallSkillWritesEmbeddedContent(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	runtime := testRuntimeForHome(resolvedTempDir(t), testRepository.home)
+	runtime.TodoSkillContent = "# timber-todo test skill\n"
+
+	result := runTimberFromWithRuntime(t, runtime, testRepository.home, "todo", "--install-skill")
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stderr, "installed timber-todo skill")
+
+	destination := filepath.Join(runtime.HomeDirectory, ".agents", "skills", "timber-todo", "SKILL.md")
+	contents, err := os.ReadFile(destination)
+	require.NoError(t, err)
+	assert.Equal(t, "# timber-todo test skill\n", string(contents))
+}
+
+func TestTodoInstallSkillRefusesOverwriteWithoutForce(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	runtime := testRuntimeForHome(resolvedTempDir(t), testRepository.home)
+	runtime.TodoSkillContent = "# version one\n"
+
+	result := runTimberFromWithRuntime(t, runtime, testRepository.home, "todo", "--install-skill")
+	require.NoError(t, result.err, result.stderr)
+
+	runtime.TodoSkillContent = "# version two\n"
+	result = runTimberFromWithRuntime(t, runtime, testRepository.home, "todo", "--install-skill")
+	require.ErrorContains(t, result.err, "already exists")
+
+	destination := filepath.Join(runtime.HomeDirectory, ".agents", "skills", "timber-todo", "SKILL.md")
+	contents, err := os.ReadFile(destination)
+	require.NoError(t, err)
+	assert.Equal(t, "# version one\n", string(contents))
+
+	result = runTimberFromWithRuntime(t, runtime, testRepository.home, "todo", "--install-skill", "--force")
+	require.NoError(t, result.err, result.stderr)
+	contents, err = os.ReadFile(destination)
+	require.NoError(t, err)
+	assert.Equal(t, "# version two\n", string(contents))
+}
+
+func TestTodoInstallSkillRejectsPathCombination(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	runtime := testRuntimeForHome(resolvedTempDir(t), testRepository.home)
+	runtime.TodoSkillContent = "# timber-todo test skill\n"
+
+	result := runTimberFromWithRuntime(t, runtime, testRepository.home, "todo", "--path", "--install-skill")
+	require.Error(t, result.err)
+}
+
 func TestTodoFailsWithoutEditorOrFallback(t *testing.T) {
 	t.Parallel()
 

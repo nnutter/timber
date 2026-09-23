@@ -382,6 +382,7 @@ Open the worktree-specific `TODO.md` for the current worktree.
 The file lives at `<git-dir>/TODO.md` inside the common git directory, so each worktree has its own notes that never pollute the checkout.
 Uses `$EDITOR` (split on whitespace, so `code --wait` works); when unset, falls back through `nvim`, `nano`, `vim`, then `vi`.
 Use `--path` to print the file path instead of opening it (useful for scripts and agents).
+Use `--install-skill` to install the bundled `timber-todo` agent skill to `~/.agents/skills/timber-todo/SKILL.md`; refuse to overwrite an existing install unless `--force` is given.
 
 Example:
 
