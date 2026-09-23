@@ -375,6 +375,19 @@ timber remove feature/login@timber
 timber remove --force feature/login@timber
 ```
 
+### `timber todo`
+
+Open the worktree-specific `TODO.md` for the current worktree.
+
+The file lives at `<git-dir>/TODO.md` inside the common git directory, so each worktree has its own notes that never pollute the checkout.
+Uses `$EDITOR` (split on whitespace, so `code --wait` works); when unset, falls back through `nvim`, `nano`, `vim`, then `vi`.
+
+Example:
+
+```bash
+timber todo
+```
+
 ### `timber generate zsh`
 
 Generate a zsh wrapper function, completion, and autoload helper (see [Shell integration](#shell-integration)).
