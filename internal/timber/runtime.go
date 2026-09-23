@@ -1034,6 +1034,11 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 	}
 	worktree.ListStatus = status
 	worktree.Clean = clean
+	// Record the repo default so Status can hide it and only call out
+	// worktrees tracking something else. Unknown defaults show upstream.
+	if defaultBranch, err := repository.remoteHeadBranch(); err == nil {
+		worktree.DefaultUpstream = defaultBranch
+	}
 
 	// A branch without a resolvable upstream is not merged anywhere timber
 	// tracks; list stays read-only and reports it as unmerged.

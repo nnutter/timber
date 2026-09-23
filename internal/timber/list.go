@@ -134,7 +134,7 @@ func dottedListRowRules(tableOutput string) string {
 func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusFormatter, showPullRequests bool) [][]string {
 	rows := make([][]string, 0, (len(worktrees)+1)/2)
 	for index, worktree := range worktrees {
-		status := statusFormatter.format(worktree.ListStatus)
+		status := statusFormatter.format(worktree)
 		if worktree.ListError {
 			status = "error"
 		}
