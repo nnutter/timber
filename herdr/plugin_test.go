@@ -21,7 +21,10 @@ func TestWritePluginReplacesDestinationAndPreservesExecutables(t *testing.T) {
 	_, err := os.Stat(stalePath)
 	require.ErrorIs(t, err, os.ErrNotExist, "stale file still present")
 
-	for _, name := range []string{"herdr-plugin.toml", "bin/create", "bin/open"} {
+	names, err := EmbeddedFiles()
+	require.NoError(t, err)
+	require.NotEmpty(t, names)
+	for _, name := range names {
 		got, err := os.ReadFile(filepath.Join(destination, filepath.FromSlash(name)))
 		require.NoError(t, err)
 		want, err := pluginFiles.ReadFile(name)
@@ -29,7 +32,12 @@ func TestWritePluginReplacesDestinationAndPreservesExecutables(t *testing.T) {
 		require.Equal(t, string(want), string(got), "%s: installed contents differ from embed", name)
 	}
 
-	createInfo, err := os.Stat(filepath.Join(destination, "bin", "create"))
-	require.NoError(t, err)
-	require.NotZero(t, createInfo.Mode()&0o111, "bin/create is not executable")
+	for _, name := range names {
+		if filepath.ToSlash(name) == "herdr-plugin.toml" {
+			continue
+		}
+		info, err := os.Stat(filepath.Join(destination, filepath.FromSlash(name)))
+		require.NoError(t, err)
+		require.NotZero(t, info.Mode()&0o111, "%s is not executable", name)
+	}
 }

@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/herdr"
 )
 
 func TestHerdrInstallWritesPluginAndLinks(t *testing.T) {
@@ -30,7 +32,7 @@ func TestHerdrInstallWritesPluginAndLinks(t *testing.T) {
 		fakeHerdrLogLine("plugin", "link", destination, "--enabled"),
 	}, readFakeHerdrLog(t, logPath))
 
-	for _, name := range []string{"herdr-plugin.toml", "bin/create", "bin/open"} {
+	for _, name := range mustEmbeddedPluginFiles(t) {
 		got, err := os.ReadFile(filepath.Join(destination, filepath.FromSlash(name)))
 		require.NoError(t, err)
 		want, err := os.ReadFile(filepath.Join("..", "..", "herdr", filepath.FromSlash(name)))
@@ -62,4 +64,13 @@ func TestHerdrInstallFailsWhenPluginLinkFails(t *testing.T) {
 	assert.Contains(t, result.err.Error(), "herdr plugin link")
 	assert.FileExists(t, filepath.Join(configHome, "herdr", "plugins", "timber", "herdr-plugin.toml"))
 	assert.NotContains(t, result.stdout, herdrKeybindingTOML)
+}
+
+func mustEmbeddedPluginFiles(t *testing.T) []string {
+	t.Helper()
+
+	names, err := herdr.EmbeddedFiles()
+	require.NoError(t, err)
+	require.NotEmpty(t, names)
+	return names
 }
