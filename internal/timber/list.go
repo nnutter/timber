@@ -3,7 +3,6 @@ package timber
 import (
 	"encoding/json/v2"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -145,7 +144,7 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 			status,
 			worktree.shortCommitHash(),
 			formatDirtyStatus(worktree.Clean),
-			strconv.FormatBool(worktree.Merged),
+			formatMergedStatus(worktree.Merged),
 		}
 		if showPullRequests {
 			row = append(row, worktree.PullRequest)
@@ -162,11 +161,17 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 }
 
 func formatDirtyStatus(clean bool) string {
-	dirty := strconv.FormatBool(!clean)
 	if !clean {
-		return warningStyle.Render(dirty)
+		return warningStyle.Render("dirty")
 	}
-	return dirty
+	return "clean"
+}
+
+func formatMergedStatus(merged bool) string {
+	if merged {
+		return "merged"
+	}
+	return "unmerged"
 }
 
 func (x *listCommandOptions) collectWorktrees() ([]managedWorktree, error) {

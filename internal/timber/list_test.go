@@ -77,10 +77,16 @@ func TestGroupListTableRowsIncludesPullRequestColumnWhenEnabled(t *testing.T) {
 	assert.Len(t, rows[0], 6)
 }
 
+func TestFormatMergedStatus(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "merged", formatMergedStatus(true))
+	assert.Equal(t, "unmerged", formatMergedStatus(false))
+}
+
 func TestFormatDirtyStatusColorsTrueYellow(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "false", formatDirtyStatus(true))
-	assert.Equal(t, warningStyle.Render("true"), formatDirtyStatus(false))
+	assert.Equal(t, "clean", formatDirtyStatus(true))
+	assert.Equal(t, warningStyle.Render("dirty"), formatDirtyStatus(false))
 }
 
 func TestListSucceedsWhenUpstreamRefIsMissing(t *testing.T) {
@@ -151,8 +157,8 @@ func TestListShowsMergedStatus(t *testing.T) {
 	assert.Contains(t, result.stdout, "Merged")
 	assert.Contains(t, result.stdout, "feature/fresh")
 	assert.Contains(t, result.stdout, "feature/ahead")
-	assert.Contains(t, result.stdout, "true")
-	assert.Contains(t, result.stdout, "false")
+	assert.Contains(t, result.stdout, "merged")
+	assert.Contains(t, result.stdout, "unmerged")
 }
 
 func TestListPullRequests(t *testing.T) {
@@ -216,7 +222,7 @@ func TestListReportsDirtyWorktree(t *testing.T) {
 	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stdout, branchName)
-	assert.Contains(t, result.stdout, "true")
+	assert.Contains(t, result.stdout, "dirty")
 }
 
 func TestListOutsideManagedWorktreeListsAllRepos(t *testing.T) {
