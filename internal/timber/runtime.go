@@ -940,7 +940,7 @@ func (x Runtime) enrichManagedWorktree(repository *Repository, worktree managedW
 		return managedWorktree{}, err
 	}
 
-	merged, err := repository.branchMergedToUpstream(worktree.BranchReference, upstreamRef)
+	merged, err := repository.branchMergedToUpstream(worktree.Name, worktree.BranchReference, upstreamRef)
 	if err != nil {
 		return managedWorktree{}, err
 	}
@@ -1038,7 +1038,7 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 	// A branch without a resolvable upstream is not merged anywhere timber
 	// tracks; list stays read-only and reports it as unmerged.
 	if upstreamRef, err := repository.upstreamReference(worktree.Name); err == nil {
-		merged, err := repository.branchMergedToUpstream(worktree.BranchReference, upstreamRef)
+		merged, err := repository.branchMergedToUpstream(worktree.Name, worktree.BranchReference, upstreamRef)
 		if err != nil {
 			return managedWorktree{}, err
 		}
