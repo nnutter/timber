@@ -113,6 +113,25 @@ func TestTodoPassesEditorArgs(t *testing.T) {
 	require.Equal(t, []string{"--wait", expectedTodoPath}, lines)
 }
 
+func TestTodoPathPrintsPathWithoutEditor(t *testing.T) {
+	t.Parallel()
+
+	const branchName = "feature/todo-path"
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	worktreePath := testRepository.worktreePath(branchName)
+	expectedTodoPath := todoPathForWorktree(t, worktreePath)
+
+	// EDITOR=false would fail if the editor were launched.
+	runtime := withTestEnvironment(testRepository.runtime, "EDITOR=false")
+
+	result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--path")
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, expectedTodoPath, strings.TrimSpace(result.stdout))
+	testRepository.assertPathPresent(t, expectedTodoPath)
+}
+
 func TestTodoFailsWithoutEditorOrFallback(t *testing.T) {
 	t.Parallel()
 

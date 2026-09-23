@@ -14,18 +14,21 @@ import (
 var fallbackEditors = []string{"nvim", "nano", "vim", "vi"}
 
 type todoCommandOptions struct {
-	runtime Runtime
+	runtime  Runtime
+	pathOnly bool
 }
 
 func NewTodoCommand(runtime Runtime) *cobra.Command {
 	options := &todoCommandOptions{runtime: runtime}
 
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use:   "todo",
 		Short: "Open the worktree-specific TODO.md",
 		Args:  cobra.NoArgs,
 		RunE:  options.Execute,
 	}
+	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO.md path instead of opening it")
+	return command
 }
 
 func (x *todoCommandOptions) Execute(command *cobra.Command, _ []string) error {
@@ -50,6 +53,11 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, _ []string) error {
 	}
 	if err := file.Close(); err != nil {
 		return fmt.Errorf("create TODO.md: %w", err)
+	}
+
+	if x.pathOnly {
+		_, err := fmt.Fprintln(command.OutOrStdout(), todoPath)
+		return err
 	}
 
 	editorLine, err := editorCommandLine(x.runtime)
