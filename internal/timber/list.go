@@ -55,7 +55,7 @@ func (x *listCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return x.reportJSON(command, worktrees)
 	}
 
-	headers := []string{"Name", "Repo", "Status", "Commit", "Dirty", "Merged"}
+	headers := []string{"Name", "Repo", "Status", "Commit", "Dirty"}
 	if x.pullRequests {
 		headers = append(headers, "PR")
 	}
@@ -144,7 +144,6 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 			status,
 			worktree.shortCommitHash(),
 			formatDirtyStatus(worktree.Clean),
-			formatMergedStatus(worktree.Merged),
 		}
 		if showPullRequests {
 			row = append(row, worktree.PullRequest)
@@ -165,13 +164,6 @@ func formatDirtyStatus(clean bool) string {
 		return warningStyle.Render("dirty")
 	}
 	return "clean"
-}
-
-func formatMergedStatus(merged bool) string {
-	if merged {
-		return "merged"
-	}
-	return "unmerged"
 }
 
 func (x *listCommandOptions) collectWorktrees() ([]managedWorktree, error) {

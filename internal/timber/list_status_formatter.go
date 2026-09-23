@@ -29,6 +29,13 @@ func newListStatusFormatter(worktrees []managedWorktree) listStatusFormatter {
 
 func (x listStatusFormatter) format(worktree managedWorktree) string {
 	status := worktree.ListStatus
+	// Merged work needs no divergence detail; name the state instead.
+	if worktree.Merged {
+		if status.Upstream != "" && status.Upstream != worktree.DefaultUpstream {
+			return "merged [" + status.Upstream + "]"
+		}
+		return "merged"
+	}
 	parts := make([]string, 0, 3)
 	if x.aheadCountWidth > 0 {
 		indicator := formatListStatusIndicator("↑", status.Ahead, x.aheadCountWidth)

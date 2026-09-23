@@ -37,6 +37,27 @@ func TestListStatusFormatterAlignsAndColorsIndicators(t *testing.T) {
 	assert.Empty(t, formatter.format(worktrees[4]))
 }
 
+func TestListStatusFormatterShowsMergedInsteadOfDivergence(t *testing.T) {
+	t.Parallel()
+	worktrees := []managedWorktree{
+		{
+			Merged:          true,
+			ListStatus:      listStatus{Upstream: "origin/main", Ahead: 3, Behind: 1},
+			DefaultUpstream: "origin/main",
+		},
+		{
+			Merged:          true,
+			ListStatus:      listStatus{Upstream: "origin/dev", Ahead: 3},
+			DefaultUpstream: "origin/main",
+		},
+	}
+
+	formatter := newListStatusFormatter(worktrees)
+
+	assert.Equal(t, "merged", formatter.format(worktrees[0]))
+	assert.Equal(t, "merged [origin/dev]", formatter.format(worktrees[1]))
+}
+
 func TestListStatusFormatterHidesDefaultUpstream(t *testing.T) {
 	t.Parallel()
 	worktrees := []managedWorktree{
