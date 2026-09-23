@@ -6,12 +6,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -56,6 +59,17 @@ type Runtime struct {
 	// the system trash. It is primarily useful for tests; an empty value uses
 	// PATH lookup of "trash".
 	TrashExecutable string
+
+	// GitHubAPIBaseURL overrides the base URL used for GitHub API
+	// visibility checks. It is primarily useful for tests; an empty value
+	// uses https://api.github.com.
+	GitHubAPIBaseURL string
+
+	// TodoSkillContent holds the embedded skills/timber-todo/SKILL.md
+	// installed by `timber todo --install-skill`. It is set by main from
+	// the embedded file; an empty value reports an error instead of
+	// writing an empty skill.
+	TodoSkillContent string
 }
 
 // RuntimeFromProcess captures the process state needed by a timber command.
@@ -1091,6 +1105,36 @@ func (x Runtime) runGh(ctx context.Context, directory string, args ...string) ([
 func (x Runtime) ghAuthOK(ctx context.Context) bool {
 	command := x.command(ctx, "gh", "auth", "status")
 	return command.Run() == nil
+}
+
+// githubRepoIsPublic reports whether owner/repo is public on GitHub. A 200
+// from the repository endpoint means public; a 404 means private (or
+// missing), since private repositories are hidden from anonymous callers.
+// Any other outcome leaves ok false so callers fall back to HTTPS.
+func (x Runtime) githubRepoIsPublic(ctx context.Context, ownerRepo string) (public bool, ok bool) {
+	base := strings.TrimSuffix(strings.TrimSpace(cmp.Or(x.GitHubAPIBaseURL, "https://api.github.com")), "/")
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/repos/"+ownerRepo, nil)
+	if err != nil {
+		return false, false
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+
+	client := http.Client{Timeout: 10 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		return false, false
+	}
+	_, _ = io.Copy(io.Discard, response.Body)
+	_ = response.Body.Close()
+
+	switch response.StatusCode {
+	case http.StatusOK:
+		return true, true
+	case http.StatusNotFound:
+		return false, true
+	default:
+		return false, false
+	}
 }
 
 func (x Runtime) selectManagedWorktree(worktrees []managedWorktree, name string) (managedWorktree, error) {

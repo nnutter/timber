@@ -157,7 +157,7 @@ Worktree names must not contain `@`.
 
 Register a bare repository.
 
-- Schema-less relative paths map to GitHub: `nnutter/timber` → `https://github.com/nnutter/timber`
+- Schema-less `owner/repo` paths map to GitHub: `nnutter/timber` → `https://github.com/nnutter/timber` when public, `git@github.com:nnutter/timber` when the GitHub API reports it as private (a `.git` suffix is dropped); anything inconclusive falls back to HTTPS
 - Full URLs, `git@host:path`, and local paths pass through unchanged
 - `--name` overrides the derived repository name (default: basename of the URL)
 - `--alias` sets a display alias stored in the repository's local `timber.alias` Git config. Without an override, the alias follows the origin URL; GitHub URLs are shortened to `org/repo` (without `.git`), while other origins are unchanged. Aliases do not replace repository names in commands.
@@ -373,6 +373,22 @@ Example:
 timber remove
 timber remove feature/login@timber
 timber remove --force feature/login@timber
+```
+
+### `timber todo`
+
+Open the worktree-specific `TODO.md` for the current worktree.
+
+The file lives at `<git-dir>/TODO.md` inside the common git directory, so each worktree has its own notes that never pollute the checkout.
+Uses `$EDITOR` (split on whitespace, so `code --wait` works); when unset, falls back through `nvim`, `nano`, `vim`, then `vi`.
+Use `--path` to print the file path instead of opening it (useful for scripts and agents).
+Pass an optional worktree selector (`timber todo [name[@repo]]`, resolved like the other worktree commands) to work with another worktree's file; without one, the current directory's worktree is used.
+Use `--install-skill` to install the bundled `timber-todo` agent skill to `~/.agents/skills/timber-todo/SKILL.md`; refuse to overwrite an existing install unless `--force` is given.
+
+Example:
+
+```bash
+timber todo
 ```
 
 ### `timber generate zsh`

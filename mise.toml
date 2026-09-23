@@ -172,11 +172,6 @@ run = "go tool testifylint ./..."
 description = "Pi mise-hooks: run fixers, tests, and linters before agent starts"
 run = "mise run all"
 
-[tasks.on-edit]
-description = "Pi mise-hooks: run fixers on edited file after edit"
-usage = 'arg "[staged_files]" var=#true'
-run = "mise run fixers ${usage_staged_files}"
-
 [tasks.on-stop]
 description = "Pi mise-hooks: fix edited files, then test and lint"
 usage = 'arg "[staged_files]" var=#true'

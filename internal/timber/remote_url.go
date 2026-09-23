@@ -7,11 +7,39 @@ import (
 	"strings"
 )
 
+// parseGitHubShortForm reports whether input is a schema-less GitHub short
+// form (owner/repo, optionally with a .git suffix) and returns the
+// normalized owner/repo without the suffix.
+func parseGitHubShortForm(input string) (string, bool) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return "", false
+	}
+	switch {
+	case strings.Contains(trimmed, "://"),
+		strings.HasPrefix(trimmed, "git@"),
+		strings.HasPrefix(trimmed, "/"),
+		strings.HasPrefix(trimmed, "."),
+		strings.HasPrefix(trimmed, "~"),
+		strings.Contains(trimmed, ":"):
+		return "", false
+	}
+	owner, repo, found := strings.Cut(trimmed, "/")
+	if !found || owner == "" || repo == "" || strings.Contains(repo, "/") {
+		return "", false
+	}
+	repo = strings.TrimSuffix(repo, ".git")
+	if repo == "" {
+		return "", false
+	}
+	return owner + "/" + repo, true
+}
+
 // resolveRemoteURL maps user input to a git remote URL.
 //
-// Schema-less relative paths (e.g. "nnutter/timber") become
-// https://github.com/<path>. Absolute URLs, SSH forms, and local paths pass
-// through unchanged.
+// Schema-less GitHub short forms (e.g. "nnutter/timber") become
+// https://github.com/<owner>/<repo> without a .git suffix. Absolute URLs,
+// SSH forms, and local paths pass through unchanged.
 func resolveRemoteURL(input string) (string, error) {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
@@ -32,6 +60,9 @@ func resolveRemoteURL(input string) (string, error) {
 	case looksLikeSSHShorthand(trimmed):
 		return trimmed, nil
 	default:
+		if short, ok := parseGitHubShortForm(trimmed); ok {
+			return "https://github.com/" + short, nil
+		}
 		return "https://github.com/" + strings.TrimPrefix(trimmed, "/"), nil
 	}
 }
