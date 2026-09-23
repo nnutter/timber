@@ -157,7 +157,7 @@ Worktree names must not contain `@`.
 
 Register a bare repository.
 
-- Schema-less relative paths map to GitHub: `nnutter/timber` → `https://github.com/nnutter/timber`
+- Schema-less `owner/repo` paths map to GitHub: `nnutter/timber` → `https://github.com/nnutter/timber` when public, `git@github.com:nnutter/timber` when the GitHub API reports it as private (a `.git` suffix is dropped); anything inconclusive falls back to HTTPS
 - Full URLs, `git@host:path`, and local paths pass through unchanged
 - `--name` overrides the derived repository name (default: basename of the URL)
 - `--alias` sets a display alias stored in the repository's local `timber.alias` Git config. Without an override, the alias follows the origin URL; GitHub URLs are shortened to `org/repo` (without `.git`), while other origins are unchanged. Aliases do not replace repository names in commands.

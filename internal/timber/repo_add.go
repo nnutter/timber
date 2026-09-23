@@ -1,6 +1,7 @@
 package timber
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,7 +32,7 @@ func NewRepoAddCommand(runtime Runtime) *cobra.Command {
 }
 
 func (x *repoAddCommandOptions) Execute(command *cobra.Command, args []string) error {
-	remoteURL, err := resolveRemoteURL(args[0])
+	remoteURL, err := x.resolveAddRemoteURL(command.Context(), args[0])
 	if err != nil {
 		return err
 	}
@@ -74,4 +75,24 @@ func (x *repoAddCommandOptions) Execute(command *cobra.Command, args []string) e
 
 	_, err = fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("added repository "+repoName+" at "+targetPath))
 	return err
+}
+
+// resolveAddRemoteURL maps user input to the clone URL for registration.
+// GitHub short forms resolve to HTTPS when the repository is public and to
+// SSH (without a .git suffix) when the GitHub API reports it as private.
+// Anything inconclusive falls back to HTTPS.
+func (x *repoAddCommandOptions) resolveAddRemoteURL(ctx context.Context, input string) (string, error) {
+	remoteURL, err := resolveRemoteURL(input)
+	if err != nil {
+		return "", err
+	}
+	short, ok := parseGitHubShortForm(input)
+	if !ok {
+		return remoteURL, nil
+	}
+	public, known := x.runtime.githubRepoIsPublic(ctx, short)
+	if !known || public {
+		return "https://github.com/" + short, nil
+	}
+	return "git@github.com:" + short, nil
 }
