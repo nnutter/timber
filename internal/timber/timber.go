@@ -19,6 +19,7 @@ func NewRootCommand(runtime Runtime) *cobra.Command {
 	rootCommand.AddCommand(NewHerdrCommand(runtime))
 	rootCommand.AddCommand(NewSwitchCommand(runtime))
 	rootCommand.AddCommand(NewTodoCommand(runtime))
+	rootCommand.AddCommand(NewGitCommand(runtime))
 	rootCommand.AddCommand(NewTUICommand(runtime))
 	rootCommand.AddCommand(NewGenerateCommand(runtime))
 
