@@ -295,6 +295,7 @@ _` + x.name + `() {
         'herdr:Manage the Herdr plugin and spaces'
         'generate:Generate shell integration'
         'switch:Switch to a worktree'
+        'todo:Open the worktree-specific TODO.md'
         'tui:Interactively create a worktree or open an existing one'
     )
 
@@ -337,6 +338,16 @@ _` + x.name + `() {
         shift words
         (( CURRENT-- ))
         _arguments \
+            '1:worktree name:->worktrees'
+        ;;
+    todo)
+        shift words
+        (( CURRENT-- ))
+        _arguments \
+            '(--install-skill)--path[Print the TODO.md path instead of opening it]' \
+            '(--path)--install-skill[Install the timber-todo skill to ~/.agents/skills]' \
+            '(-f --force)'{-f,--force}'[Overwrite an existing installed skill]' \
+            '(-h --help)'{-h,--help}'[help for todo]' \
             '1:worktree name:->worktrees'
         ;;
     herdr)
