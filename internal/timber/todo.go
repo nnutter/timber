@@ -21,7 +21,7 @@ type todoCommandOptions struct {
 }
 
 func NewTodoCommand(runtime Runtime) *cobra.Command {
-	options := &todoCommandOptions{repoSelection: repoSelection{runtime: runtime}}
+	options := &todoCommandOptions{runtime: runtime}
 
 	command := &cobra.Command{
 		Use:               "todo [name[@repo]]",
