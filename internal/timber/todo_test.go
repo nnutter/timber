@@ -186,6 +186,54 @@ func TestTodoInstallSkillRejectsPathCombination(t *testing.T) {
 	require.Error(t, result.err)
 }
 
+func TestTodoPathWithWorktreeName(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/todo-a")).err)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/todo-b")).err)
+
+	expectedTodoPath := todoPathForWorktree(t, testRepository.worktreePath("feature/todo-b"))
+	runtime := withTestEnvironment(testRepository.runtime, "EDITOR=false")
+
+	result := runTimberFromWithRuntime(t, runtime, testRepository.worktreePath("feature/todo-a"), "todo", "--path", "feature/todo-b")
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, expectedTodoPath, strings.TrimSpace(result.stdout))
+}
+
+func TestTodoQualifiedNameFromOutsideWorktree(t *testing.T) {
+	t.Parallel()
+
+	const branchName = "feature/todo-qualified"
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	expectedTodoPath := todoPathForWorktree(t, testRepository.worktreePath(branchName))
+
+	logPath := filepath.Join(resolvedTempDir(t), "editor.log")
+	editor := installFakeEditor(t, logPath)
+	runtime := withTestEnvironment(testRepository.runtime, "EDITOR="+editor)
+
+	result := runTimberFromWithRuntime(t, runtime, testRepository.home, "todo", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+
+	logContents, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(logContents), expectedTodoPath)
+}
+
+func TestTodoUnknownWorktreeName(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/todo-a")).err)
+
+	runtime := withTestEnvironment(testRepository.runtime, "EDITOR=false")
+
+	result := runTimberFromWithRuntime(t, runtime, testRepository.worktreePath("feature/todo-a"), "todo", "feature/missing")
+	require.Error(t, result.err)
+}
+
 func TestTodoFailsWithoutEditorOrFallback(t *testing.T) {
 	t.Parallel()
 

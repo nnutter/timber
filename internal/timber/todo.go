@@ -14,20 +14,21 @@ import (
 var fallbackEditors = []string{"nvim", "nano", "vim", "vi"}
 
 type todoCommandOptions struct {
-	runtime      Runtime
+	repoSelection
 	pathOnly     bool
 	installSkill bool
 	force        bool
 }
 
 func NewTodoCommand(runtime Runtime) *cobra.Command {
-	options := &todoCommandOptions{runtime: runtime}
+	options := &todoCommandOptions{repoSelection: repoSelection{runtime: runtime}}
 
 	command := &cobra.Command{
-		Use:   "todo",
-		Short: "Open the worktree-specific TODO.md",
-		Args:  cobra.NoArgs,
-		RunE:  options.Execute,
+		Use:               "todo [name[@repo]]",
+		Short:             "Open the worktree-specific TODO.md",
+		Args:              cobra.MaximumNArgs(1),
+		RunE:              options.Execute,
+		ValidArgsFunction: runtime.completeQualifiedWorktreeNames,
 	}
 	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO.md path instead of opening it")
 	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
@@ -36,23 +37,17 @@ func NewTodoCommand(runtime Runtime) *cobra.Command {
 	return command
 }
 
-func (x *todoCommandOptions) Execute(command *cobra.Command, _ []string) error {
+func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) error {
 	if x.installSkill {
+		if len(args) > 0 {
+			return fmt.Errorf("install-skill takes no arguments")
+		}
 		return x.installTodoSkill(command)
 	}
 
-	gitDirResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--absolute-git-dir")
+	gitDir, err := x.resolveTodoGitDir(command, args)
 	if err != nil {
 		return err
-	}
-	gitDir := filepath.Clean(gitDirResult.stdout)
-
-	bareResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--is-bare-repository")
-	if err != nil {
-		return err
-	}
-	if bareResult.stdout == "true" {
-		return fmt.Errorf("not inside a worktree")
 	}
 
 	todoPath := filepath.Join(gitDir, "TODO.md")
@@ -85,6 +80,54 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, _ []string) error {
 		return fmt.Errorf("run editor: %w", err)
 	}
 	return nil
+}
+
+// resolveTodoGitDir returns the git directory holding the TODO.md. With no
+// arguments it is the current directory's git directory, so plain `todo`
+// works in any checkout. With a worktree selector it is the managed
+// worktree's git directory, resolved like the other worktree commands.
+func (x *todoCommandOptions) resolveTodoGitDir(command *cobra.Command, args []string) (string, error) {
+	if len(args) == 0 {
+		gitDirResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--absolute-git-dir")
+		if err != nil {
+			return "", err
+		}
+
+		bareResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--is-bare-repository")
+		if err != nil {
+			return "", err
+		}
+		if bareResult.stdout == "true" {
+			return "", fmt.Errorf("not inside a worktree")
+		}
+		return filepath.Clean(gitDirResult.stdout), nil
+	}
+
+	qualified, err := x.runtime.parseQualifiedName(args[0])
+	if err != nil {
+		return "", err
+	}
+	if qualified.Repo != "" {
+		x.RepoName = qualified.Repo
+	}
+
+	repo, repository, err := x.resolveForWorktree(qualified.Name, command.InOrStdin())
+	if err != nil {
+		return "", err
+	}
+	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
+	if err != nil {
+		return "", err
+	}
+	worktree, err := x.runtime.selectManagedWorktree(worktrees, qualified.Name)
+	if err != nil {
+		return "", err
+	}
+	worktreeRepository, err := openRepository(x.runtime, worktree.Path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(worktreeRepository.GitDir), nil
 }
 
 func (x *todoCommandOptions) installTodoSkill(command *cobra.Command) error {

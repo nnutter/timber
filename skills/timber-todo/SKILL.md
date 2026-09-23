@@ -14,7 +14,9 @@ checkout.
 Run from inside the worktree:
 
 ```bash
-timber todo --path
+timber todo --path                # current worktree
+timber todo feature/login --path  # another worktree in any repo
+timber todo feature/login@timber --path
 ```
 
 This prints the absolute path of the worktree-specific `TODO.md`,
