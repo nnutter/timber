@@ -12,6 +12,26 @@ import (
 //go:embed herdr-plugin.toml bin
 var pluginFiles embed.FS
 
+// EmbeddedFiles returns the slash-separated paths of the embedded plugin
+// files, so installers and tests stay in sync when entries are added.
+func EmbeddedFiles() ([]string, error) {
+	var files []string
+	err := fs.WalkDir(pluginFiles, ".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		files = append(files, filepath.ToSlash(path))
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
 func WritePlugin(destination string) error {
 	if err := os.RemoveAll(destination); err != nil {
 		return fmt.Errorf("remove existing herdr plugin: %w", err)

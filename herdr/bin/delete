@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/usr/local/bin"
+PATH="$PATH:$HOME/.local/bin:$HOME/.local/share/mise/shims"
+PATH="$PATH:/home/linuxbrew/.linuxbrew/bin"
+export PATH
+
+readonly herdr_command="${HERDR_BIN_PATH:-herdr}"
+readonly timber_command="${TIMBER_BIN_PATH:-timber}"
+
+readonly agent_exit_timeout_seconds=10
+
+fail() {
+    printf 'Error: %s\n' "$1" >&2
+    exit 1
+}
+
+require_command() {
+    local command_name="$1"
+
+    if command -v "$command_name" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    fail "Required command not found: $command_name"
+}
+
+context_json_value() {
+    local query="$1"
+
+    HERDR_PLUGIN_CONTEXT_JSON="${HERDR_PLUGIN_CONTEXT_JSON:-}" QUERY="$query" python3 -c '
+import json, os
+raw = os.environ.get("HERDR_PLUGIN_CONTEXT_JSON", "")
+query = os.environ.get("QUERY", "")
+try:
+    data = json.loads(raw) if raw else {}
+except Exception:
+    data = {}
+value = data
+for part in query.split("."):
+    if isinstance(value, dict):
+        value = value.get(part, "")
+    else:
+        value = ""
+        break
+print(value if isinstance(value, str) else "")
+'
+}
+
+resolve_workspace_id() {
+    if [[ -n "${HERDR_WORKSPACE_ID:-}" ]]; then
+        printf '%s' "$HERDR_WORKSPACE_ID"
+        return 0
+    fi
+
+    local from_context
+    from_context="$(context_json_value "workspace_id")"
+    if [[ -n "$from_context" ]]; then
+        printf '%s' "$from_context"
+        return 0
+    fi
+
+    fail "Could not determine the Herdr workspace (set HERDR_WORKSPACE_ID)."
+}
+
+resolve_checkout_path() {
+    local workspace_id="$1"
+    local from_context
+
+    from_context="$(context_json_value "worktree.checkout_path")"
+    if [[ -n "$from_context" ]]; then
+        printf '%s' "$from_context"
+        return 0
+    fi
+
+    from_context="$(context_json_value "workspace_cwd")"
+    if [[ -n "$from_context" ]]; then
+        printf '%s' "$from_context"
+        return 0
+    fi
+
+    local workspace_json
+    workspace_json="$("$herdr_command" workspace get "$workspace_id")"
+
+    WORKSPACE_JSON="$workspace_json" python3 -c \
+        'import json, os, sys; raw = os.environ.get("WORKSPACE_JSON", "")
+try: data = json.loads(raw)
+except Exception as exc: print(f"Could not parse herdr workspace get output: {exc}", file=sys.stderr); sys.exit(1)
+workspace = data.get("result", {}).get("workspace", {})
+worktree = workspace.get("worktree") or {}
+if not worktree:
+    print("Workspace is not a worktree checkout; refusing to delete.", file=sys.stderr); sys.exit(1)
+if not worktree.get("is_linked_worktree", False):
+    print("Workspace is not a linked worktree; refusing to delete.", file=sys.stderr); sys.exit(1)
+path = worktree.get("checkout_path", "")
+if not path:
+    print("Workspace has no checkout path; refusing to delete.", file=sys.stderr); sys.exit(1)
+print(path)'
+}
+
+# Lists panes in the workspace as TSV: pane_id, cwd, foreground_cwd, agent.
+list_workspace_panes() {
+    local workspace_id="$1"
+
+    local panes_json
+    panes_json="$("$herdr_command" pane list --workspace "$workspace_id")"
+
+    PANES_JSON="$panes_json" python3 -c \
+        'import json, os, sys; raw = os.environ.get("PANES_JSON", "")
+try: data = json.loads(raw)
+except Exception as exc: print(f"Could not parse herdr pane list output: {exc}", file=sys.stderr); sys.exit(1)
+panes = data.get("result", {}).get("panes", [])
+for pane in panes:
+    pane_id = pane.get("pane_id", "")
+    if not pane_id: continue
+    print("\t".join([pane_id, pane.get("cwd", ""), pane.get("foreground_cwd", ""), pane.get("agent", "")]))'
+}
+
+# Prints pane IDs (one per line) whose cwd or foreground_cwd is within root.
+panes_within_path() {
+    local root="$1"
+
+    ROOT="$root" python3 -c \
+        'import os, sys; root = os.path.normpath(os.environ.get("ROOT", ""))
+for line in sys.stdin:
+    parts = line.rstrip("\n").split("\t")
+    while len(parts) < 4: parts.append("")
+    pane_id, cwd, foreground_cwd, _agent = parts[0], parts[1], parts[2], parts[3]
+    for candidate in (cwd, foreground_cwd):
+        if not candidate: continue
+        candidate = os.path.normpath(candidate)
+        if candidate == root or candidate.startswith(root.rstrip(os.sep) + os.sep):
+            print(pane_id); break'
+}
+
+pane_agent() {
+    local pane_id="$1"
+
+    PANES_TSV="${PANES_TSV:-}" PANE_ID="$pane_id" python3 -c \
+        'import os; panes = os.environ.get("PANES_TSV", ""); wanted = os.environ.get("PANE_ID", "")
+for line in panes.splitlines():
+    parts = line.split("\t")
+    while len(parts) < 4: parts.append("")
+    if parts[0] == wanted: print(parts[3]); break'
+}
+
+pane_has_agent() {
+    local pane_id="$1"
+    local agent
+
+    agent="$(pane_agent "$pane_id")"
+    [[ -n "$agent" ]]
+}
+
+wait_for_agent_exit() {
+    local pane_id="$1"
+    local deadline=$((SECONDS + agent_exit_timeout_seconds))
+
+    while ((SECONDS < deadline)); do
+        local pane_json
+        if ! pane_json="$("$herdr_command" pane get "$pane_id" 2>/dev/null)"; then
+            return 0
+        fi
+        local agent
+        agent="$(PANE_JSON="$pane_json" python3 -c \
+            'import json, os; raw = os.environ.get("PANE_JSON", "")
+try: data = json.loads(raw)
+except Exception: data = {}
+print(data.get("result", {}).get("pane", {}).get("agent", ""))')"
+        if [[ -z "$agent" ]]; then
+            return 0
+        fi
+        sleep 0.5
+    done
+
+    return 1
+}
+
+close_agent_pane() {
+    local pane_id="$1"
+
+    # Pi exits with ctrl+d on an empty editor; ctrl+c clears first.
+    # Agent send-keys validates keys before writing any bytes.
+    if ! "$herdr_command" agent send-keys "$pane_id" ctrl+c >/dev/null; then
+        printf 'Warning: could not send exit keys to %s; closing anyway.\n' "$pane_id" >&2
+    fi
+    sleep 0.5
+    if ! "$herdr_command" agent send-keys "$pane_id" ctrl+d >/dev/null; then
+        printf 'Warning: could not send exit keys to %s; closing anyway.\n' "$pane_id" >&2
+    fi
+
+    if ! wait_for_agent_exit "$pane_id"; then
+        printf 'Warning: %s did not exit promptly; closing anyway.\n' "$pane_id" >&2
+    fi
+
+    if ! "$herdr_command" pane close "$pane_id" >/dev/null; then
+        printf 'Warning: could not close %s.\n' "$pane_id" >&2
+    else
+        printf 'Closed %s.\n' "$pane_id"
+    fi
+}
+
+close_plain_pane() {
+    local pane_id="$1"
+
+    if ! "$herdr_command" pane close "$pane_id" >/dev/null; then
+        printf 'Warning: could not close %s.\n' "$pane_id" >&2
+    else
+        printf 'Closed %s.\n' "$pane_id"
+    fi
+}
+
+main() {
+    require_command "$herdr_command"
+    require_command "$timber_command"
+    require_command python3
+
+    local workspace_id
+    workspace_id="$(resolve_workspace_id)"
+
+    local checkout_path
+    checkout_path="$(resolve_checkout_path "$workspace_id")"
+    if [[ -z "$checkout_path" ]]; then
+        fail "Could not determine the worktree path."
+    fi
+
+    PANES_TSV="$(list_workspace_panes "$workspace_id")"
+    export PANES_TSV
+
+    local panes_to_close
+    panes_to_close="$(printf '%s' "$PANES_TSV" | panes_within_path "$checkout_path")"
+
+    if [[ ! -d "$checkout_path" ]]; then
+        fail "Worktree path does not exist: $checkout_path"
+    fi
+
+    # timber remove refuses dirty or unmerged worktrees on its own and
+    # explains why; only close panes when it succeeds.
+    if ! (cd "$checkout_path" && "$timber_command" remove); then
+        printf 'Leaving panes open because timber remove failed.\n' >&2
+        return 1
+    fi
+
+    if [[ -z "$panes_to_close" ]]; then
+        return 0
+    fi
+
+    local pane_id
+    while IFS= read -r pane_id; do
+        [[ -n "$pane_id" ]] || continue
+        if pane_has_agent "$pane_id"; then
+            close_agent_pane "$pane_id"
+        else
+            close_plain_pane "$pane_id"
+        fi
+    done <<<"$panes_to_close"
+}
+
+main "$@"

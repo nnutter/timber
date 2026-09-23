@@ -12,6 +12,13 @@ description = "Open an existing worktree or create a new one"
 contexts = ["global"]
 command = ["bin/open"]
 
+[[actions]]
+id = "delete"
+title = "Delete Timber Worktree"
+description = "Delete the current worktree with timber remove and close its panes"
+contexts = ["workspace"]
+command = ["bin/delete"]
+
 [[panes]]
 id = "create"
 title = "Open or Create Space for Timber Worktree"
