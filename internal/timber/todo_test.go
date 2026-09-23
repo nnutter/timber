@@ -255,7 +255,9 @@ func TestTodoFailsOutsideWorktree(t *testing.T) {
 	runtime := withTestEnvironment(testRepository.runtime, "EDITOR=true")
 
 	result := runTimberFromWithRuntime(t, runtime, testRepository.home, "todo")
-	require.Error(t, result.err)
+	require.ErrorContains(t, result.err, "not inside a worktree")
+	assert.NotContains(t, result.err.Error(), "rev-parse")
+	assert.NotContains(t, result.err.Error(), "exit status")
 }
 
 func TestTodoFailsInBareRepository(t *testing.T) {

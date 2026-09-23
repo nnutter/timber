@@ -90,7 +90,7 @@ func (x *todoCommandOptions) resolveTodoGitDir(command *cobra.Command, args []st
 	if len(args) == 0 {
 		gitDirResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--absolute-git-dir")
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("not inside a worktree: pass a worktree name or run inside a worktree")
 		}
 
 		bareResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--is-bare-repository")
@@ -98,7 +98,7 @@ func (x *todoCommandOptions) resolveTodoGitDir(command *cobra.Command, args []st
 			return "", err
 		}
 		if bareResult.stdout == "true" {
-			return "", fmt.Errorf("not inside a worktree")
+			return "", fmt.Errorf("not inside a worktree: pass a worktree name or run inside a worktree")
 		}
 		return filepath.Clean(gitDirResult.stdout), nil
 	}
