@@ -24,6 +24,19 @@ Example:
 Use `timber repo import <path>` to register an existing clean clone and recreate its worktrees (including the former main checkout) in this layout.
 When invoked through the shell wrapper (`t repo import <path>`), the shell also `cd`s to `$HOME` after success.
 
+## Demo
+
+![timber worktree lifecycle](docs/demo/demo.gif)
+
+Register a repository, create a worktree, inspect it with `list`, step
+inside it, and remove it again. The still below shows `list` reporting a
+`merged`, `clean` worktree:
+
+![timber list output](docs/demo/demo-list.png)
+
+Prefer video? [docs/demo/demo.mp4](docs/demo/demo.mp4) shows the same run.
+All three are generated from [docs/demo/demo.tape](docs/demo/demo.tape); re-render them with `mise run demo` after changing the tape.
+
 ## Installation
 
 Install using Go,
@@ -80,6 +93,7 @@ mise run all
 Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-tests` requires these dependencies rather than silently skipping those tests.
 `mise run static-analysis` runs the configured static-analysis tools, including gitleaks.
 `mise run coverage` (or `mise run cover`) runs the tests and prints coverage.
+`mise run demo` re-renders the [demo](#demo) GIF, MP4, and still from `docs/demo/demo.tape` (needs a working Chrome for VHS).
 `lefthook install` enables the pre-commit hook, which runs `mise run pre-commit` to format staged Go files.
 
 ## Shell integration
@@ -159,246 +173,27 @@ In non-interactive environments commands that need a single repository fail unle
 
 Worktree names must not contain `@`.
 
-### `timber repo add <url-or-path>`
-
-Register a bare repository.
-
-- Schema-less `owner/repo` paths map to GitHub: `nnutter/timber` → `https://github.com/nnutter/timber` when public, `git@github.com:nnutter/timber` when the GitHub API reports it as private (a `.git` suffix is dropped); anything inconclusive falls back to HTTPS
-- Full URLs, `git@host:path`, and local paths pass through unchanged
-- `--name` overrides the derived repository name (default: basename of the URL)
-- `--alias` sets a display alias stored in the repository's local `timber.alias` Git config. Without an override, the alias follows the origin URL; GitHub URLs are shortened to `org/repo` (without `.git`), while other origins are unchanged. Aliases do not replace repository names in commands.
-
-Example:
-
-```bash
-timber repo add nnutter/timber
-timber repo add --name my-fork git@github.com:me/timber.git
-timber repo add /path/to/existing.git
-```
-
-### `timber repo list`
-
-List registered repositories, including each repository's alias and origin URL.
-Repositories are sorted by alias (with name as a tie-breaker); use `--sort-name` to sort by name instead.
-Use `-q` or `--quiet` to print only repository names, one name per line, in the selected sort order.
-
-### `timber repo import <path>`
-
-Convert an existing clone into a managed Timber repository.
-Registers a bare clone of the checkout and recreates every worktree (including the former main checkout) under the managed layout.
-
-- `--name` overrides the derived repository name (default: remote URL, then basename of the checkout)
-- Every existing worktree must be clean, with no staged changes, unstaged changes, or untracked files (including gitignored files); commit or remove these before importing
-- Detached-HEAD worktrees are recreated detached under a short-hash name
-- Prunable worktrees and worktrees with no commits are reported as skips; their branches survive in the new bare clone
-- Old worktree directories are moved to the system trash with the `trash` CLI instead of being deleted; a `trash` command must be installed or the import refuses to start
-- The import checks every source worktree and validates all target paths before creating the managed repository; old worktrees are only removed after every new worktree was recreated
-- The summary lists each worktree move
-
-Refuses repositories that are already registered or already bare (use `timber repo add` for bare repositories).
-
-Example:
-
-```bash
-timber repo import ~/src/github.com/me/project
-```
-
-### `timber repo remove <name>`
-
-Remove a registered bare repository.
-Refuses if any worktrees remain.
-
-### `timber repo rename <old-name> <new-name>`
-
-Rename a registered bare repository and its managed worktree directories.
-The command preserves local changes and leaves unmanaged linked worktrees at their existing paths.
-
-The managed worktree path changes from:
-
-```text
-<worktree-root>/<old-name>/<worktree-name>/<old-name>
-```
-
-to:
-
-```text
-<worktree-root>/<new-name>/<worktree-name>/<new-name>
-```
-
-The `t` wrapper changes to the new path if the current directory is inside a moved worktree.
-The command refuses the rename if the destination repository or a destination worktree path exists.
-
-Example:
-
-```bash
-timber repo rename timber git-worktree
-```
-
-### `timber create [name[@repo]]`
-
-Create a managed worktree for a branch.
-
-- Qualify the name as `<worktree>@<repo>` to select the repository; `@<repo>` alone generates a random name in that repository
-- If the name is omitted, generates a random `<adjective>-<noun>` name themed around SpaceX, Starlink, and Tesla
-- If the branch already exists, the worktree is created from that branch
-- If the branch does not exist, it is created from the branch pointed at by `origin/HEAD`, or if that is unset from `origin/master` then `origin/main`; set it explicitly with `--upstream` | `-u`
-- When run inside [Herdr](https://herdr.dev) (`HERDR_ENV=1`), automatically open the new worktree in a standard Herdr space
-- The space contains an `Agent` tab that runs `pi` in a pane named after the branch and a `Shell` tab
-- Use `--herdr` to open the space explicitly, or `--no-herdr` to suppress automatic creation
-- Opening a Herdr space through `t create` implies `--no-cd`
-- Opening a Herdr space requires `herdr` on `PATH` and a running Herdr server
-
-Example:
-
-```bash
-timber create feature/login@timber
-timber create @timber
-timber create -u origin/v1.2 hotfix/1.2.1
-timber create --herdr feature/login@timber
-```
-
-### `timber tui`
-
-Interactively create a managed worktree or open a Herdr space for an existing one.
-
-- Existing worktrees are displayed as `<worktree>@<repo>`
-- Type to filter worktree names; after typing `@`, the text after it filters repository names
-- With `@` present, matching existing worktrees are labeled **open existing worktree** and other repositories are labeled **create new worktree**
-- Use the arrow keys to select an existing worktree or a new-worktree option
-- Press Enter on an existing worktree to open a new Herdr space
-- Press Enter on a new-worktree option, or an unmatched `<worktree>@<repo>`, to create it
-- New worktree names must include a registered repository as `<worktree>@<repo>`
-- Never generates a random name
-- Requires an interactive terminal
-- Use `--no-title` to hide the "Open or Create Worktree" header
-- When creating inside [Herdr](https://herdr.dev) (`HERDR_ENV=1`), opens a new standard Herdr space unless `--no-herdr` is set
-- Use `--herdr` to open the space explicitly after create
-
-Example:
-
-```bash
-timber tui
-timber tui --herdr
-timber tui --no-title
-```
-
-### `timber herdr install`
-
-Install the bundled [Herdr](https://herdr.dev) plugin into `~/.config/herdr/plugins/timber` and register it with `herdr plugin link --enabled`.
-Prints a keybinding snippet for `~/.config/herdr/config.toml`.
-
-The plugin files are embedded in the `timber` binary, so this works without a source checkout.
-Requires `herdr` on `PATH`.
-
-Example:
-
-```bash
-timber herdr install
-```
-
-### `timber herdr space [name[@repo]]`
-
-Set up a standard [Herdr](https://herdr.dev) space for a managed worktree.
-By default the command defines the tabs in the current Herdr workspace.
-It renames the current tab to `Agent` and adds a `Shell` tab.
-Use `-n` | `--new` to open a new Herdr workspace instead.
-
-The workspace contains two tabs:
-
-- `Agent`: runs `pi` in the worktree in a pane named after the branch
-- `Shell`: opens an interactive shell in the worktree
-
-To show the branch name in the expanded sidebar, customize Herdr's
-[Sidebar row layouts](https://herdr.dev/docs/configuration/#sidebar-row-layouts)
-and use `pane` in `ui.sidebar.agents.rows`:
-
-```toml
-[ui.sidebar.agents]
-rows = [
-  ["state_icon", "workspace"],
-  ["pane", "tab"],
-]
-```
-
-If `name` is omitted, the command uses the managed worktree that contains the current directory.
-Qualify the name as `<worktree>@<repo>` to select a worktree in another repository.
-The command requires `herdr` on `PATH` and a running Herdr server.
-
-Example:
-
-```bash
-timber herdr space feature/login@timber
-timber herdr space --new feature/login@timber
-cd ~/worktrees/timber/feature/login/timber
-timber herdr space
-```
-
-### `timber list [@repo]`
-
-List managed worktrees in a table.
-
-- Default: list worktrees from every registered repository
-- `@<repo>`: list only the named repository
-- `--sort recency` (default): sort by HEAD's committer timestamp, newest first; ties use repository then worktree name, and worktrees without a commit come last
-- `--sort repo`: sort by repository, then worktree name
-- `--sort worktree`: sort by worktree name, then repository
-- Sort modes support tab completion and apply to both table and `--json` output
-
-Columns:
-
-- `Name`: branch / worktree name
-- `Repo`: registered repository name
-- `Status`: `merged` when the tip is contained on the upstream branch (same signal `prune` uses); otherwise aligned ahead (`↑`, green) and behind (`↓`, blue) counts, followed by the upstream branch unless it is the repo default
-- `Commit`: short commit hash
-- `Dirty`: `clean` or `dirty` (`dirty` is highlighted in yellow)
-- `--pr`: add a `PR` column with the open pull request and check status (`#56 ✓`, `#56 ✗`, `#56 …`), one `gh` lookup per repository
-
-### `timber prune [@repo]`
-
-Remove managed worktrees that are both clean and merged into their upstream branch.
-
-Without `@<repo>`, prune considers every registered repository.
-Use `--prompt` | `-p` to choose which worktrees to prune interactively.
-Use `-n` | `--dry-run` to list the worktrees that would be pruned without removing them.
-
-### `timber remove [name[@repo]]`
-
-Remove a managed worktree and delete its branch.
-
-When `name` is omitted, removes the managed worktree that contains the current directory (auto-detects the registered repo from cwd, or use `<worktree>@<repo>` / the repo picker).
-A unique worktree name is enough from outside a managed worktree.
-Refuses dirty or unmerged worktrees by default.
-Use `--force` | `-f` to force (destructive) removal.
-
-When invoked through the shell wrapper (`t remove`), the shell also `cd`s to `$HOME` after a successful removal.
-
-Example:
-
-```bash
-timber remove
-timber remove feature/login@timber
-timber remove --force feature/login@timber
-```
-
-### `timber todo`
-
-Open the worktree-specific `TODO.md` for the current worktree.
-
-The file lives at `<git-dir>/TODO.md` inside the common git directory, so each worktree has its own notes that never pollute the checkout.
-Uses `$EDITOR` (split on whitespace, so `code --wait` works); when unset, falls back through `nvim`, `nano`, `vim`, then `vi`.
-Use `--path` to print the file path instead of opening it (useful for scripts and agents).
-Pass an optional worktree selector (`timber todo [name[@repo]]`, resolved like the other worktree commands) to work with another worktree's file; without one, the current directory's worktree is used.
-Use `--install-skill` to install the bundled `timber-todo` agent skill to `~/.agents/skills/timber-todo/SKILL.md`; refuse to overwrite an existing install unless `--force` is given.
-
-Example:
-
-```bash
-timber todo
-```
-
-### `timber generate zsh`
-
-Generate a zsh wrapper function, completion, and autoload helper (see [Shell integration](#shell-integration)).
+### Command summary
+
+For full flags and examples, see `timber --help` and `timber <command> --help`.
+
+| Command | What it does |
+| --- | --- |
+| `repo add` | Register a bare repository (GitHub `owner/repo` shorthand supported) |
+| `repo list` | List registered repositories with aliases and origin URLs |
+| `repo import` | Convert an existing clone into a managed repository |
+| `repo remove` | Unregister a bare repository once its worktrees are gone |
+| `repo rename` | Rename a repository and move its worktree directories |
+| `create` | Create a worktree for a branch (`--no-herdr` skips the Herdr space) |
+| `switch` | Shell-only: `cd` into a worktree, creating it first with `-c` |
+| `tui` | Interactively open an existing worktree or create a new one |
+| `herdr install` | Install the bundled Herdr plugin |
+| `herdr space` | Open a Herdr Agent + Shell space for a worktree |
+| `list` | List worktrees with merge/dirtiness status (`--json`, `--pr`, `--sort`) |
+| `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
+| `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
+| `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |
+| `generate zsh` | Generate the `t` wrapper, completion, and autoload helper |
 
 ## Typical Flow
 
