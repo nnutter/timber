@@ -63,6 +63,12 @@ func (x *removeCommandOptions) removeWorktree(command *cobra.Command, name strin
 	}
 	name = worktree.Name
 
+	if !force {
+		if _, err := repository.git("fetch", remoteName); err != nil {
+			return fmt.Errorf("fetch %s: %w", remoteName, err)
+		}
+	}
+
 	worktree, err = x.runtime.enrichManagedWorktree(repository, worktree)
 	if err != nil {
 		return err
