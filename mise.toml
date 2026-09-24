@@ -1,5 +1,6 @@
 [tools]
 go = "1.27.0"
+ttyd = "1.7.7"
 
 #####################
 # Development Tasks #
@@ -7,12 +8,7 @@ go = "1.27.0"
 
 [tasks.all]
 description = "Run fixers, tests, and linters"
-run = '''
-#!/usr/bin/env bash
-mise run fixers
-mise run tests
-mise run linters
-'''
+run = [{ task = "fixers" }, { task = "tests" }, { task = "linters" }]
 
 [tasks.ci-tests]
 description = "Require shell test dependencies and run the full suite"
@@ -23,6 +19,14 @@ command -v zsh
 command -v python3
 python3 -c 'import os, pty; master, slave = pty.openpty(); os.close(master); os.close(slave)'
 go test -race -shuffle=on -cover ./...
+'''
+
+[tasks.demo]
+description = "Render the README terminal demo (GIF/MP4/still) with VHS"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+go tool vhs docs/demo/demo.tape
 '''
 
 [tasks.coverage]
@@ -41,11 +45,10 @@ run = "git tpl update && git tpl merge"
 [tasks.pre-commit]
 description = "Format staged files"
 usage = 'arg "[staged_files]" var=#true'
-run = '''
-#!/usr/bin/env bash
-go tool gitleaks git --redact --pre-commit --staged
-mise run fixers ${usage_staged_files}
-'''
+run = [
+  "go tool gitleaks git --redact --pre-commit --staged",
+  "mise run fixers ${usage_staged_files}",
+]
 
 [tasks.tests]
 alias = "test"
@@ -59,14 +62,13 @@ run = "go test -cover ./..."
 [tasks.fixers]
 alias = "fix"
 usage = 'arg "[staged_files]" var=#true'
-run = '''
-#!/usr/bin/env bash
-mise run fix-go-mod-tidy
-mise run fix-gofumpt ${usage_staged_files}
-mise run fix-goimports ${usage_staged_files}
-mise run fix-go-fix ${usage_staged_files}
-mise run fix-testifylint
-'''
+run = [
+  "mise run fix-go-mod-tidy",
+  "mise run fix-gofumpt ${usage_staged_files}",
+  "mise run fix-goimports ${usage_staged_files}",
+  "mise run fix-go-fix ${usage_staged_files}",
+  "mise run fix-testifylint",
+]
 
 [tasks.fix-gofumpt]
 description = "Run code formatting tools"
@@ -110,19 +112,18 @@ go tool testifylint -fix ${usage_staged_files:-.}
 
 [tasks.linters]
 alias = "static-analysis"
-run = '''
-#!/usr/bin/env bash
-mise run lint-constable
-mise run lint-errcheck
-mise run lint-gitleaks
-mise run lint-go-check-sumtype
-mise run lint-go-vet
-mise run lint-gosec
-mise run lint-govulncheck
-mise run lint-nilaway
-mise run lint-staticcheck
-mise run lint-testifylint
-'''
+run = [
+  { task = "lint-constable" },
+  { task = "lint-errcheck" },
+  { task = "lint-gitleaks" },
+  { task = "lint-go-check-sumtype" },
+  { task = "lint-go-vet" },
+  { task = "lint-gosec" },
+  { task = "lint-govulncheck" },
+  { task = "lint-nilaway" },
+  { task = "lint-staticcheck" },
+  { task = "lint-testifylint" },
+]
 
 [tasks.lint-constable]
 description = "Checks nonmutating directives"
@@ -170,14 +171,13 @@ run = "go tool testifylint ./..."
 
 [tasks.on-start]
 description = "Pi mise-hooks: run fixers, tests, and linters before agent starts"
-run = "mise run all"
+run = [{ task = "all" }]
 
 [tasks.on-stop]
 description = "Pi mise-hooks: fix edited files, then test and lint"
 usage = 'arg "[staged_files]" var=#true'
-run = '''
-#!/usr/bin/env bash
-mise run fixers ${usage_staged_files}
-mise run tests
-mise run linters
-'''
+run = [
+  "mise run fixers ${usage_staged_files}",
+  "mise run tests",
+  "mise run linters",
+]

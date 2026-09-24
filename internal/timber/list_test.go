@@ -51,7 +51,7 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 				assert.Equal(t, names, rows[index][0])
 			}
 
-			tableView := newOutputTable("Name", "Repo", "Status", "Commit", "Dirty", "Merged").BorderRow(true)
+			tableView := newOutputTable("Name", "Repo", "Status", "Commit", "Dirty").BorderRow(true)
 			tableView.Rows(rows...)
 			tableOutput := dottedListRowRules(tableView.String())
 			assert.Equal(t, testCase.horizontalRuleRows, strings.Count(tableOutput, "├"))
@@ -70,17 +70,17 @@ func TestGroupListTableRowsIncludesPullRequestColumnWhenEnabled(t *testing.T) {
 
 	rows := groupListTableRows(worktrees, newListStatusFormatter(worktrees), true)
 	require.Len(t, rows, 1)
-	assert.Equal(t, "#42 ✓\n", rows[0][6])
+	assert.Equal(t, "#42 ✓\n", rows[0][5])
 
 	rows = groupListTableRows(worktrees, newListStatusFormatter(worktrees), false)
 	require.Len(t, rows, 1)
-	assert.Len(t, rows[0], 6)
+	assert.Len(t, rows[0], 5)
 }
 
 func TestFormatDirtyStatusColorsTrueYellow(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "false", formatDirtyStatus(true))
-	assert.Equal(t, warningStyle.Render("true"), formatDirtyStatus(false))
+	assert.Equal(t, "clean", formatDirtyStatus(true))
+	assert.Equal(t, warningStyle.Render("dirty"), formatDirtyStatus(false))
 }
 
 func TestListSucceedsWhenUpstreamRefIsMissing(t *testing.T) {
@@ -148,11 +148,11 @@ func TestListShowsMergedStatus(t *testing.T) {
 
 	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
 	require.NoError(t, result.err, result.stderr)
-	assert.Contains(t, result.stdout, "Merged")
+	assert.NotContains(t, result.stdout, "Merged")
 	assert.Contains(t, result.stdout, "feature/fresh")
 	assert.Contains(t, result.stdout, "feature/ahead")
-	assert.Contains(t, result.stdout, "true")
-	assert.Contains(t, result.stdout, "false")
+	assert.Contains(t, result.stdout, "merged")
+	assert.NotContains(t, result.stdout, "unmerged")
 }
 
 func TestListPullRequests(t *testing.T) {
@@ -216,7 +216,7 @@ func TestListReportsDirtyWorktree(t *testing.T) {
 	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stdout, branchName)
-	assert.Contains(t, result.stdout, "true")
+	assert.Contains(t, result.stdout, "dirty")
 }
 
 func TestListOutsideManagedWorktreeListsAllRepos(t *testing.T) {

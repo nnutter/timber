@@ -138,6 +138,32 @@ func TestRemoveFailsWhenUnmergedWithoutForce(t *testing.T) {
 	require.ErrorContains(t, result.err, "not merged")
 }
 
+func TestRemoveFetchesOriginBeforeCheckingMerged(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/stale-merged"
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	testRepository.commitFileInWorktree(t, branchName, "extra.txt", "extra\n")
+
+	// Publish the branch so a separate clone can merge it, then merge
+	// and push main there. The managed bare repo never fetches in
+	// between, so its origin/main stays stale until remove fetches.
+	runGitCommand(t, testRepository.worktreePath(branchName), "push", remoteName, branchName)
+	updaterPath := filepath.Join(resolvedTempDir(t), "updater")
+	runGitCommand(t, filepath.Dir(updaterPath), "clone", testRepository.remotePath, updaterPath)
+	configureGitUser(t, updaterPath)
+	runGitCommand(t, updaterPath, "fetch", remoteName)
+	runGitCommand(t, updaterPath, "checkout", "main")
+	runGitCommand(t, updaterPath, "merge", "--ff-only", remoteName+"/"+branchName)
+	runGitCommand(t, updaterPath, "push", remoteName, "main")
+
+	result := testRepository.runTimber(t, "remove", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+	testRepository.assertPathMissing(t, testRepository.worktreePath(branchName))
+	testRepository.assertBranchMissing(t, branchName)
+}
+
 func TestRemoveForceRemovesDirtyUnmergedWorktree(t *testing.T) {
 	t.Parallel()
 	const branchName = "feature/force"

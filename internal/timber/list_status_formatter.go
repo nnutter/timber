@@ -27,7 +27,15 @@ func newListStatusFormatter(worktrees []managedWorktree) listStatusFormatter {
 	return formatter
 }
 
-func (x listStatusFormatter) format(status listStatus) string {
+func (x listStatusFormatter) format(worktree managedWorktree) string {
+	status := worktree.ListStatus
+	// Merged work needs no divergence detail; name the state instead.
+	if worktree.Merged {
+		if status.Upstream != "" && status.Upstream != worktree.DefaultUpstream {
+			return "merged [" + status.Upstream + "]"
+		}
+		return "merged"
+	}
 	parts := make([]string, 0, 3)
 	if x.aheadCountWidth > 0 {
 		indicator := formatListStatusIndicator("↑", status.Ahead, x.aheadCountWidth)
@@ -43,7 +51,9 @@ func (x listStatusFormatter) format(status listStatus) string {
 		}
 		parts = append(parts, indicator)
 	}
-	if status.Upstream != "" {
+	// The default upstream (repo HEAD) is noise; only call out an
+	// upstream when the worktree tracks something else.
+	if status.Upstream != "" && status.Upstream != worktree.DefaultUpstream {
 		parts = append(parts, "["+status.Upstream+"]")
 	}
 	return strings.TrimRight(strings.Join(parts, " "), " ")

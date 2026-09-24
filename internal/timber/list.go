@@ -3,7 +3,6 @@ package timber
 import (
 	"encoding/json/v2"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -56,7 +55,7 @@ func (x *listCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return x.reportJSON(command, worktrees)
 	}
 
-	headers := []string{"Name", "Repo", "Status", "Commit", "Dirty", "Merged"}
+	headers := []string{"Name", "Repo", "Status", "Commit", "Dirty"}
 	if x.pullRequests {
 		headers = append(headers, "PR")
 	}
@@ -135,7 +134,7 @@ func dottedListRowRules(tableOutput string) string {
 func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusFormatter, showPullRequests bool) [][]string {
 	rows := make([][]string, 0, (len(worktrees)+1)/2)
 	for index, worktree := range worktrees {
-		status := statusFormatter.format(worktree.ListStatus)
+		status := statusFormatter.format(worktree)
 		if worktree.ListError {
 			status = "error"
 		}
@@ -145,7 +144,6 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 			status,
 			worktree.shortCommitHash(),
 			formatDirtyStatus(worktree.Clean),
-			strconv.FormatBool(worktree.Merged),
 		}
 		if showPullRequests {
 			row = append(row, worktree.PullRequest)
@@ -162,11 +160,10 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 }
 
 func formatDirtyStatus(clean bool) string {
-	dirty := strconv.FormatBool(!clean)
 	if !clean {
-		return warningStyle.Render(dirty)
+		return warningStyle.Render("dirty")
 	}
-	return dirty
+	return "clean"
 }
 
 func (x *listCommandOptions) collectWorktrees() ([]managedWorktree, error) {

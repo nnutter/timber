@@ -59,7 +59,16 @@ func (x *Repository) branchExists(branchName string) (bool, error) {
 	return x.branchStillExists(branchReference(branchName))
 }
 
-func (x *Repository) branchMergedToUpstream(branchRef referenceName, upstreamRef referenceName) (bool, error) {
+func (x *Repository) branchMergedToUpstream(branchName string, branchRef referenceName, upstreamRef referenceName) (bool, error) {
+	// A self-named upstream (foo tracking origin/foo) is trivially
+	// contained after a push; it says nothing about landing on the
+	// upstream branch, so never treat it as merged.
+	if isSelfNamedUpstream(branchName, upstreamRef) {
+		return false, nil
+	}
+
+	// Containment (tip reachable from upstream) reports merged without
+	// requiring the worktree to have merged the upstream back in.
 	upstreamExists, err := x.branchStillExists(upstreamRef)
 	if err != nil {
 		return false, err
@@ -364,6 +373,18 @@ func (x *Repository) gitConfigValue(key string) (string, bool, error) {
 
 func branchReference(branchName string) referenceName {
 	return referenceName(branchRefPrefix + branchName)
+}
+
+func isSelfNamedUpstream(branchName string, upstreamRef referenceName) bool {
+	upstream := string(upstreamRef)
+	if remoteRef, found := strings.CutPrefix(upstream, remoteRefPrefix); found {
+		_, trackedBranch, found := strings.Cut(remoteRef, "/")
+		return found && trackedBranch == branchName
+	}
+	if localBranch, found := strings.CutPrefix(upstream, branchRefPrefix); found {
+		return localBranch == branchName
+	}
+	return shortReference(upstreamRef) == branchName
 }
 
 func shortReference(ref referenceName) string {
