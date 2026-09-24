@@ -4,7 +4,7 @@
 # `git tpl update` to re-render the template with it.
 
 [template]
-source = "https://github.com/nnutter/go-template"
+source = "git@github.com:nnutter/go-template"
 
 [answers]
 copyright_holder = "Nathaniel Nutter"
