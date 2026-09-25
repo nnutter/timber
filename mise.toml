@@ -1,6 +1,5 @@
 [tools]
 go = "1.27.0"
-ttyd = "1.7.7"
 
 #####################
 # Development Tasks #
