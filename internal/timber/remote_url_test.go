@@ -18,11 +18,23 @@ func TestDefaultRepoNameFromRemote(t *testing.T) {
 	t.Parallel()
 	name, err := defaultRepoNameFromRemote("https://github.com/nnutter/timber.git")
 	require.NoError(t, err)
-	assert.Equal(t, "timber", name)
+	assert.Equal(t, "nnutter/timber", name)
 
 	name, err = defaultRepoNameFromRemote("git@github.com:nnutter/timber.git")
 	require.NoError(t, err)
-	assert.Equal(t, "timber", name)
+	assert.Equal(t, "nnutter/timber", name)
+
+	name, err = defaultRepoNameFromRemote("git@gitlab.com:group/sub/repo.git")
+	require.NoError(t, err)
+	assert.Equal(t, "group/sub/repo", name)
+
+	name, err = defaultRepoNameFromRemote("https://example.com/r.git")
+	require.NoError(t, err)
+	assert.Equal(t, "r", name)
+
+	name, err = defaultRepoNameFromRemote("/local/path/roam.git")
+	require.NoError(t, err)
+	assert.Equal(t, "roam", name)
 }
 
 func TestDefaultRepoAliasFromRemote(t *testing.T) {
