@@ -36,32 +36,15 @@ func (x *removeCommandOptions) Execute(command *cobra.Command, args []string) er
 	if len(args) == 1 {
 		raw = args[0]
 	}
-	qualified, err := x.runtime.parseQualifiedName(raw)
-	if err != nil {
-		return err
-	}
-	if qualified.Repo != "" {
-		x.RepoName = qualified.Repo
-	}
-	return x.removeWorktree(command, qualified.Name, x.force)
+	return x.removeWorktree(command, raw, x.force)
 }
 
-func (x *removeCommandOptions) removeWorktree(command *cobra.Command, name string, force bool) error {
-	repo, repository, err := x.resolveForWorktree(name, command.InOrStdin())
+func (x *removeCommandOptions) removeWorktree(command *cobra.Command, raw string, force bool) error {
+	_, repository, worktree, err := x.resolveQualifiedWorktree(command.InOrStdin(), raw)
 	if err != nil {
 		return err
 	}
-
-	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
-	if err != nil {
-		return err
-	}
-
-	worktree, err := x.runtime.selectManagedWorktree(worktrees, name)
-	if err != nil {
-		return err
-	}
-	name = worktree.Name
+	name := worktree.Name
 
 	if !force {
 		if _, err := repository.git("fetch", remoteName); err != nil {

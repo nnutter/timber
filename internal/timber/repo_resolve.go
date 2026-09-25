@@ -40,6 +40,33 @@ func (x *repoSelection) resolveForWorktree(worktreeName string, input io.Reader)
 	return x.resolvePrompt(input)
 }
 
+// resolveQualifiedWorktree resolves a [name[@repo]] selector the way the
+// worktree commands accept it, returning the repository and the selected
+// managed worktree.
+func (x *repoSelection) resolveQualifiedWorktree(input io.Reader, raw string) (registeredRepo, *Repository, managedWorktree, error) {
+	qualified, err := x.runtime.parseQualifiedName(raw)
+	if err != nil {
+		return registeredRepo{}, nil, managedWorktree{}, err
+	}
+	if qualified.Repo != "" {
+		x.RepoName = qualified.Repo
+	}
+
+	repo, repository, err := x.resolveForWorktree(qualified.Name, input)
+	if err != nil {
+		return registeredRepo{}, nil, managedWorktree{}, err
+	}
+	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
+	if err != nil {
+		return registeredRepo{}, nil, managedWorktree{}, err
+	}
+	worktree, err := x.runtime.selectManagedWorktree(worktrees, qualified.Name)
+	if err != nil {
+		return registeredRepo{}, nil, managedWorktree{}, err
+	}
+	return repo, repository, worktree, nil
+}
+
 // reposToConsider returns the qualifier repo if set, else every registered
 // repository. It does not show the repository picker.
 func (x *repoSelection) reposToConsider() ([]registeredRepo, error) {

@@ -58,25 +58,8 @@ func (x *setupSpaceCommandOptions) resolveWorktree(input io.Reader, args []strin
 	if len(args) == 1 {
 		raw = args[0]
 	}
-	qualified, err := x.runtime.parseQualifiedName(raw)
-	if err != nil {
-		return managedWorktree{}, err
-	}
-	if qualified.Repo != "" {
-		x.RepoName = qualified.Repo
-	}
-
-	repo, repository, err := x.resolveForWorktree(qualified.Name, input)
-	if err != nil {
-		return managedWorktree{}, err
-	}
-
-	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
-	if err != nil {
-		return managedWorktree{}, err
-	}
-
-	return x.runtime.selectManagedWorktree(worktrees, qualified.Name)
+	_, _, worktree, err := x.resolveQualifiedWorktree(input, raw)
+	return worktree, err
 }
 
 func reportOpenedHerdrSpace(command *cobra.Command, worktreeName string) error {

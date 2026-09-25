@@ -14,7 +14,7 @@ type gitCommandOptions struct {
 }
 
 func NewGitCommand(runtime Runtime) *cobra.Command {
-	options := &gitCommandOptions{repoSelection: repoSelection{runtime: runtime}}
+	options := &gitCommandOptions{runtime: runtime}
 
 	command := &cobra.Command{
 		Use:                "git [worktree[@repo]] [-- git-args...]",
@@ -73,11 +73,11 @@ func (x *gitCommandOptions) Execute(command *cobra.Command, args []string) error
 func (x *gitCommandOptions) resolveWorktreeSelector(input io.Reader, args []string) (string, []string, bool, error) {
 	candidate := args[0]
 	if strings.Contains(candidate, "@") {
-		worktreePath, err := x.resolveQualifiedWorktree(input, candidate)
+		_, _, worktree, err := x.resolveQualifiedWorktree(input, candidate)
 		if err != nil {
 			return "", nil, false, err
 		}
-		return worktreePath, args[1:], true, nil
+		return worktree.Path, args[1:], true, nil
 	}
 
 	repoName, err := x.runtime.inferUniqueRepoForWorktree(candidate)
@@ -88,35 +88,11 @@ func (x *gitCommandOptions) resolveWorktreeSelector(input io.Reader, args []stri
 		return "", nil, false, err
 	}
 	x.RepoName = repoName
-	worktreePath, err := x.resolveQualifiedWorktree(input, candidate)
+	_, _, worktree, err := x.resolveQualifiedWorktree(input, candidate)
 	if err != nil {
 		return "", nil, false, err
 	}
-	return worktreePath, args[1:], true, nil
-}
-
-func (x *gitCommandOptions) resolveQualifiedWorktree(input io.Reader, candidate string) (string, error) {
-	qualified, err := x.runtime.parseQualifiedName(candidate)
-	if err != nil {
-		return "", err
-	}
-	if qualified.Repo != "" {
-		x.RepoName = qualified.Repo
-	}
-
-	repo, repository, err := x.resolveForWorktree(qualified.Name, input)
-	if err != nil {
-		return "", err
-	}
-	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
-	if err != nil {
-		return "", err
-	}
-	worktree, err := x.runtime.selectManagedWorktree(worktrees, qualified.Name)
-	if err != nil {
-		return "", err
-	}
-	return worktree.Path, nil
+	return worktree.Path, args[1:], true, nil
 }
 
 func gitDirForDirectory(runtime Runtime, directory string) (string, error) {
