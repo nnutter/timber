@@ -472,8 +472,10 @@ _` + x.name + `() {
     repos)
         local -a repos
         local repo_dir repo_name
-        for repo_dir in "$data_home"/timber/repos/*.git(N/); do
-            repos+=("${repo_dir:t:r}")
+        for repo_dir in "$data_home"/timber/repos/**/*.git(N/); do
+            repo_name=${repo_dir#$data_home/timber/repos/}
+            repo_name=${repo_name%.git}
+            repos+=("$repo_name")
         done
         _describe 'repositories' repos
         ;;
@@ -489,8 +491,9 @@ _` + x.name + `() {
             fi
             return 0
         fi
-        for repo_dir in "$data_home"/timber/repos/*.git(N/); do
-            repo_name=${repo_dir:t:r}
+        for repo_dir in "$data_home"/timber/repos/**/*.git(N/); do
+            repo_name=${repo_dir#$data_home/timber/repos/}
+            repo_name=${repo_name%.git}
             [[ $repo_name == ${repo_prefix}* ]] || continue
             qualifiers+=("${name}@$repo_name")
         done
@@ -503,10 +506,12 @@ _` + x.name + `() {
             local worktree_name=${PREFIX%@*}
             local repo_prefix=${PREFIX##*@}
             [[ -n $worktree_name ]] || return 0
-            for repo_dir in "$data_home"/timber/repos/*.git(N/); do
-                repo_name=${repo_dir:t:r}
+            for repo_dir in "$data_home"/timber/repos/**/*.git(N/); do
+                repo_name=${repo_dir#$data_home/timber/repos/}
+                repo_name=${repo_name%.git}
                 [[ $repo_name == ${repo_prefix}* ]] || continue
-                [[ -e "$worktree_root/$repo_name/$worktree_name/$repo_name/.git" ]] || continue
+                local short=${repo_name##*/}
+                [[ -e "$worktree_root/$repo_name/$worktree_name/$short/.git" ]] || continue
                 completions+=("$worktree_name@$repo_name")
             done
             (( $#completions )) && compadd -Q -- "${completions[@]}"
@@ -514,9 +519,11 @@ _` + x.name + `() {
         fi
         local -A name_count
         local -A name_repos
-        for repo_dir in "$data_home"/timber/repos/*.git(N/); do
-            repo_name=${repo_dir:t:r}
-            for worktree_dir in "$worktree_root/$repo_name"/**/"$repo_name"(N/); do
+        for repo_dir in "$data_home"/timber/repos/**/*.git(N/); do
+            repo_name=${repo_dir#$data_home/timber/repos/}
+            repo_name=${repo_name%.git}
+            local short=${repo_name##*/}
+            for worktree_dir in "$worktree_root/$repo_name"/**/"$short"(N/); do
                 [[ -e "$worktree_dir/.git" ]] || continue
                 parent=${worktree_dir:h}
                 name=${parent#$worktree_root/$repo_name/}
