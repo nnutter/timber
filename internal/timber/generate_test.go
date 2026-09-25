@@ -66,6 +66,20 @@ func TestGeneratedTodoCompletesWorktrees(t *testing.T) {
 	assert.Contains(t, completion, "'1:worktree name:->worktrees'")
 }
 
+func TestGeneratedGitCompletesWorktrees(t *testing.T) {
+	t.Parallel()
+
+	outDir := resolvedTempDir(t)
+	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir).err)
+
+	completionContents, err := os.ReadFile(filepath.Join(outDir, "_t"))
+	require.NoError(t, err)
+	completion := string(completionContents)
+	assert.Contains(t, completion, "'git:Run git with --git-dir set to a managed worktree'")
+	assert.Contains(t, completion, "git)")
+	assert.Contains(t, completion, "'1:worktree name:->worktrees'")
+}
+
 func TestGenerateZshUsesCustomWrapperName(t *testing.T) {
 	t.Parallel()
 

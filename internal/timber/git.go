@@ -2,42 +2,59 @@ package timber
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 type gitCommandOptions struct {
-	runtime Runtime
+	repoSelection
 }
 
 func NewGitCommand(runtime Runtime) *cobra.Command {
-	options := &gitCommandOptions{runtime: runtime}
+	options := &gitCommandOptions{repoSelection: repoSelection{runtime: runtime}}
 
 	command := &cobra.Command{
-		Use:                "git [<git-args>...]",
-		Short:              "Run git with --git-dir set to the current worktree",
+		Use:                "git [worktree[@repo]] [-- git-args...]",
+		Short:              "Run git with --git-dir set to a managed worktree",
 		Args:               cobra.ArbitraryArgs,
 		DisableFlagParsing: true,
 		RunE:               options.Execute,
+		ValidArgsFunction:  runtime.completeQualifiedWorktreeNames,
 	}
 
 	return command
 }
 
 func (x *gitCommandOptions) Execute(command *cobra.Command, args []string) error {
+	targetDirectory := x.runtime.CurrentDirectory
+	gitArgs := args
 	if len(args) > 0 && args[0] == "--" {
-		args = args[1:]
+		gitArgs = args[1:]
+	} else if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		selected, remaining, ok, err := x.resolveWorktreeSelector(command.InOrStdin(), args)
+		if err != nil {
+			return err
+		}
+		if ok {
+			targetDirectory = selected
+			gitArgs = remaining
+			if len(gitArgs) > 0 && gitArgs[0] == "--" {
+				gitArgs = gitArgs[1:]
+			}
+		}
 	}
 
-	gitDir, err := gitDirForDirectory(x.runtime, x.runtime.CurrentDirectory)
+	gitDir, err := gitDirForDirectory(x.runtime, targetDirectory)
 	if err != nil {
 		return err
 	}
 
-	gitArgs := append([]string{"--git-dir", gitDir}, args...)
+	gitArgs = append([]string{"--git-dir", gitDir}, gitArgs...)
 	gitCommand := x.runtime.command(command.Context(), "git", gitArgs...)
-	gitCommand.Dir = x.runtime.CurrentDirectory
+	gitCommand.Dir = targetDirectory
 	gitCommand.Stdin = command.InOrStdin()
 	gitCommand.Stdout = command.OutOrStdout()
 	gitCommand.Stderr = command.ErrOrStderr()
@@ -47,10 +64,65 @@ func (x *gitCommandOptions) Execute(command *cobra.Command, args []string) error
 	return nil
 }
 
+// resolveWorktreeSelector interprets args[0] as a <worktree> or
+// <worktree>@<repo> selector like the other worktree commands. A candidate
+// containing @ always selects a worktree and returns its errors. A bare
+// name selects a worktree only when it resolves to an existing managed
+// worktree; otherwise ok is false and the caller treats all args as git
+// args so subcommands such as `status` keep working.
+func (x *gitCommandOptions) resolveWorktreeSelector(input io.Reader, args []string) (string, []string, bool, error) {
+	candidate := args[0]
+	if strings.Contains(candidate, "@") {
+		worktreePath, err := x.resolveQualifiedWorktree(input, candidate)
+		if err != nil {
+			return "", nil, false, err
+		}
+		return worktreePath, args[1:], true, nil
+	}
+
+	repoName, err := x.runtime.inferUniqueRepoForWorktree(candidate)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return "", nil, false, nil
+		}
+		return "", nil, false, err
+	}
+	x.RepoName = repoName
+	worktreePath, err := x.resolveQualifiedWorktree(input, candidate)
+	if err != nil {
+		return "", nil, false, err
+	}
+	return worktreePath, args[1:], true, nil
+}
+
+func (x *gitCommandOptions) resolveQualifiedWorktree(input io.Reader, candidate string) (string, error) {
+	qualified, err := x.runtime.parseQualifiedName(candidate)
+	if err != nil {
+		return "", err
+	}
+	if qualified.Repo != "" {
+		x.RepoName = qualified.Repo
+	}
+
+	repo, repository, err := x.resolveForWorktree(qualified.Name, input)
+	if err != nil {
+		return "", err
+	}
+	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
+	if err != nil {
+		return "", err
+	}
+	worktree, err := x.runtime.selectManagedWorktree(worktrees, qualified.Name)
+	if err != nil {
+		return "", err
+	}
+	return worktree.Path, nil
+}
+
 func gitDirForDirectory(runtime Runtime, directory string) (string, error) {
 	gitDirResult, err := gitOutput(runtime, directory, "rev-parse", "--absolute-git-dir")
 	if err != nil {
-		return "", fmt.Errorf("not inside a worktree: run inside a worktree")
+		return "", fmt.Errorf("not inside a worktree: pass a worktree name or run inside a worktree")
 	}
 
 	bareResult, err := gitOutput(runtime, directory, "rev-parse", "--is-bare-repository")
@@ -58,7 +130,7 @@ func gitDirForDirectory(runtime Runtime, directory string) (string, error) {
 		return "", err
 	}
 	if bareResult.stdout == "true" {
-		return "", fmt.Errorf("not inside a worktree: run inside a worktree")
+		return "", fmt.Errorf("not inside a worktree: pass a worktree name or run inside a worktree")
 	}
 	return filepath.Clean(gitDirResult.stdout), nil
 }
