@@ -296,6 +296,7 @@ _` + x.name + `() {
         'generate:Generate shell integration'
         'switch:Switch to a worktree'
         'todo:Open the worktree-specific TODO.md'
+        'git:Run git with --git-dir set to a managed worktree'
         'tui:Interactively create a worktree or open an existing one'
     )
 
@@ -348,6 +349,12 @@ _` + x.name + `() {
             '(--path)--install-skill[Install the timber-todo skill to ~/.agents/skills]' \
             '(-f --force)'{-f,--force}'[Overwrite an existing installed skill]' \
             '(-h --help)'{-h,--help}'[help for todo]' \
+            '1:worktree name:->worktrees'
+        ;;
+    git)
+        shift words
+        (( CURRENT-- ))
+        _arguments \
             '1:worktree name:->worktrees'
         ;;
     herdr)

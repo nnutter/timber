@@ -103,23 +103,7 @@ func (x *todoCommandOptions) resolveTodoGitDir(command *cobra.Command, args []st
 		return filepath.Clean(gitDirResult.stdout), nil
 	}
 
-	qualified, err := x.runtime.parseQualifiedName(args[0])
-	if err != nil {
-		return "", err
-	}
-	if qualified.Repo != "" {
-		x.RepoName = qualified.Repo
-	}
-
-	repo, repository, err := x.resolveForWorktree(qualified.Name, command.InOrStdin())
-	if err != nil {
-		return "", err
-	}
-	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
-	if err != nil {
-		return "", err
-	}
-	worktree, err := x.runtime.selectManagedWorktree(worktrees, qualified.Name)
+	_, _, worktree, err := x.resolveQualifiedWorktree(command.InOrStdin(), args[0])
 	if err != nil {
 		return "", err
 	}
