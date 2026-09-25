@@ -1,6 +1,5 @@
 [tools]
 go = "1.27.0"
-ttyd = "1.7.7"
 
 #####################
 # Development Tasks #
@@ -15,8 +14,6 @@ description = "Require shell test dependencies and run the full suite"
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-command -v zsh
-command -v python3
 python3 -c 'import os, pty; master, slave = pty.openpty(); os.close(master); os.close(slave)'
 go test -race -shuffle=on -cover ./...
 '''
@@ -67,7 +64,7 @@ run = [
   "mise run fix-gofumpt ${usage_staged_files}",
   "mise run fix-goimports ${usage_staged_files}",
   "mise run fix-go-fix ${usage_staged_files}",
-  "mise run fix-testifylint",
+  "mise run fix-testifylint ${usage_staged_files}",
 ]
 
 [tasks.fix-gofumpt]
@@ -75,7 +72,18 @@ description = "Run code formatting tools"
 usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
-go tool gofumpt -l -w ${usage_staged_files:-.}
+set -eo pipefail
+if [ -z "${usage_staged_files:-}" ]; then
+  go tool gofumpt -l -w .
+  exit 0
+fi
+go_files=""
+for f in ${usage_staged_files}; do
+  case "$f" in *.go) go_files="$go_files $f" ;; esac
+done
+[ -z "$go_files" ] && exit 0
+# shellcheck disable=SC2086
+go tool gofumpt -l -w $go_files
 '''
 
 [tasks.fix-goimports]
@@ -83,7 +91,18 @@ description = "Run code formatting tools"
 usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
-go tool goimports -l -w -local $(go list -m) ${usage_staged_files:-.}
+set -eo pipefail
+if [ -z "${usage_staged_files:-}" ]; then
+  go tool goimports -l -w -local $(go list -m) .
+  exit 0
+fi
+go_files=""
+for f in ${usage_staged_files}; do
+  case "$f" in *.go) go_files="$go_files $f" ;; esac
+done
+[ -z "$go_files" ] && exit 0
+# shellcheck disable=SC2086
+go tool goimports -l -w -local $(go list -m) $go_files
 '''
 
 [tasks.fix-go-fix]
@@ -91,7 +110,26 @@ description = "Apply go fix"
 usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
-go fix ${usage_staged_files:-./...}
+set -eo pipefail
+if [ -z "${usage_staged_files:-}" ]; then
+  go fix ./...
+  exit 0
+fi
+dirs=""
+for f in ${usage_staged_files}; do
+  case "$f" in
+    *.go)
+      d=$(dirname "$f")
+      case "$d" in ./*|/*) ;; *) d="./$d" ;; esac
+      dirs="$dirs $d"
+      ;;
+  esac
+done
+[ -z "$dirs" ] && exit 0
+# shellcheck disable=SC2086
+pkgs=$(printf '%s\n' $dirs | sort -u)
+# shellcheck disable=SC2086
+go fix $pkgs
 '''
 
 [tasks.fix-go-mod-tidy]
@@ -103,7 +141,26 @@ description = "Run testifylint static analysis"
 usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
-go tool testifylint -fix ${usage_staged_files:-.}
+set -eo pipefail
+if [ -z "${usage_staged_files:-}" ]; then
+  go tool testifylint -fix ./...
+  exit 0
+fi
+dirs=""
+for f in ${usage_staged_files}; do
+  case "$f" in
+    *.go)
+      d=$(dirname "$f")
+      case "$d" in ./*|/*) ;; *) d="./$d" ;; esac
+      dirs="$dirs $d"
+      ;;
+  esac
+done
+[ -z "$dirs" ] && exit 0
+# shellcheck disable=SC2086
+pkgs=$(printf '%s\n' $dirs | sort -u)
+# shellcheck disable=SC2086
+go tool testifylint -fix $pkgs
 '''
 
 ##############
