@@ -415,7 +415,8 @@ func registerAdditionalRepo(t *testing.T, base testRepository, name string) stri
 	require.NoError(t, fixture.err)
 
 	reposDir := filepath.Join(base.home, ".local", "share", "timber", "repos")
-	barePath := filepath.Join(reposDir, name+".git")
+	barePath := filepath.Join(reposDir, filepath.FromSlash(name)+".git")
+	require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
 	require.NoError(t, os.CopyFS(barePath, os.DirFS(fixture.fixture.barePath)))
 	require.NoError(t, replaceGitRemotePath(barePath, fixture.fixture.remotePath, base.remotePath))
 	return barePath

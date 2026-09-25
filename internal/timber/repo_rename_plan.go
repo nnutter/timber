@@ -151,6 +151,9 @@ func (x repositoryRenamePlan) apply(renamePath renamePathFunc, repairWorktrees r
 		completedMoves = append(completedMoves, move)
 	}
 
+	if err := ensureDirectory(filepath.Dir(x.destinationRepo.BarePath)); err != nil {
+		return errors.Join(err, x.rollback(renamePath, repairWorktrees, completedMoves, false))
+	}
 	if err := renamePath(x.sourceRepo.BarePath, x.destinationRepo.BarePath); err != nil {
 		return errors.Join(
 			fmt.Errorf("rename bare repository %q to %q: %w", x.sourceRepo.BarePath, x.destinationRepo.BarePath, err),

@@ -576,8 +576,7 @@ func (x Runtime) completeWorktreeNamesAcrossRepos(toComplete string) ([]string, 
 
 func (x Runtime) listRegisteredRepos() ([]registeredRepo, error) {
 	directory := x.reposDirectory()
-	entries, err := os.ReadDir(directory)
-	if err != nil {
+	if _, err := os.Stat(directory); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return make([]registeredRepo, 0), nil
 		}
@@ -585,26 +584,37 @@ func (x Runtime) listRegisteredRepos() ([]registeredRepo, error) {
 	}
 
 	repos := make([]registeredRepo, 0)
-	for _, entry := range entries {
-		name := entry.Name()
-		repoName, found := strings.CutSuffix(name, bareRepoSuffix)
-		if !found || repoName == "" {
-			continue
-		}
-
-		fullPath := filepath.Join(directory, name)
-		info, err := os.Stat(fullPath)
+	walkErr := filepath.WalkDir(directory, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
-			return nil, fmt.Errorf("stat registered repo %q: %w", name, err)
+			return nil
 		}
-		if !info.IsDir() {
-			continue
+		if path == directory {
+			return nil
 		}
-
+		if !entry.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(entry.Name(), bareRepoSuffix) {
+			return nil
+		}
+		relative, err := filepath.Rel(directory, path)
+		if err != nil {
+			return nil
+		}
+		repoName := filepath.ToSlash(strings.TrimSuffix(relative, bareRepoSuffix))
+		if err := validateRepoName(repoName); err != nil {
+			return filepath.SkipDir
+		}
 		repos = append(repos, registeredRepo{
 			Name:     repoName,
-			BarePath: fullPath,
+			BarePath: path,
 		})
+		// Bare repositories contain their own object database; never
+		// descend into them looking for nested registrations.
+		return filepath.SkipDir
+	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("read repos directory %q: %w", directory, walkErr)
 	}
 
 	slices.SortFunc(repos, func(left, right registeredRepo) int {

@@ -9,10 +9,14 @@ import (
 
 const bareRepoSuffix = ".git"
 
-// normalizeRepoName strips a trailing ".git" so worktree paths use the short
-// repo name (e.g. "roam") rather than the bare-dir style name ("roam.git").
+// normalizeRepoName strips surrounding whitespace and slashes plus a
+// trailing ".git" so worktree paths use the clean repo name (e.g. "roam")
+// rather than the bare-dir style name ("roam.git"). Structured names keep
+// their grouping prefix ("nnutter/timber").
 func normalizeRepoName(name string) string {
-	return strings.TrimSuffix(strings.TrimSpace(name), bareRepoSuffix)
+	trimmed := strings.Trim(strings.TrimSpace(name), "/")
+	trimmed = strings.TrimSuffix(trimmed, bareRepoSuffix)
+	return strings.Trim(trimmed, "/")
 }
 
 // repoShortName returns the final segment of a repository name. Simple names
