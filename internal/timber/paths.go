@@ -15,6 +15,17 @@ func normalizeRepoName(name string) string {
 	return strings.TrimSuffix(strings.TrimSpace(name), bareRepoSuffix)
 }
 
+// repoShortName returns the final segment of a repository name. Simple names
+// return unchanged; structured names (e.g. "nnutter/timber") drop the
+// grouping prefix ("timber"). The short name is the leaf directory of a
+// managed worktree checkout.
+func repoShortName(name string) string {
+	if _, short, found := strings.CutLast(name, "/"); found {
+		return short
+	}
+	return name
+}
+
 func ensureDirectory(path string) error {
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return fmt.Errorf("create directory %q: %w", path, err)

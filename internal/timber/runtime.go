@@ -131,13 +131,13 @@ func (x Runtime) worktreeRoot() string {
 }
 
 func (x Runtime) bareRepoPath(repoName string) string {
-	return filepath.Join(x.reposDirectory(), repoName+bareRepoSuffix)
+	return filepath.Join(x.reposDirectory(), filepath.FromSlash(repoName)+bareRepoSuffix)
 }
 
 // managedWorktreePath returns
-// <worktree-root>/<repo-name>/<worktree-name>/<repo-name>.
+// <worktree-root>/<repo-name>/<worktree-name>/<repo-short-name>.
 func (x Runtime) managedWorktreePath(repoName string, worktreeName string) string {
-	return filepath.Join(x.worktreeRoot(), repoName, worktreeName, repoName)
+	return filepath.Join(x.worktreeRoot(), filepath.FromSlash(repoName), worktreeName, repoShortName(repoName))
 }
 
 func (x Runtime) absolutePath(path string) (string, error) {
@@ -640,9 +640,10 @@ func (x Runtime) openRegisteredRepository(name string) (*Repository, registeredR
 }
 
 // managedWorktreeNamesOnDisk lists worktree names under the managed root for repoName
-// (layout: <root>/<repo-name>/<worktree-name>/<repo-name>), filtered by toComplete prefix.
+// (layout: <root>/<repo-name>/<worktree-name>/<repo-short-name>), filtered by toComplete prefix.
 func (x Runtime) managedWorktreeNamesOnDisk(repoName string, toComplete string) []string {
-	repoRoot := filepath.Join(x.worktreeRoot(), repoName)
+	repoRoot := filepath.Join(x.worktreeRoot(), filepath.FromSlash(repoName))
+	shortName := repoShortName(repoName)
 	var names []string
 	_ = filepath.WalkDir(repoRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -651,7 +652,7 @@ func (x Runtime) managedWorktreeNamesOnDisk(repoName string, toComplete string) 
 		if !entry.IsDir() {
 			return nil
 		}
-		if entry.Name() != repoName {
+		if entry.Name() != shortName {
 			return nil
 		}
 		if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
