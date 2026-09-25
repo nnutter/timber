@@ -14,8 +14,6 @@ description = "Require shell test dependencies and run the full suite"
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-command -v zsh
-command -v python3
 python3 -c 'import os, pty; master, slave = pty.openpty(); os.close(master); os.close(slave)'
 go test -race -shuffle=on -cover ./...
 '''
