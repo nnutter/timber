@@ -30,19 +30,10 @@ func (x *gitCommandOptions) Execute(command *cobra.Command, args []string) error
 		args = args[1:]
 	}
 
-	gitDirResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--absolute-git-dir")
-	if err != nil {
-		return fmt.Errorf("not inside a worktree: run inside a worktree")
-	}
-
-	bareResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--is-bare-repository")
+	gitDir, err := gitDirForDirectory(x.runtime, x.runtime.CurrentDirectory)
 	if err != nil {
 		return err
 	}
-	if bareResult.stdout == "true" {
-		return fmt.Errorf("not inside a worktree: run inside a worktree")
-	}
-	gitDir := filepath.Clean(gitDirResult.stdout)
 
 	gitArgs := append([]string{"--git-dir", gitDir}, args...)
 	gitCommand := x.runtime.command(command.Context(), "git", gitArgs...)
@@ -54,4 +45,20 @@ func (x *gitCommandOptions) Execute(command *cobra.Command, args []string) error
 		return fmt.Errorf("run git: %w", err)
 	}
 	return nil
+}
+
+func gitDirForDirectory(runtime Runtime, directory string) (string, error) {
+	gitDirResult, err := gitOutput(runtime, directory, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return "", fmt.Errorf("not inside a worktree: run inside a worktree")
+	}
+
+	bareResult, err := gitOutput(runtime, directory, "rev-parse", "--is-bare-repository")
+	if err != nil {
+		return "", err
+	}
+	if bareResult.stdout == "true" {
+		return "", fmt.Errorf("not inside a worktree: run inside a worktree")
+	}
+	return filepath.Clean(gitDirResult.stdout), nil
 }
