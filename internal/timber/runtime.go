@@ -371,6 +371,13 @@ func (x Runtime) removeEmptySourceParents(path string) error {
 	return removeEmptyParents(path, x.HomeDirectory)
 }
 
+// removeEmptyBareParents prunes newly-empty grouping directories left
+// behind in the bare-repo store (e.g. repos/nnutter/ after moving
+// repos/nnutter/timber.git away). It never removes the store itself.
+func (x Runtime) removeEmptyBareParents(path string) error {
+	return removeEmptyParents(path, x.reposDirectory())
+}
+
 func (x Runtime) writePathFile(pathFile string, value string) (err error) {
 	temporaryDirectory, err := x.absolutePath(x.TemporaryDirectory)
 	if err != nil {

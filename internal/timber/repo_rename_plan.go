@@ -169,6 +169,9 @@ func (x repositoryRenamePlan) apply(renamePath renamePathFunc, repairWorktrees r
 			return err
 		}
 	}
+	if err := x.runtime.removeEmptyBareParents(x.sourceRepo.BarePath); err != nil {
+		return err
+	}
 	return nil
 }
 

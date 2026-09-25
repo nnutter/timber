@@ -70,6 +70,9 @@ func (x *repoRemoveCommandOptions) Execute(command *cobra.Command, args []string
 	if err := os.RemoveAll(repo.BarePath); err != nil {
 		return fmt.Errorf("remove bare repository %q: %w", repo.BarePath, err)
 	}
+	if err := x.runtime.removeEmptyBareParents(repo.BarePath); err != nil {
+		return err
+	}
 
 	_, err = fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("removed repository "+repoName))
 	return err
