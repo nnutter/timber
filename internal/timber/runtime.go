@@ -131,13 +131,13 @@ func (x Runtime) worktreeRoot() string {
 }
 
 func (x Runtime) bareRepoPath(repoName string) string {
-	return filepath.Join(x.reposDirectory(), repoName+bareRepoSuffix)
+	return filepath.Join(x.reposDirectory(), filepath.FromSlash(repoName)+bareRepoSuffix)
 }
 
 // managedWorktreePath returns
-// <worktree-root>/<repo-name>/<worktree-name>/<repo-name>.
+// <worktree-root>/<repo-name>/<worktree-name>/<repo-short-name>.
 func (x Runtime) managedWorktreePath(repoName string, worktreeName string) string {
-	return filepath.Join(x.worktreeRoot(), repoName, worktreeName, repoName)
+	return filepath.Join(x.worktreeRoot(), filepath.FromSlash(repoName), worktreeName, repoShortName(repoName))
 }
 
 func (x Runtime) absolutePath(path string) (string, error) {
@@ -371,6 +371,13 @@ func (x Runtime) removeEmptySourceParents(path string) error {
 	return removeEmptyParents(path, x.HomeDirectory)
 }
 
+// removeEmptyBareParents prunes newly-empty grouping directories left
+// behind in the bare-repo store (e.g. repos/nnutter/ after moving
+// repos/nnutter/timber.git away). It never removes the store itself.
+func (x Runtime) removeEmptyBareParents(path string) error {
+	return removeEmptyParents(path, x.reposDirectory())
+}
+
 func (x Runtime) writePathFile(pathFile string, value string) (err error) {
 	temporaryDirectory, err := x.absolutePath(x.TemporaryDirectory)
 	if err != nil {
@@ -576,8 +583,7 @@ func (x Runtime) completeWorktreeNamesAcrossRepos(toComplete string) ([]string, 
 
 func (x Runtime) listRegisteredRepos() ([]registeredRepo, error) {
 	directory := x.reposDirectory()
-	entries, err := os.ReadDir(directory)
-	if err != nil {
+	if _, err := os.Stat(directory); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return make([]registeredRepo, 0), nil
 		}
@@ -585,26 +591,37 @@ func (x Runtime) listRegisteredRepos() ([]registeredRepo, error) {
 	}
 
 	repos := make([]registeredRepo, 0)
-	for _, entry := range entries {
-		name := entry.Name()
-		repoName, found := strings.CutSuffix(name, bareRepoSuffix)
-		if !found || repoName == "" {
-			continue
-		}
-
-		fullPath := filepath.Join(directory, name)
-		info, err := os.Stat(fullPath)
+	walkErr := filepath.WalkDir(directory, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
-			return nil, fmt.Errorf("stat registered repo %q: %w", name, err)
+			return nil
 		}
-		if !info.IsDir() {
-			continue
+		if path == directory {
+			return nil
 		}
-
+		if !entry.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(entry.Name(), bareRepoSuffix) {
+			return nil
+		}
+		relative, err := filepath.Rel(directory, path)
+		if err != nil {
+			return nil
+		}
+		repoName := filepath.ToSlash(strings.TrimSuffix(relative, bareRepoSuffix))
+		if err := validateRepoName(repoName); err != nil {
+			return filepath.SkipDir
+		}
 		repos = append(repos, registeredRepo{
 			Name:     repoName,
-			BarePath: fullPath,
+			BarePath: path,
 		})
+		// Bare repositories contain their own object database; never
+		// descend into them looking for nested registrations.
+		return filepath.SkipDir
+	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("read repos directory %q: %w", directory, walkErr)
 	}
 
 	slices.SortFunc(repos, func(left, right registeredRepo) int {
@@ -640,9 +657,10 @@ func (x Runtime) openRegisteredRepository(name string) (*Repository, registeredR
 }
 
 // managedWorktreeNamesOnDisk lists worktree names under the managed root for repoName
-// (layout: <root>/<repo-name>/<worktree-name>/<repo-name>), filtered by toComplete prefix.
+// (layout: <root>/<repo-name>/<worktree-name>/<repo-short-name>), filtered by toComplete prefix.
 func (x Runtime) managedWorktreeNamesOnDisk(repoName string, toComplete string) []string {
-	repoRoot := filepath.Join(x.worktreeRoot(), repoName)
+	repoRoot := filepath.Join(x.worktreeRoot(), filepath.FromSlash(repoName))
+	shortName := repoShortName(repoName)
 	var names []string
 	_ = filepath.WalkDir(repoRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -651,7 +669,7 @@ func (x Runtime) managedWorktreeNamesOnDisk(repoName string, toComplete string) 
 		if !entry.IsDir() {
 			return nil
 		}
-		if entry.Name() != repoName {
+		if entry.Name() != shortName {
 			return nil
 		}
 		if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {

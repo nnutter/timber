@@ -105,20 +105,47 @@ func defaultRepoAliasFromRemote(remoteURL string) string {
 	return repoPath
 }
 
+// defaultRepoNameFromRemote derives a structured repository name from a
+// remote URL. Hosted paths preserve their grouping (e.g. GitHub
+// "nnutter/timber", GitLab "group/sub/repo"); local filesystem paths fall
+// back to their basename.
 func defaultRepoNameFromRemote(remoteURL string) (string, error) {
-	name := remoteURL
-	if strings.HasPrefix(name, "git@") {
-		_, remainder, found := strings.Cut(name, ":")
-		if found {
-			name = remainder
+	trimmed := strings.TrimSpace(remoteURL)
+	if trimmed == "" {
+		return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
+	}
+	if strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, ".") || strings.HasPrefix(trimmed, "~") {
+		name := strings.TrimSuffix(path.Base(strings.TrimSuffix(trimmed, "/")), bareRepoSuffix)
+		if name == "" || name == "." || name == "/" {
+			return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
 		}
-	} else if parsed, err := url.Parse(name); err == nil && parsed.Path != "" {
-		name = parsed.Path
+		return name, nil
 	}
 
-	name = strings.TrimSuffix(name, "/")
-	name = path.Base(name)
-	name = strings.TrimSuffix(name, bareRepoSuffix)
+	var repoPath string
+	switch {
+	case strings.HasPrefix(trimmed, "git@"):
+		_, remainder, found := strings.Cut(trimmed, ":")
+		if !found {
+			return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
+		}
+		repoPath = remainder
+	case strings.Contains(trimmed, "://"):
+		parsed, err := url.Parse(trimmed)
+		if err != nil || parsed.Path == "" {
+			return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
+		}
+		repoPath = parsed.Path
+	default:
+		if _, remainder, found := strings.Cut(trimmed, ":"); found {
+			repoPath = remainder
+		} else {
+			repoPath = trimmed
+		}
+	}
+
+	name := strings.TrimSuffix(strings.Trim(repoPath, "/"), bareRepoSuffix)
+	name = strings.Trim(name, "/")
 	if name == "" || name == "." || name == "/" {
 		return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
 	}

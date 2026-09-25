@@ -5,12 +5,15 @@
 There is no required “main” worktree.
 Repositories are stored as bare Git directories, and worktrees are created on demand under a shared root:
 
-`<worktree-root>/<repo-name>/<worktree-name>/<repo-name>`
+`<worktree-root>/<repo-name>/<worktree-name>/<repo-short-name>`
+
+Repository names may be structured with `/` (e.g. `nnutter/timber`).
+The worktree leaf keeps only the short name (the last segment).
 
 Defaults:
 
 - bare repos: `$XDG_DATA_HOME/timber/repos/<repo-name>.git` (fallback: `~/.local/share/timber/repos/<repo-name>.git`)
-- worktrees: `$TIMBER_WORKTREE_ROOT/<repo-name>/<worktree-name>/<repo-name>` (fallback: `~/worktrees/<repo-name>/<worktree-name>/<repo-name>`)
+- worktrees: `$TIMBER_WORKTREE_ROOT/<repo-name>/<worktree-name>/<repo-short-name>` (fallback: `~/worktrees/<repo-name>/<worktree-name>/<repo-short-name>`)
 
 The worktree name and branch name are identical (including `/`).
 
@@ -20,6 +23,20 @@ Example:
 - bare repo: `~/.local/share/timber/repos/timber.git`
 - branch: `nn/my-feature`
 - worktree path: `~/worktrees/timber/nn/my-feature/timber`
+
+Structured example (`t repo add nnutter/timber` defaults to the
+structured name; GitHub URLs keep `owner/repo`, other hosted paths keep
+their full grouping):
+
+- repo name: `nnutter/timber`
+- bare repo: `~/.local/share/timber/repos/nnutter/timber.git`
+- branch: `structured-names`
+- worktree path: `~/worktrees/nnutter/timber/structured-names/timber`
+
+Rename with `timber repo rename <old> <new>` to move between simple and
+structured names; managed worktrees move with the repo. Sorting
+`timber list --sort repo` orders by the full structured name, so the
+grouping prefix controls grouping.
 
 Use `timber repo import <path>` to register an existing clean clone and recreate its worktrees (including the former main checkout) in this layout.
 When invoked through the shell wrapper (`t repo import <path>`), the shell also `cd`s to `$HOME` after success.

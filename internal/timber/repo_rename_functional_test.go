@@ -122,9 +122,15 @@ func TestRepoRenameRejectsInvalidAndConflictingNames(t *testing.T) {
 		},
 		{
 			name:      "invalid name",
-			newName:   "invalid/name",
+			newName:   "invalid//name",
 			prepare:   func(*testing.T, testRepository) {},
-			wantError: "must not contain path separators",
+			wantError: "empty path segments",
+		},
+		{
+			name:      "invalid at",
+			newName:   "invalid@name",
+			prepare:   func(*testing.T, testRepository) {},
+			wantError: "must not contain @",
 		},
 		{
 			name:    "repository collision",

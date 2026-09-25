@@ -2,7 +2,6 @@ package timber
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -54,11 +53,25 @@ func validateRepoName(name string) error {
 	if strings.HasSuffix(name, bareRepoSuffix) {
 		return fmt.Errorf("repository name %q must not end with %s", name, bareRepoSuffix)
 	}
-	if strings.Contains(name, "/") || strings.Contains(name, string(filepath.Separator)) {
-		return fmt.Errorf("repository name %q must not contain path separators", name)
+	if strings.Contains(name, "\\") {
+		return fmt.Errorf("repository name %q must not contain \\ character", name)
 	}
-	if name == "." || name == ".." {
-		return fmt.Errorf("repository name %q is invalid", name)
+	if strings.Contains(name, "@") {
+		return fmt.Errorf("repository name %q must not contain @ character", name)
+	}
+	if strings.Contains(name, ":") {
+		return fmt.Errorf("repository name %q must not contain : character", name)
+	}
+	if strings.HasPrefix(name, "/") || strings.HasSuffix(name, "/") || strings.Contains(name, "//") {
+		return fmt.Errorf("repository name %q must not have empty path segments", name)
+	}
+	for segment := range strings.SplitSeq(name, "/") {
+		if segment == "" {
+			return fmt.Errorf("repository name %q must not have empty path segments", name)
+		}
+		if segment == "." || segment == ".." {
+			return fmt.Errorf("repository name %q is invalid", name)
+		}
 	}
 	return nil
 }
