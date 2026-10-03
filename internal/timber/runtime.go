@@ -1038,6 +1038,16 @@ func (x Runtime) collectWorktrees(repos []registeredRepo, enrich worktreeEnriche
 	return worktrees, nil
 }
 
+// worktreeGitDir resolves the Git directory backing a checkout, which is where
+// worktree-scoped state such as TODO.md lives.
+func (x Runtime) worktreeGitDir(path string) (string, error) {
+	result, err := gitOutput(x, path, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return "", fmt.Errorf("resolve Git directory for %q: %w", path, err)
+	}
+	return filepath.Clean(result.stdout), nil
+}
+
 func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
 	result, err := gitOutput(x, worktree.Path, "status", "--porcelain=v2", "--branch")
 	if err != nil {

@@ -3,6 +3,7 @@ package timber
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,4 +97,21 @@ func TestDisplayHomePath(t *testing.T) {
 	assert.Equal(t, "~", runtime.displayHomePath(home))
 	assert.Equal(t, filepath.Join("~", ".local", "share", "timber", "repos", "demo.git"), runtime.displayHomePath(filepath.Join(home, ".local", "share", "timber", "repos", "demo.git")))
 	assert.Equal(t, "/tmp/other", runtime.displayHomePath("/tmp/other"))
+}
+
+func TestRuntimeWorktreeGitDirHoldsWorktreeTodoFile(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/git-dir"
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	gitDir, err := testRepository.runtime.worktreeGitDir(testRepository.worktreePath(branchName))
+	require.NoError(t, err)
+	assert.True(t, filepath.IsAbs(gitDir))
+
+	// The Git directory is where `timber todo` keeps the worktree's file.
+	todoResult := testRepository.runTimber(t, "todo", at(testRepoName, branchName), "--path")
+	require.NoError(t, todoResult.err, todoResult.stderr)
+	assert.Equal(t, todoFilePath(gitDir), strings.TrimSpace(todoResult.stdout))
 }
