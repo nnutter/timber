@@ -532,6 +532,11 @@ func (x testRepository) commitFileInWorktree(t *testing.T, branchName string, fi
 	runGitCommand(t, path, "commit", "-m", "change")
 }
 
+func writeTodoFile(t *testing.T, path string, contents string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
+}
+
 func (x testRepository) writeFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
 	t.Helper()
 	path := filepath.Join(x.worktreePath(branchName), fileName)
