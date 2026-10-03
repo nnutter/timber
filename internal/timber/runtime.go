@@ -1062,6 +1062,7 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 	}
 	worktree.ListStatus = status
 	worktree.Clean = clean
+	worktree.Todo = x.todoProgressForWorktree(worktree)
 	// Record the repo default so Status can hide it and only call out
 	// worktrees tracking something else. Unknown defaults show upstream.
 	if defaultBranch, err := repository.remoteHeadBranch(); err == nil {
@@ -1078,6 +1079,21 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 		worktree.Merged = merged
 	}
 	return worktree, nil
+}
+
+// todoProgressForWorktree counts the worktree's TODO.md checklist items. A
+// worktree whose checklist cannot be read reports no progress; list already
+// degrades to placeholder cells for unreadable worktree state.
+func (x Runtime) todoProgressForWorktree(worktree managedWorktree) todoProgress {
+	gitDir, err := x.worktreeGitDir(worktree.Path)
+	if err != nil {
+		return todoProgress{}
+	}
+	progress, err := readTodoProgress(gitDir)
+	if err != nil {
+		return todoProgress{}
+	}
+	return progress
 }
 
 // enrichListedWorktreesWithPullRequests attaches one gh pull request lookup

@@ -18,6 +18,7 @@ type managedWorktree struct {
 	UpstreamRef     referenceName
 	Status          string
 	ListStatus      listStatus
+	Todo            todoProgress
 	DefaultUpstream string
 	ListError       bool
 	Clean           bool
