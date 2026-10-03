@@ -32,7 +32,7 @@ func todoPathForWorktree(t *testing.T, worktreePath string) string {
 	t.Helper()
 
 	gitDir := strings.TrimSpace(runGitCommand(t, worktreePath, "rev-parse", "--absolute-git-dir"))
-	return filepath.Join(gitDir, "TODO.md")
+	return todoFilePath(gitDir)
 }
 
 func TestTodoOpensWorktreeSpecificFile(t *testing.T) {

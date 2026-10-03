@@ -13,6 +13,15 @@ import (
 // fallbackEditors is tried in order when EDITOR is unset.
 var fallbackEditors = []string{"nvim", "nano", "vim", "vi"}
 
+// todoFileName is the checklist `timber todo` edits inside a worktree's Git
+// directory.
+const todoFileName = "TODO.md"
+
+// todoFilePath returns the TODO.md location for a worktree's Git directory.
+func todoFilePath(gitDir string) string {
+	return filepath.Join(gitDir, todoFileName)
+}
+
 type todoCommandOptions struct {
 	repoSelection
 	pathOnly     bool
@@ -50,7 +59,7 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return err
 	}
 
-	todoPath := filepath.Join(gitDir, "TODO.md")
+	todoPath := todoFilePath(gitDir)
 	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("create TODO.md: %w", err)
