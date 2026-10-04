@@ -51,7 +51,7 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 				assert.Equal(t, names, rows[index][0])
 			}
 
-			tableView := newOutputTable("Name", "Repo", "Status", "Commit", "Dirty").BorderRow(true)
+			tableView := newOutputTable("Name", "Repo", "Status", "Todo", "Commit", "Dirty").BorderRow(true)
 			tableView.Rows(rows...)
 			tableOutput := dottedListRowRules(tableView.String())
 			assert.Equal(t, testCase.horizontalRuleRows, strings.Count(tableOutput, "├"))
@@ -70,17 +70,32 @@ func TestGroupListTableRowsIncludesPullRequestColumnWhenEnabled(t *testing.T) {
 
 	rows := groupListTableRows(worktrees, newListStatusFormatter(worktrees), true)
 	require.Len(t, rows, 1)
-	assert.Equal(t, "#42 ✓\n", rows[0][5])
+	assert.Equal(t, "#42 ✓\n", rows[0][6])
 
 	rows = groupListTableRows(worktrees, newListStatusFormatter(worktrees), false)
 	require.Len(t, rows, 1)
-	assert.Len(t, rows[0], 5)
+	assert.Len(t, rows[0], 6)
 }
 
 func TestFormatDirtyStatusColorsTrueYellow(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "clean", formatDirtyStatus(true))
 	assert.Equal(t, warningStyle.Render("dirty"), formatDirtyStatus(false))
+}
+
+func TestListReportsTodoProgress(t *testing.T) {
+	t.Parallel()
+	const branchName = "feature/todo-progress"
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/no-todo")).err)
+	writeTodoFile(t, todoPathForWorktree(t, testRepository.worktreePath(branchName)), "- [x] done\n- [ ] pending\n")
+
+	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stdout, "Todo")
+	assert.Contains(t, result.stdout, "1/2")
 }
 
 func TestListSucceedsWhenUpstreamRefIsMissing(t *testing.T) {
@@ -258,6 +273,7 @@ func TestListJSONOutputsWorktrees(t *testing.T) {
 	testRepository := newTestRepository(t)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/healthy")).err)
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/broken")).err)
+	writeTodoFile(t, todoPathForWorktree(t, testRepository.worktreePath("feature/healthy")), "- [x] done\n- [ ] pending\n")
 	require.NoError(t, os.RemoveAll(testRepository.worktreePath("feature/broken")))
 
 	result := testRepository.runTimber(t, "list", "--json", at(testRepoName, ""))
@@ -280,6 +296,8 @@ func TestListJSONOutputsWorktrees(t *testing.T) {
 	assert.NotEmpty(t, healthy.Commit)
 	assert.True(t, healthy.Clean)
 	assert.False(t, healthy.StatusError)
+	assert.Equal(t, 1, healthy.TodoDone)
+	assert.Equal(t, 2, healthy.TodoTotal)
 
 	broken, found := byName["feature/broken"]
 	require.True(t, found, "expected feature/broken in %s", result.stdout)

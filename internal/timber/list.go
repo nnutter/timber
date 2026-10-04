@@ -55,7 +55,7 @@ func (x *listCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return x.reportJSON(command, worktrees)
 	}
 
-	headers := []string{"Name", "Repo", "Status", "Commit", "Dirty"}
+	headers := []string{"Name", "Repo", "Status", "Todo", "Commit", "Dirty"}
 	if x.pullRequests {
 		headers = append(headers, "PR")
 	}
@@ -69,9 +69,10 @@ func (x *listCommandOptions) Execute(command *cobra.Command, args []string) erro
 
 // listJSONWorktree is the JSON record for one worktree in `list --json`
 // output. It carries the same information as a table row: identity,
-// upstream divergence, full commit hash, dirtiness, merge state, and the
-// pull request display string when --pr is used. Worktrees whose git status
-// could not be read report statusError instead of divergence data.
+// upstream divergence, TODO.md progress, full commit hash, dirtiness,
+// merge state, and the pull request display string when --pr is used.
+// Worktrees whose git status could not be read report statusError instead
+// of divergence data.
 type listJSONWorktree struct {
 	Name        string `json:"name"`
 	Repo        string `json:"repo"`
@@ -83,6 +84,8 @@ type listJSONWorktree struct {
 	Clean       bool   `json:"clean"`
 	Merged      bool   `json:"merged"`
 	StatusError bool   `json:"statusError"`
+	TodoDone    int    `json:"todoDone"`
+	TodoTotal   int    `json:"todoTotal"`
 	PullRequest string `json:"pullRequest"`
 }
 
@@ -100,6 +103,8 @@ func worktreesToListJSON(worktrees []managedWorktree) []listJSONWorktree {
 			Clean:       worktree.Clean,
 			Merged:      worktree.Merged,
 			StatusError: worktree.ListError,
+			TodoDone:    worktree.Todo.Done,
+			TodoTotal:   worktree.Todo.Total,
 			PullRequest: worktree.PullRequest,
 		})
 	}
@@ -142,6 +147,7 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 			worktree.Name,
 			worktree.Repo,
 			status,
+			worktree.Todo.String(),
 			worktree.shortCommitHash(),
 			formatDirtyStatus(worktree.Clean),
 		}
