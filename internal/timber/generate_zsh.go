@@ -411,6 +411,19 @@ _%[1]s()
         fi
     fi
 
+    # The 'switch' subcommand is hidden from 'timber --help' (the wrapper
+    # handles 'switch|sw' itself so it can cd), which also hides it from
+    # 'timber __complete', so offer it alongside Cobra's completions when
+    # completing the subcommand name.
+    if (( CURRENT == 2 )); then
+        if [[ switch == "${lastParam}"* ]] && (( ${completions[(I)switch:*]:-0} == 0 )); then
+            completions+=('switch:Resolve a managed worktree path')
+        fi
+        if [[ sw == "${lastParam}"* ]] && (( ${completions[(I)sw:*]:-0} == 0 )); then
+            completions+=('sw:Resolve a managed worktree path')
+        fi
+    fi
+
     # Add a delimiter after the activeHelp statements, but only if:
     # - there are completions following the activeHelp statements, or
     # - file completion will be performed (so there will be choices after the activeHelp)
