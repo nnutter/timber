@@ -62,8 +62,11 @@ func (x *Repository) branchExists(branchName string) (bool, error) {
 func (x *Repository) branchMergedToUpstream(branchName string, branchRef referenceName, upstreamRef referenceName) (bool, error) {
 	// A self-named upstream (foo tracking origin/foo) is trivially
 	// contained after a push; it says nothing about landing on the
-	// upstream branch, so never treat it as merged.
-	if isSelfNamedUpstream(branchName, upstreamRef) {
+	// upstream branch, so never treat it as merged. The default branch
+	// tracking itself (main tracking origin/main) is the exception: its
+	// upstream is the landing branch, so containment means everything
+	// local is pushed and safe to remove.
+	if isSelfNamedUpstream(branchName, upstreamRef) && !x.isDefaultUpstream(upstreamRef) {
 		return false, nil
 	}
 
@@ -87,6 +90,16 @@ func (x *Repository) branchMergedToUpstream(branchName string, branchRef referen
 	}
 
 	return false, err
+}
+
+// isDefaultUpstream reports whether ref is the remote-tracking ref of the
+// repository's default branch (for example refs/remotes/origin/main).
+func (x *Repository) isDefaultUpstream(ref referenceName) bool {
+	defaultBranch, err := x.remoteHeadBranch()
+	if err != nil {
+		return false
+	}
+	return string(ref) == remoteRefPrefix+defaultBranch
 }
 
 func (x *Repository) branchStillExists(branchRef referenceName) (bool, error) {
