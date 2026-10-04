@@ -123,6 +123,17 @@ func TestRemoveWithNoArgsFromSubdirectoryRemovesCurrentWorktree(t *testing.T) {
 	testRepository.assertPathMissing(t, testRepository.worktreePath(branchName))
 }
 
+func TestRemoveMainWhenInSyncWithUpstream(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "main")).err)
+
+	result := testRepository.runTimber(t, "remove", at(testRepoName, "main"))
+	require.NoError(t, result.err, result.stderr)
+	testRepository.assertPathMissing(t, testRepository.worktreePath("main"))
+}
+
 func TestRemoveFailsWhenUnmergedWithoutForce(t *testing.T) {
 	t.Parallel()
 	const branchName = "feature/unmerged"
