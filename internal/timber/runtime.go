@@ -506,7 +506,10 @@ func (x Runtime) completeQualifiedWorktreeNames(_ *cobra.Command, args []string,
 }
 
 func (x Runtime) completeCreateArgs(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if len(args) > 0 {
+	if len(args) == 1 {
+		return nil, cobra.ShellCompDirectiveFilterDirs
+	}
+	if len(args) > 1 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	if name, repoPrefix, found := strings.CutLast(toComplete, "@"); found {
@@ -1204,8 +1207,17 @@ func (x Runtime) worktreeDirectoryExists(repoName string, name string) (bool, er
 	if err == nil {
 		return true, nil
 	}
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
+	if !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("inspect worktree directory %q: %w", path, err)
 	}
-	return false, fmt.Errorf("inspect worktree directory %q: %w", path, err)
+	repository, _, err := x.openRegisteredRepository(repoName)
+	if err != nil {
+		return false, err
+	}
+	worktrees, err := x.managedWorktreesFromRepository(repository, repoName)
+	if err != nil {
+		return false, err
+	}
+	_, err = managedWorktreeByName(worktrees, name)
+	return err == nil, nil
 }
