@@ -196,3 +196,43 @@ func TestGitFallsBackToCurrentForGitSubcommand(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	assert.Equal(t, currentPath, strings.TrimSpace(result.stdout))
 }
+
+func TestGitRunsInRepoOnlySelector(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+
+	result := runTimberFromWithRuntime(t, testRepository.runtime, testRepository.home, "git", at(testRepoName, ""), "rev-parse", "--absolute-git-dir")
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, testRepository.barePath, strings.TrimSpace(result.stdout))
+}
+
+func TestGitRepoOnlySelectorShowsRemotes(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+
+	result := runTimberFromWithRuntime(t, testRepository.runtime, testRepository.home, "git", at(testRepoName, ""), "remote", "-v")
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stdout, "origin")
+}
+
+func TestGitRepoOnlySelectorStripsFollowingDashDash(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+
+	result := runTimberFromWithRuntime(t, testRepository.runtime, testRepository.home, "git", at(testRepoName, ""), "--", "rev-parse", "--absolute-git-dir")
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, testRepository.barePath, strings.TrimSpace(result.stdout))
+}
+
+func TestGitRepoOnlySelectorUnknownRepo(t *testing.T) {
+	t.Parallel()
+
+	testRepository := newTestRepository(t)
+
+	result := runTimberFromWithRuntime(t, testRepository.runtime, testRepository.home, "git", "@missing", "status")
+	require.Error(t, result.err)
+	assert.Contains(t, result.err.Error(), `unknown repository "missing"`)
+}
