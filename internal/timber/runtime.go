@@ -940,6 +940,15 @@ func (x Runtime) enrichManagedWorktree(repository *Repository, worktree managedW
 
 	upstreamRef, err := repository.upstreamReference(worktree.branchName())
 	if err != nil {
+		// Manual branches need not track an upstream. They remain visible
+		// to the prune picker, but are never eligible for automatic pruning.
+		_, configured, configErr := repository.gitConfigValue("branch." + worktree.branchName() + ".merge")
+		if configErr != nil {
+			return managedWorktree{}, configErr
+		}
+		if !configured {
+			return worktree, nil
+		}
 		return managedWorktree{}, err
 	}
 

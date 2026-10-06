@@ -198,7 +198,7 @@ func TestPruneKeepsWorktreeWhenBranchHasNoUpstream(t *testing.T) {
 	result := testRepository.runTimber(t, "prune", at(testRepoName, ""))
 	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
 	runGitCommand(t, testRepository.barePath, "show-ref", "--verify", "refs/heads/"+branchName)
-	require.ErrorContains(t, result.err, "no upstream branch")
+	require.NoError(t, result.err, result.stderr)
 }
 
 func TestPrunePromptCanForceRemoveSelectedWorktrees(t *testing.T) {
