@@ -466,14 +466,12 @@ func (x Runtime) inferUniqueRepoForWorktree(worktreeName string) (string, error)
 
 	var matches []string
 	for _, repo := range repos {
-		worktreePath := x.managedWorktreePath(repo.Name, worktreeName)
-		_, err := os.Stat(worktreePath)
-		if err == nil {
-			matches = append(matches, repo.Name)
-			continue
+		worktrees, err := x.worktreesForRepo(repo)
+		if err != nil {
+			return "", err
 		}
-		if !errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("inspect worktree directory %q: %w", worktreePath, err)
+		if _, err := managedWorktreeByName(worktrees, worktreeName); err == nil {
+			matches = append(matches, repo.Name)
 		}
 	}
 
@@ -539,7 +537,11 @@ func (x Runtime) completeRepoSuffix(worktreeName string, repoPrefix string, requ
 			continue
 		}
 		if requireWorktree {
-			if _, err := os.Stat(x.managedWorktreePath(repo.Name, worktreeName)); err != nil {
+			worktrees, err := x.worktreesForRepo(repo)
+			if err != nil {
+				return nil, cobra.ShellCompDirectiveError
+			}
+			if _, err := managedWorktreeByName(worktrees, worktreeName); err != nil {
 				continue
 			}
 		}
@@ -558,7 +560,15 @@ func (x Runtime) completeWorktreeNamesAcrossRepos(toComplete string) ([]string, 
 	reposForName := make(map[string][]string)
 	var names []string
 	for _, repo := range repos {
-		for _, name := range x.managedWorktreeNamesOnDisk(repo.Name, toComplete) {
+		worktrees, err := x.worktreesForRepo(repo)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+		for _, worktree := range worktrees {
+			name := worktree.Name
+			if !strings.HasPrefix(name, toComplete) {
+				continue
+			}
 			if _, exists := reposForName[name]; !exists {
 				names = append(names, name)
 			}
@@ -656,37 +666,12 @@ func (x Runtime) openRegisteredRepository(name string) (*Repository, registeredR
 	return repository, repo, nil
 }
 
-// managedWorktreeNamesOnDisk lists worktree names under the managed root for repoName
-// (layout: <root>/<repo-name>/<worktree-name>/<repo-short-name>), filtered by toComplete prefix.
-func (x Runtime) managedWorktreeNamesOnDisk(repoName string, toComplete string) []string {
-	repoRoot := filepath.Join(x.worktreeRoot(), filepath.FromSlash(repoName))
-	shortName := repoShortName(repoName)
-	var names []string
-	_ = filepath.WalkDir(repoRoot, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return nil
-		}
-		if !entry.IsDir() {
-			return nil
-		}
-		if entry.Name() != shortName {
-			return nil
-		}
-		if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
-			return nil
-		}
-		parent := filepath.Dir(path)
-		name, err := filepath.Rel(repoRoot, parent)
-		if err != nil || name == "." || strings.HasPrefix(name, "..") {
-			return nil
-		}
-		if strings.HasPrefix(name, toComplete) {
-			names = append(names, name)
-		}
-		return filepath.SkipDir
-	})
-	slices.Sort(names)
-	return names
+func (x Runtime) worktreesForRepo(repo registeredRepo) ([]managedWorktree, error) {
+	repository, err := openBareRepository(x, repo.BarePath)
+	if err != nil {
+		return nil, err
+	}
+	return x.managedWorktreesFromRepository(repository, repo.Name)
 }
 
 func (x Runtime) completeRegisteredRepoNames(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -953,12 +938,12 @@ func (x Runtime) enrichManagedWorktree(repository *Repository, worktree managedW
 	worktree.Status = status
 	worktree.Clean = clean
 
-	upstreamRef, err := repository.upstreamReference(worktree.Name)
+	upstreamRef, err := repository.upstreamReference(worktree.branchName())
 	if err != nil {
 		return managedWorktree{}, err
 	}
 
-	merged, err := repository.branchMergedToUpstream(worktree.Name, worktree.BranchReference, upstreamRef)
+	merged, err := repository.branchMergedToUpstream(worktree.branchName(), worktree.BranchReference, upstreamRef)
 	if err != nil {
 		return managedWorktree{}, err
 	}
@@ -984,18 +969,14 @@ func (x Runtime) managedWorktreesFromRepository(repository *Repository, repoName
 			continue
 		}
 
-		expectedPath := x.managedWorktreePath(repoName, branchName)
-		same, err := samePath(expectedPath, porcelainWorktree.Path)
+		name, err := x.recordedWorktreeName(repoName, porcelainWorktree.Path, branchName)
 		if err != nil {
 			return nil, err
-		}
-		if !same {
-			continue
 		}
 
 		managedWorktrees = append(managedWorktrees, managedWorktree{
 			Repo:            repoName,
-			Name:            branchName,
+			Name:            name,
 			Path:            porcelainWorktree.Path,
 			DisplayPath:     currentRelativePath(currentDirectory, porcelainWorktree.Path),
 			CommitHash:      porcelainWorktree.CommitHash,
@@ -1003,6 +984,7 @@ func (x Runtime) managedWorktreesFromRepository(repository *Repository, repoName
 		})
 	}
 
+	assignManualWorktreeNames(managedWorktrees)
 	slices.SortFunc(managedWorktrees, compareManagedWorktrees)
 
 	return managedWorktrees, nil
@@ -1071,8 +1053,8 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 
 	// A branch without a resolvable upstream is not merged anywhere timber
 	// tracks; list stays read-only and reports it as unmerged.
-	if upstreamRef, err := repository.upstreamReference(worktree.Name); err == nil {
-		merged, err := repository.branchMergedToUpstream(worktree.Name, worktree.BranchReference, upstreamRef)
+	if upstreamRef, err := repository.upstreamReference(worktree.branchName()); err == nil {
+		merged, err := repository.branchMergedToUpstream(worktree.branchName(), worktree.BranchReference, upstreamRef)
 		if err != nil {
 			return managedWorktree{}, err
 		}
@@ -1127,7 +1109,7 @@ func (x Runtime) enrichListedWorktreesWithPullRequests(ctx context.Context, work
 			return err
 		}
 		for _, index := range byRepo[repoName] {
-			worktrees[index].PullRequest = pullRequests[worktrees[index].Name]
+			worktrees[index].PullRequest = pullRequests[worktrees[index].branchName()]
 		}
 	}
 	return nil

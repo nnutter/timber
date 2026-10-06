@@ -286,16 +286,16 @@ func TestGeneratedSwitchCompletesWorktreeNamesAcrossRepos(t *testing.T) {
 	}
 	skipIfNoPty(t)
 
-	home := resolvedTempDir(t)
-	dataHome := filepath.Join(home, ".local", "share")
-	worktreeRoot := filepath.Join(home, "worktrees")
-	require.NoError(t, os.MkdirAll(filepath.Join(dataHome, "timber", "repos", "timber.git"), 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(dataHome, "timber", "repos", "other.git"), 0o755))
+	repository := newTestRepository(t)
+	home := repository.home
+	dataHome := repository.runtime.DataHome
+	worktreeRoot := repository.worktreeRoot
+	registerAdditionalRepo(t, repository, "timber")
+	registerAdditionalRepo(t, repository, "other")
 	makeWorktree := func(repoName, worktreeName string) {
 		t.Helper()
-		worktreePath := filepath.Join(worktreeRoot, repoName, worktreeName, repoName)
-		require.NoError(t, os.MkdirAll(worktreePath, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(worktreePath, ".git"), nil, 0o644))
+		result := repository.runTimber(t, "create", at(repoName, worktreeName))
+		require.NoError(t, result.err, result.stderr)
 	}
 	makeWorktree("timber", "feature/login")
 	makeWorktree("other", "feature/api")

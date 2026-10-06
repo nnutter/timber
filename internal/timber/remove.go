@@ -84,7 +84,7 @@ func (x *removeCommandOptions) removeWorktree(command *cobra.Command, raw string
 		return err
 	}
 	if branchExists {
-		if _, err := repository.git("branch", branchDeleteFlag(force), name); err != nil {
+		if _, err := repository.git("branch", branchDeleteFlag(force), worktree.branchName()); err != nil {
 			return err
 		}
 	}

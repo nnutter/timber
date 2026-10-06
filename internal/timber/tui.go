@@ -114,10 +114,17 @@ func (x *tuiCreateCommandOptions) openSelectedWorktree(
 	command *cobra.Command,
 	selection createWizardSelection,
 ) error {
-	worktree := managedWorktree{
-		Repo: selection.repoName,
-		Name: selection.worktreeName,
-		Path: x.runtime.managedWorktreePath(selection.repoName, selection.worktreeName),
+	repository, _, err := x.runtime.openRegisteredRepository(selection.repoName)
+	if err != nil {
+		return err
+	}
+	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, selection.repoName)
+	if err != nil {
+		return err
+	}
+	worktree, err := managedWorktreeByName(worktrees, selection.worktreeName)
+	if err != nil {
+		return err
 	}
 	if err := x.runtime.openHerdrSpace(command.Context(), worktree); err != nil {
 		return err

@@ -62,7 +62,19 @@ func (x *switchCommandOptions) Execute(command *cobra.Command, args []string) er
 		return err
 	}
 
-	worktreePath := x.runtime.managedWorktreePath(repoName, name)
+	repository, _, err := x.runtime.openRegisteredRepository(repoName)
+	if err != nil {
+		return err
+	}
+	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repoName)
+	if err != nil {
+		return err
+	}
+	worktree, err := managedWorktreeByName(worktrees, name)
+	if err != nil {
+		return fmt.Errorf("worktree %s not found in repository %s", name, repoName)
+	}
+	worktreePath := worktree.Path
 	if _, err := os.Stat(worktreePath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("worktree %s not found at %s", name, worktreePath)
