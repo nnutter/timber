@@ -36,7 +36,18 @@ type stubCreateWizardPrompter struct {
 }
 
 func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []managedWorktree) ([]managedWorktree, error) {
-	return x.selected, x.err
+	if x.err != nil {
+		return nil, x.err
+	}
+	var selected []managedWorktree
+	for _, choice := range x.selected {
+		for _, worktree := range worktrees {
+			if worktree.Name == choice.Name && (choice.Repo == "" || worktree.Repo == choice.Repo) {
+				selected = append(selected, worktree)
+			}
+		}
+	}
+	return selected, nil
 }
 
 func (x *stubCreateWizardPrompter) Prompt(

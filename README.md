@@ -15,7 +15,21 @@ Defaults:
 - bare repos: `$XDG_DATA_HOME/timber/repos/<repo-name>.git` (fallback: `~/.local/share/timber/repos/<repo-name>.git`)
 - worktrees: `$TIMBER_WORKTREE_ROOT/<repo-name>/<worktree-name>/<repo-short-name>` (fallback: `~/worktrees/<repo-name>/<worktree-name>/<repo-short-name>`)
 
-The worktree name and branch name are identical (including `/`).
+For Timber-created worktrees, the worktree name and branch name are identical (including `/`).
+
+Pass an optional second argument to create a worktree at an exact checkout path instead of using the shared root:
+
+```bash
+timber create feature/login@timber /path/to/checkout
+timber create feature/login@timber ../checkout
+timber create @timber ../checkout # generated name
+```
+
+Branch-attached worktrees created directly with Git are also visible when linked to a registered repository.
+Other manual worktrees use their checkout directory name; conflicts within a repository are resolved by adding parent directory components until the name is unique, reserving Timber-created names.
+For example, two `checkout` directories can become `one/checkout` and `two/checkout`.
+These derived names can change when conflicting worktrees are added or removed.
+Detached worktrees are not listed or managed.
 
 Example:
 
@@ -34,7 +48,7 @@ their full grouping):
 - worktree path: `~/worktrees/nnutter/timber/structured-names/timber`
 
 Rename with `timber repo rename <old> <new>` to move between simple and
-structured names; managed worktrees move with the repo. Sorting
+structured names; standard-layout worktrees move with the repo. Sorting
 `timber list --sort repo` orders by the full structured name, so the
 grouping prefix controls grouping.
 
@@ -142,6 +156,7 @@ The generated function:
 ```bash
 t repo add nnutter/timber
 t create feature/login@timber   # then cd into it
+t create feature/custom@timber ../checkout # custom location, then cd
 t create @timber                # random name, then cd into it
 t switch feature/login@timber
 t switch feature/login          # unique name across repositories
@@ -206,7 +221,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `tui` | Interactively open an existing worktree or create a new one |
 | `herdr install` | Install the bundled Herdr plugin |
 | `herdr space` | Open a Herdr Agent + Shell space for a worktree |
-| `list` | List worktrees with merge/dirtiness status and TODO.md progress (`--json`, `--pr`, `--sort`) |
+| `list` | List worktrees with merge/dirtiness status and TODO.md progress (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |

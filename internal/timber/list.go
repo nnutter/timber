@@ -11,6 +11,7 @@ import (
 type listCommandOptions struct {
 	repoSelection
 	pullRequests bool
+	location     bool
 	jsonOutput   bool
 	sortBy       listSort
 }
@@ -27,6 +28,7 @@ func NewListCommand(runtime Runtime) *cobra.Command {
 		ValidArgsFunction: runtime.completeRepoQualifiers,
 	}
 	command.Flags().BoolVar(&options.pullRequests, "pr", false, "Include open pull request status from gh")
+	command.Flags().BoolVarP(&options.location, "location", "L", false, "Include worktree location as the last column")
 	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Output worktrees as JSON instead of a table")
 	command.Flags().Var(&options.sortBy, "sort", "Sort worktrees by recency (newest commit first), repo, or worktree")
 	if err := command.RegisterFlagCompletionFunc("sort", completeListSort); err != nil {
@@ -59,9 +61,15 @@ func (x *listCommandOptions) Execute(command *cobra.Command, args []string) erro
 	if x.pullRequests {
 		headers = append(headers, "PR")
 	}
+	if x.location {
+		headers = append(headers, "Location")
+		for index := range worktrees {
+			worktrees[index].DisplayPath = x.runtime.displayHomePath(worktrees[index].Path)
+		}
+	}
 	statusFormatter := newListStatusFormatter(worktrees)
 	tableView := newOutputTable(headers...).BorderRow(true)
-	tableView.Rows(groupListTableRows(worktrees, statusFormatter, x.pullRequests)...)
+	tableView.Rows(groupListTableRows(worktrees, statusFormatter, x.pullRequests, x.location)...)
 
 	_, err = fmt.Fprintln(command.OutOrStdout(), dottedListRowRules(tableView.String()))
 	return err
@@ -136,7 +144,7 @@ func dottedListRowRules(tableOutput string) string {
 	return strings.Join(lines, "\n")
 }
 
-func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusFormatter, showPullRequests bool) [][]string {
+func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusFormatter, showPullRequests, showLocation bool) [][]string {
 	rows := make([][]string, 0, (len(worktrees)+1)/2)
 	for index, worktree := range worktrees {
 		status := statusFormatter.format(worktree)
@@ -153,6 +161,9 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 		}
 		if showPullRequests {
 			row = append(row, worktree.PullRequest)
+		}
+		if showLocation {
+			row = append(row, worktree.DisplayPath)
 		}
 		if index%2 == 0 {
 			rows = append(rows, row)

@@ -12,7 +12,7 @@ func TestFunctionalRepoRemoveRefusesUnmanagedLinkedWorktrees(t *testing.T) {
 	t.Parallel()
 	repository := newTestRepository(t)
 	unmanaged := filepath.Join(resolvedTempDir(t), "unmanaged")
-	runGitCommand(t, repository.barePath, "worktree", "add", unmanaged, "main")
+	runGitCommand(t, repository.barePath, "worktree", "add", "--detach", unmanaged, "main")
 	head := runGitCommand(t, unmanaged, "rev-parse", "HEAD")
 
 	result := repository.runTimber(t, "repo", "remove", testRepoName)

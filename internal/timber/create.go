@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -19,9 +20,9 @@ func NewCreateCommand(runtime Runtime) *cobra.Command {
 	options := &createCommandOptions{runtime: runtime}
 
 	command := &cobra.Command{
-		Use:               "create [name[@repo]]",
+		Use:               "create [name[@repo]] [path]",
 		Short:             "Create a managed Git worktree",
-		Args:              cobra.MaximumNArgs(1),
+		Args:              cobra.MaximumNArgs(2),
 		RunE:              options.Execute,
 		ValidArgsFunction: runtime.completeCreateArgs,
 	}
@@ -44,7 +45,7 @@ func (x *createCommandOptions) Execute(command *cobra.Command, args []string) er
 
 func (x *createCommandOptions) createWorktree(command *cobra.Command, args []string) (string, error) {
 	var raw string
-	if len(args) == 1 {
+	if len(args) > 0 {
 		raw = args[0]
 	}
 	qualified, err := x.runtime.parseQualifiedName(raw)
@@ -69,8 +70,24 @@ func (x *createCommandOptions) createWorktree(command *cobra.Command, args []str
 	}
 
 	worktreePath := x.runtime.managedWorktreePath(repo.Name, branchName)
+	if len(args) == 2 {
+		if args[1] == "" {
+			return "", errors.New("worktree path must not be empty")
+		}
+		worktreePath, err = x.runtime.absolutePath(args[1])
+		if err != nil {
+			return "", err
+		}
+	}
 	if err := rejectNonEmptyWorktreeDirectory(worktreePath); err != nil {
 		return "", err
+	}
+	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
+	if err != nil {
+		return "", err
+	}
+	if _, err := managedWorktreeByName(worktrees, branchName); err == nil {
+		return "", fmt.Errorf("worktree %q already exists", branchName)
 	}
 
 	if _, err := repository.git("fetch", remoteName); err != nil {
@@ -105,6 +122,15 @@ func (x *createCommandOptions) createWorktree(command *cobra.Command, args []str
 
 	if err := repository.setBranchUpstream(branchName, upstreamBranch); err != nil {
 		return "", err
+	}
+	if len(args) == 2 {
+		gitDir, err := x.runtime.worktreeGitDir(worktreePath)
+		if err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(filepath.Join(gitDir, worktreeNameFile), []byte(branchName+"\n"), 0o600); err != nil {
+			return "", fmt.Errorf("record worktree name: %w", err)
+		}
 	}
 
 	if _, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("created "+worktreePath)); err != nil {

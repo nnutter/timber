@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRepoRenameMovesManagedWorktreesAndPreservesUnmanagedWorktrees(t *testing.T) {
+func TestRepoRenameMovesStandardWorktreesAndPreservesCustomWorktrees(t *testing.T) {
 	t.Parallel()
 	const (
 		branchName  = "feature/rename/nested"
@@ -69,6 +69,10 @@ func TestRepoRenameMovesManagedWorktreesAndPreservesUnmanagedWorktrees(t *testin
 	listResult := runTimberCommandWithRuntime(t, testRepository.runtime, "list", at(newRepoName, ""))
 	require.NoError(t, listResult.err, listResult.stderr)
 	assert.Contains(t, listResult.stdout, branchName)
+	assert.Contains(t, listResult.stdout, "unmanaged")
+	switchResult := testRepository.runTimber(t, "switch", at(newRepoName, "unmanaged"))
+	require.NoError(t, switchResult.err, switchResult.stderr)
+	assert.Equal(t, unmanagedPath+"\n", switchResult.stdout)
 }
 
 func TestRepoRenameWithoutWorktrees(t *testing.T) {

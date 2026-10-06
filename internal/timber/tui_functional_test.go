@@ -106,30 +106,44 @@ func TestTUICreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 
 func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
 	t.Parallel()
-	const branchName = "feature/ui-open"
+	for _, layout := range []string{"standard", "manual"} {
+		t.Run(layout, func(t *testing.T) {
+			t.Parallel()
+			const branchName = "feature/ui-open"
+			testRepository := newTestRepository(t)
+			name := branchName
+			path := testRepository.worktreePath(branchName)
+			if layout == "manual" {
+				name = "checkout"
+				path = filepath.Join(resolvedTempDir(t), name)
+				runGitCommand(t, testRepository.barePath, "worktree", "add", "-b", branchName, path, "origin/main")
+			} else {
+				require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+			}
+			logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
+			testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
+			testRepository.runtime.GhExecutable = installFakeGh(t)
 
-	testRepository := newTestRepository(t)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
-	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
-	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
-	testRepository.runtime.GhExecutable = installFakeGh(t)
+			prompter := &stubCreateWizardPrompter{
+				selection: createWizardSelection{
+					action:       wizardActionOpen,
+					repoName:     testRepoName,
+					worktreeName: name,
+				},
+			}
+			options := &tuiCreateCommandOptions{runtime: testRepository.runtime}
+			result := runTUICreate(t, options, prompter)
 
-	prompter := &stubCreateWizardPrompter{
-		selection: createWizardSelection{
-			action:       wizardActionOpen,
-			repoName:     testRepoName,
-			worktreeName: branchName,
-		},
+			require.NoError(t, result.err, result.stderr)
+			assert.Contains(t, result.stderr, "opened herdr space for "+name)
+			calls := readFakeHerdrLog(t, logPath)
+			assert.Len(t, calls, 11)
+			assert.Contains(t, calls, fakeHerdrLogLine("worktree", "open", "--workspace", "w1", "--path", path, "--label", name, "--no-focus"))
+			require.Len(t, prompter.worktrees, 1)
+			assert.Equal(t, testRepoName, prompter.worktrees[0].Repo)
+			assert.Equal(t, name, prompter.worktrees[0].Name)
+		})
 	}
-	options := &tuiCreateCommandOptions{runtime: testRepository.runtime}
-	result := runTUICreate(t, options, prompter)
-
-	require.NoError(t, result.err, result.stderr)
-	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
-	assert.Len(t, readFakeHerdrLog(t, logPath), 11)
-	require.Len(t, prompter.worktrees, 1)
-	assert.Equal(t, testRepoName, prompter.worktrees[0].Repo)
-	assert.Equal(t, branchName, prompter.worktrees[0].Name)
 }
 
 func TestTUICreateWithNoHerdrDoesNotInvokeHerdr(t *testing.T) {

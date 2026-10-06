@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -24,6 +25,10 @@ type managedWorktree struct {
 	Clean           bool
 	Merged          bool
 	PullRequest     string
+}
+
+func (x managedWorktree) branchName() string {
+	return strings.TrimPrefix(string(x.BranchReference), branchRefPrefix)
 }
 
 func (x managedWorktree) shortCommitHash() string {

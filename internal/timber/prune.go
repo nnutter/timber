@@ -73,10 +73,13 @@ func (x *pruneCommandOptions) Execute(command *cobra.Command, args []string) err
 		if !x.prompt && (!worktree.Clean || !worktree.Merged) {
 			continue
 		}
-		if worktree.Repo != "" {
-			removeOptions.RepoName = worktree.Repo
+		// Removing a checkout can shorten other directory-derived names.
+		// Use the selected identity rather than resolving its name again.
+		repository, _, err := x.runtime.openRegisteredRepository(worktree.Repo)
+		if err != nil {
+			return err
 		}
-		if err := removeOptions.removeWorktree(command, worktree.Name, true); err != nil {
+		if err := removeOptions.removeResolvedWorktree(command, repository, worktree, true); err != nil {
 			return err
 		}
 	}

@@ -3,6 +3,7 @@ package timber
 import (
 	"encoding/json/v2"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			rows := groupListTableRows(testCase.worktrees, newListStatusFormatter(testCase.worktrees), false)
+			rows := groupListTableRows(testCase.worktrees, newListStatusFormatter(testCase.worktrees), false, false)
 			require.Len(t, rows, len(testCase.groupedNames))
 			for index, names := range testCase.groupedNames {
 				assert.Equal(t, names, rows[index][0])
@@ -68,13 +69,59 @@ func TestGroupListTableRowsIncludesPullRequestColumnWhenEnabled(t *testing.T) {
 		{Name: "two", Clean: true},
 	}
 
-	rows := groupListTableRows(worktrees, newListStatusFormatter(worktrees), true)
+	rows := groupListTableRows(worktrees, newListStatusFormatter(worktrees), true, false)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "#42 ✓\n", rows[0][6])
 
-	rows = groupListTableRows(worktrees, newListStatusFormatter(worktrees), false)
+	rows = groupListTableRows(worktrees, newListStatusFormatter(worktrees), false, false)
 	require.Len(t, rows, 1)
 	assert.Len(t, rows[0], 6)
+}
+
+func TestListLocationIsOptionalLastColumn(t *testing.T) {
+	t.Parallel()
+	repository := newTestRepository(t)
+	const standardName = "feature/standard"
+	created := repository.runTimber(t, "create", at(testRepoName, standardName))
+	require.NoError(t, created.err, created.stderr)
+	customPath := filepath.Join(resolvedTempDir(t), "checkout with spaces")
+	runGitCommand(t, repository.barePath, "worktree", "add", "-b", "feature/manual", customPath, "origin/main")
+	repository.runtime.GhExecutable = installFakeGh(t)
+	paths := map[string]string{
+		standardName:           "~/worktrees/repo/feature/standard/repo",
+		"checkout with spaces": customPath,
+	}
+
+	without := repository.runTimber(t, "ls")
+	require.NoError(t, without.err, without.stderr)
+	assert.NotContains(t, without.stdout, "Location")
+	for _, path := range paths {
+		assert.NotContains(t, without.stdout, path)
+	}
+
+	for _, flags := range [][]string{{"-L"}, {"--location"}, {"--location", "--pr"}} {
+		result := repository.runTimber(t, append([]string{"ls"}, flags...)...)
+		require.NoError(t, result.err, result.stderr)
+		seen := 0
+		for line := range strings.SplitSeq(result.stdout, "\n") {
+			if !strings.HasPrefix(line, "│") {
+				continue
+			}
+			columns := strings.Split(strings.Trim(line, "│"), "│")
+			name := strings.TrimSpace(columns[0])
+			if name == "Name" {
+				assert.Equal(t, "Location", strings.TrimSpace(columns[len(columns)-1]))
+				if len(flags) == 2 {
+					assert.Equal(t, "PR", strings.TrimSpace(columns[len(columns)-2]))
+				}
+			}
+			if path, found := paths[name]; found {
+				assert.Equal(t, path, strings.TrimSpace(columns[len(columns)-1]))
+				seen++
+			}
+		}
+		assert.Equal(t, len(paths), seen, "flags=%v", flags)
+	}
 }
 
 func TestFormatDirtyStatusColorsTrueYellow(t *testing.T) {
