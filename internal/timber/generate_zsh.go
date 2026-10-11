@@ -479,31 +479,59 @@ _%[1]s()
         fi
         return $result
     else
-        __%[1]s_debug "Calling _describe"
-        if eval _describe $keepOrder "completions" completions $flagPrefix $noSpace; then
-            __%[1]s_debug "_describe found some completions"
+        # _describe leaves the cursor before '/' when another match shares
+        # the prefix and diverges there, so 'nn' stays 'nnutter' beside
+        # nnutter.com. Complete each slash-separated part on its own so the
+        # next tab inserts the slash. Descriptions stay on the _describe
+        # path, which has no slash-separated names.
+        local -a comp_matches
+        local item
+        for item in "${completions[@]}"; do
+            item="${item//\\:/$'\2'}"
+            item="${item%%%%:*}"
+            item="${item//$'\2'/:}"
+            comp_matches+=("$item")
+        done
 
-            # Return the success of having called _describe
-            return 0
-        else
-            __%[1]s_debug "_describe did not find completions."
-            __%[1]s_debug "Checking if we should do file completion."
-            if [ $((directive & shellCompDirectiveNoFileComp)) -ne 0 ]; then
-                __%[1]s_debug "deactivating file completion"
-
-                # We must return an error code here to let zsh know that there were no
-                # completions found by _describe; this is what will trigger other
-                # matching algorithms to attempt to find completions.
-                # For example zsh can match letters in the middle of words.
-                return 1
-            else
-                # Perform file completion
-                __%[1]s_debug "Activating file completion"
-
-                # We must return the result of this command, so it must be the
-                # last command, or else we must store its result to return it.
-                _arguments '*:filename:_files'" ${flagPrefix}"
+        local completed=1
+        if [[ ${comp_matches[(r)*/*]} == */* ]]; then
+            __%[1]s_debug "Calling _multi_parts"
+            local parts_order
+            if [ -n "$keepOrder" ]; then
+                parts_order="-o nosort"
             fi
+            if eval _multi_parts -i $parts_order / comp_matches $flagPrefix $noSpace; then
+                completed=0
+            fi
+        else
+            __%[1]s_debug "Calling _describe"
+            if eval _describe $keepOrder "completions" completions $flagPrefix $noSpace; then
+                completed=0
+            fi
+        fi
+
+        if [ $completed -eq 0 ]; then
+            __%[1]s_debug "Found some completions"
+            return 0
+        fi
+
+        __%[1]s_debug "No completions found."
+        __%[1]s_debug "Checking if we should do file completion."
+        if [ $((directive & shellCompDirectiveNoFileComp)) -ne 0 ]; then
+            __%[1]s_debug "deactivating file completion"
+
+            # We must return an error code here to let zsh know that there were no
+            # completions found; this is what will trigger other
+            # matching algorithms to attempt to find completions.
+            # For example zsh can match letters in the middle of words.
+            return 1
+        else
+            # Perform file completion
+            __%[1]s_debug "Activating file completion"
+
+            # We must return the result of this command, so it must be the
+            # last command, or else we must store its result to return it.
+            _arguments '*:filename:_files'" ${flagPrefix}"
         fi
     fi
 }

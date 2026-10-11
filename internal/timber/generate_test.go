@@ -841,3 +841,119 @@ func TestGenerateZshChecksAutoloadHelperCollisionBeforeWriting(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "#autoload t", strings.SplitN(string(autoloadContents), "\n", 2)[0])
 }
+
+// TestGeneratedRepoCompletionInsertsSlashInSharedPrefix proves a shared
+// owner/ prefix completes with the slash, and a sibling name that diverges
+// before the slash (nnutter.com) still completes while the next tab enters
+// the slash group.
+func TestGeneratedRepoCompletionInsertsSlashInSharedPrefix(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh is not installed")
+	}
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 is not installed")
+	}
+	skipIfNoPty(t)
+
+	repository := newTestRepository(t)
+	registerAdditionalRepo(t, repository, "nnutter/alpha")
+	registerAdditionalRepo(t, repository, "nnutter/beta")
+
+	outDir := resolvedTempDir(t)
+	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
+	timberBin := buildTestTimberBinary(t)
+
+	scriptPath := filepath.Join(resolvedTempDir(t), "complete.py")
+	script := `import os, pty, select, time, sys
+
+compdir, zdot, home, data_home, worktree_root, bindir, line, tabs = sys.argv[1:9]
+want = sys.argv[9]
+os.makedirs(zdot, exist_ok=True)
+open(os.path.join(zdot, ".zshrc"), "w").write("")
+os.environ["ZDOTDIR"] = zdot
+os.environ["HOME"] = home
+os.environ["XDG_DATA_HOME"] = data_home
+os.environ["TIMBER_WORKTREE_ROOT"] = worktree_root
+os.environ["PATH"] = bindir + ":" + os.environ["PATH"]
+
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp("zsh", ["zsh", "-f", "-i"])
+
+def recv(timeout=1.0):
+    buf = b""
+    end = time.time() + timeout
+    while time.time() < end:
+        ready, _, _ = select.select([fd], [], [], max(0.05, end - time.time()))
+        if not ready:
+            continue
+        try:
+            chunk = os.read(fd, 8192)
+        except OSError:
+            break
+        if not chunk:
+            break
+        buf += chunk
+        end = time.time() + 0.2
+    return buf
+
+def send(data):
+    os.write(fd, data.encode() if isinstance(data, str) else data)
+
+def wait_for(token, timeout=30.0):
+    out = b""
+    end = time.time() + timeout
+    needle = token.encode()
+    while time.time() < end and needle not in out:
+        out += recv(0.5)
+    return out
+
+recv(0.3)
+log = b""
+send("fpath=(" + compdir + " $fpath); autoload -Uz compinit; compinit -u -D; unsetopt AUTO_MENU\n")
+send("showbuf() { print -r -- BUFFER=[$BUFFER]; }; zle -N showbuf; bindkey '^X^B' showbuf\n")
+send("echo COMPINIT_DONE\n")
+log += wait_for("COMPINIT_DONE")
+send("\x15")
+recv(0.1)
+send(line)
+time.sleep(0.05)
+for _ in range(int(tabs)):
+    send("\t")
+    time.sleep(0.3)
+send("\x18\x02")
+log += wait_for(want)
+send("exit\n")
+recv(0.2)
+sys.stdout.write(log.decode("utf-8", "replace"))
+`
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o644))
+
+	runComplete := func(line string, tabs string, want string) string {
+		t.Helper()
+		command := testCommand(t,
+			"python3",
+			scriptPath,
+			outDir,
+			filepath.Join(resolvedTempDir(t), "zdot"),
+			repository.home,
+			repository.runtime.DataHome,
+			repository.worktreeRoot,
+			timberBin,
+			line,
+			tabs,
+			want,
+		)
+		output, err := command.CombinedOutput()
+		require.NoError(t, err, string(output))
+		assert.Contains(t, string(output), want)
+		return string(output)
+	}
+
+	runComplete("t repo remove nn", "1", "BUFFER=[t repo remove nnutter/]")
+
+	registerAdditionalRepo(t, repository, "nnutter.com")
+	runComplete("t repo remove nn", "2", "BUFFER=[t repo remove nnutter/]")
+	runComplete("t repo remove nnutter.c", "1", "BUFFER=[t repo remove nnutter.com ")
+}
