@@ -27,6 +27,7 @@ type todoCommandOptions struct {
 	pathOnly     bool
 	installSkill bool
 	force        bool
+	jsonOutput   bool
 }
 
 func NewTodoCommand(runtime Runtime) *cobra.Command {
@@ -42,7 +43,8 @@ func NewTodoCommand(runtime Runtime) *cobra.Command {
 	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO.md path instead of opening it")
 	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
 	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
-	command.MarkFlagsMutuallyExclusive("path", "install-skill")
+	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO.md items as JSON instead of opening the file")
+	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
 	return command
 }
 
@@ -71,6 +73,10 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 	if x.pathOnly {
 		_, err := fmt.Fprintln(command.OutOrStdout(), todoPath)
 		return err
+	}
+
+	if x.jsonOutput {
+		return x.reportTodoJSON(command, gitDir)
 	}
 
 	editorLine, err := editorCommandLine(x.runtime)
