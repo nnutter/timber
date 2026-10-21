@@ -8,6 +8,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRepoAddRemoteURL(t *testing.T) {
+	t.Parallel()
+
+	for _, fixture := range []struct {
+		input string
+		want  string
+	}{
+		{"nnutter/timber", "git@github.com:nnutter/timber"},
+		{"nnutter/timber.git", "git@github.com:nnutter/timber"},
+		{"https://github.com/nnutter/timber", "https://github.com/nnutter/timber"},
+		{"https://github.com/nnutter/timber.git", "https://github.com/nnutter/timber.git"},
+		{"git@github.com:nnutter/timber.git", "git@github.com:nnutter/timber.git"},
+	} {
+		t.Run(fixture.input, func(t *testing.T) {
+			t.Parallel()
+
+			home := resolvedTempDir(t)
+			runtime := testRuntimeForHome(home, home)
+			remote := filepath.Join(resolvedTempDir(t), "remote.git")
+			runGitCommand(t, home, "init", "--bare", remote)
+			seedBareRemote(t, remote)
+			// Redirect only the expected URL to a local remote. A different URL
+			// must fail instead of attempting a network connection.
+			runtime.Environment = append(runtime.Environment,
+				"GIT_CONFIG_COUNT=1",
+				"GIT_CONFIG_KEY_0=url."+remote+".insteadOf",
+				"GIT_CONFIG_VALUE_0="+fixture.want,
+				"GIT_ALLOW_PROTOCOL=file",
+			)
+
+			result := runTimberCommandWithRuntime(t, runtime, "repo", "add", fixture.input)
+			require.NoError(t, result.err, result.stderr)
+			assert.Equal(t, fixture.want+"\n", runGitCommand(t, runtime.bareRepoPath("nnutter/timber"),
+				"config", "--local", "--get", "remote.origin.url"))
+		})
+	}
+}
+
 func TestRepoAddAlias(t *testing.T) {
 	t.Parallel()
 	for _, alias := range []string{"", "custom-alias"} {

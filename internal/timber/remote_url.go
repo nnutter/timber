@@ -38,7 +38,7 @@ func parseGitHubShortForm(input string) (string, bool) {
 // resolveRemoteURL maps user input to a git remote URL.
 //
 // Schema-less GitHub short forms (e.g. "nnutter/timber") become
-// https://github.com/<owner>/<repo> without a .git suffix. Absolute URLs,
+// git@github.com:<owner>/<repo> without a .git suffix. Absolute URLs,
 // SSH forms, and local paths pass through unchanged.
 func resolveRemoteURL(input string) (string, error) {
 	trimmed := strings.TrimSpace(input)
@@ -61,7 +61,7 @@ func resolveRemoteURL(input string) (string, error) {
 		return trimmed, nil
 	default:
 		if short, ok := parseGitHubShortForm(trimmed); ok {
-			return "https://github.com/" + short, nil
+			return "git@github.com:" + short, nil
 		}
 		return "https://github.com/" + strings.TrimPrefix(trimmed, "/"), nil
 	}
