@@ -89,7 +89,18 @@ timber config --auto-mise-trust
 timber config --no-auto-mise-trust
 ```
 
-See [internal/timber/config.go](internal/timber/config.go) for the settings and command entry point.
+Enabling automatic trust permits mise configuration in eligible worktrees to execute code.
+Eligibility requires a root-level, regular `mise.toml` and a GitHub upstream owned by you or one of your organizations.
+Timber uses authenticated `gh` lookups and caches the identity for 24 hours in `$XDG_DATA_HOME/timber/github-identity.json` (fallback: `~/.local/share/timber/github-identity.json`).
+Remove this cache after switching GitHub accounts or changing organization membership to force a fresh lookup.
+If Timber cannot refresh an invalid cache, it warns and skips trust without failing worktree creation.
+A failed `mise trust` also produces a warning and keeps the worktree.
+
+Entry points:
+
+- [internal/timber/config.go](internal/timber/config.go): settings and config command
+- [internal/timber/github_identity.go](internal/timber/github_identity.go): identity cache
+- [internal/timber/mise_trust.go](internal/timber/mise_trust.go): eligibility and trust
 
 ## Herdr Plugin
 
