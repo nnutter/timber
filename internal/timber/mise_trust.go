@@ -25,16 +25,13 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 		return
 	}
 	configPath := filepath.Join(worktreePath, "mise.toml")
-	info, err := os.Lstat(configPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return
-	}
+	regular, err := regularRootFile(configPath)
 	if err != nil {
 		warn(err)
 		return
 	}
 	// Do not trust a symlink that can point outside the new checkout.
-	if !info.Mode().IsRegular() {
+	if !regular {
 		return
 	}
 	remoteURL, err := repository.upstreamRemoteURL(upstream)
@@ -70,6 +67,19 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 	if err != nil {
 		warn(fmt.Errorf("mise trust failed: %w: %s", err, strings.TrimSpace(string(output))))
 	}
+}
+
+// regularRootFile reports whether path is a regular file instead of a symlink
+// or directory. A missing file is not an error.
+func regularRootFile(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return info.Mode().IsRegular(), nil
 }
 
 func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config, identity githubIdentity) (bool, error) {
