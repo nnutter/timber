@@ -55,7 +55,7 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 		return
 	}
 	if !settings.AutoMiseTrust {
-		enabled, err := x.promptAutoMiseTrust(command, settings)
+		enabled, err := x.promptAutoMiseTrust(command, settings, identity)
 		if err != nil {
 			warn(err)
 			return
@@ -72,9 +72,16 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 	}
 }
 
-func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config) (bool, error) {
+func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config, identity githubIdentity) (bool, error) {
 	output := command.ErrOrStderr()
 	if _, err := fmt.Fprintln(output, "This worktree qualifies for automatic mise trust. Trusting mise configuration permits code execution."); err != nil {
+		return false, err
+	}
+	organizations := strings.Join(identity.Organizations, ", ")
+	if organizations == "" {
+		organizations = "none"
+	}
+	if _, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations); err != nil {
 		return false, err
 	}
 	reader := bufio.NewReader(command.InOrStdin())

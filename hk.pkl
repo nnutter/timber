@@ -1,0 +1,55 @@
+amends "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Builtins.pkl"
+
+local goChecks = new Mapping<String, Step> {
+  ["go-mod-tidy"] = (Builtins.gomod_tidy)
+  ["go-fumpt"] {
+    glob = "**/*.go"
+    check = """
+      set -e
+      FILES=$(go tool gofumpt -l {{files}})
+      if [ -n "$FILES" ]; then
+      echo "$FILES"
+      exit 1
+      fi
+      """
+    fix = "go tool gofumpt -w {{files}}"
+  }
+  ["go-imports"] {
+    glob = "**/*.go"
+    check = """
+      set -e
+      FILES=$(go tool goimports -l -local $(go list -m) {{files}})
+      if [ -n "$FILES" ]; then
+      echo "$FILES"
+      exit 1
+      fi
+      """
+    fix = "go tool goimports -w -local $(go list -m) {{files}}"
+  }
+  ["go-fix"] = (Builtins.go_fix)
+}
+
+hooks {
+  ["check"] {
+    steps = goChecks
+  }
+  ["commit-msg"] {
+    fix = true
+    steps {
+      ["change-id"] {
+        fix = "git-review commit-msg \"{{commit_msg_file}}\""
+      }
+    }
+  }
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps {
+      ["format"] {
+        glob = "*.go"
+        fix = "mise run pre-commit {{files}}"
+      }
+    }
+  }
+}
