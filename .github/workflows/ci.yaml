@@ -27,8 +27,8 @@ jobs:
         with:
           version: 2026.8.5
 
-      - name: Run fixers
-        run: mise run fixers
+      - name: Run hk checks
+        run: hk check --pr
 
       - name: Run tests
         run: mise run ci-tests
