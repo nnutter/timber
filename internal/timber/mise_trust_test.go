@@ -129,7 +129,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 			}
 			var result commandResult
 			if test.interactive {
-				result = interactiveMiseCreate(t, runtime, timberBin, test.answer, "feature")
+				result = interactiveCreate(t, runtime, timberBin, test.answer, "feature")
 			} else {
 				result = runTimberCommandWithRuntime(t, runtime, "create", "--upstream", upstream, at(testRepoName, "feature"))
 			}
@@ -169,7 +169,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 				if !test.wantTrust {
 					assert.Contains(t, result.stderr, "Enable it later with: timber config --auto-mise-trust")
 				}
-				again := interactiveMiseCreate(t, runtime, timberBin, test.answer, "second")
+				again := interactiveCreate(t, runtime, timberBin, test.answer, "second")
 				require.NoError(t, again.err)
 				assert.NotContains(t, again.stderr, "[y/N]")
 				if !test.wantTrust {
@@ -187,7 +187,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 }
 
 // Exercise terminal detection and the persisted choice through the real CLI.
-func interactiveMiseCreate(t *testing.T, runtime Runtime, bin, answer, branch string) commandResult {
+func interactiveCreate(t *testing.T, runtime Runtime, bin, answer, branch string) commandResult {
 	t.Helper()
 	script := `import os, pty, select, signal, sys, time
 pid, fd = pty.fork()
