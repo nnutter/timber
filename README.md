@@ -78,6 +78,19 @@ go install github.com/nnutter/timber@latest
 
 `timber` requires Git on `PATH`.
 
+## Configuration
+
+Run `timber config` to show settings and create the config file if absent.
+The file is `$XDG_CONFIG_HOME/timber/config.toml` (fallback: `~/.config/timber/config.toml`).
+Automatic mise trust is disabled by default.
+
+```bash
+timber config --auto-mise-trust
+timber config --no-auto-mise-trust
+```
+
+See [internal/timber/config.go](internal/timber/config.go) for the settings and command entry point.
+
 ## Herdr Plugin
 
 Install the bundled [Herdr](https://herdr.dev) plugin with:
@@ -216,6 +229,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo import` | Convert an existing clone into a managed repository |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
+| `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` |
 | `create` | Create a worktree for a branch (`--no-herdr` skips the Herdr space) |
 | `switch` | Shell-only: `cd` into a worktree, creating it first with `-c` |
 | `tui` | Interactively open an existing worktree or create a new one |

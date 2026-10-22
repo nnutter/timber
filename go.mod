@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	charm.land/fang/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.5
+	github.com/BurntSushi/toml v1.6.0
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
 	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/charmbracelet/huh v1.0.0
@@ -22,7 +23,6 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Antonboom/testifylint v1.6.4 // indirect
 	github.com/BobuSumisu/aho-corasick v1.0.3 // indirect
-	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
