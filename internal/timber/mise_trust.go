@@ -34,21 +34,12 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 	if !regular {
 		return
 	}
-	remoteURL, err := repository.upstreamRemoteURL(upstream)
+	identity, owned, err := x.githubOwnedWorktree(command, repository, upstream)
 	if err != nil {
 		warn(err)
 		return
 	}
-	owner := githubRemoteOwner(remoteURL)
-	if owner == "" {
-		return
-	}
-	identity, err := x.githubIdentity(command.Context())
-	if err != nil {
-		warn(err)
-		return
-	}
-	if !identity.owns(owner) {
+	if !owned {
 		return
 	}
 	if !settings.AutoMiseTrust {
@@ -80,6 +71,27 @@ func regularRootFile(path string) (bool, error) {
 		return false, err
 	}
 	return info.Mode().IsRegular(), nil
+}
+
+// githubOwnedWorktree reports whether the selected upstream resolves to a
+// GitHub repository owned by the cached user or one of their organizations.
+func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Repository, upstream string) (githubIdentity, bool, error) {
+	remoteURL, err := repository.upstreamRemoteURL(upstream)
+	if err != nil {
+		return githubIdentity{}, false, err
+	}
+	owner := githubRemoteOwner(remoteURL)
+	if owner == "" {
+		return githubIdentity{}, false, nil
+	}
+	identity, err := x.githubIdentity(command.Context())
+	if err != nil {
+		return githubIdentity{}, false, err
+	}
+	if !identity.owns(owner) {
+		return githubIdentity{}, false, nil
+	}
+	return identity, true, nil
 }
 
 func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config, identity githubIdentity) (bool, error) {
