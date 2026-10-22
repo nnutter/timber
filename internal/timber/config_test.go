@@ -17,10 +17,10 @@ func TestConfigPersistsSettingsUnderXDGConfigHome(t *testing.T) {
 		want string
 	}{
 		{[]string{"config"}, "auto_mise_trust = false\n"},
-		{[]string{"config", "--auto-mise-trust"}, "auto_mise_trust = true\n"},
-		{[]string{"config"}, "auto_mise_trust = true\n"},
-		{[]string{"config", "--no-auto-mise-trust"}, "auto_mise_trust = false\n"},
-		{[]string{"config"}, "auto_mise_trust = false\n"},
+		{[]string{"config", "--auto-mise-trust"}, "auto_mise_trust = true\nauto_mise_trust_decided = true\n"},
+		{[]string{"config"}, "auto_mise_trust = true\nauto_mise_trust_decided = true\n"},
+		{[]string{"config", "--no-auto-mise-trust"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\n"},
+		{[]string{"config"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\n"},
 	} {
 		result := runTimberCommandWithRuntime(t, runtime, step.args...)
 		require.NoError(t, result.err)

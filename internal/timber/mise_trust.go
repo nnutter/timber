@@ -1,6 +1,7 @@
 package timber
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"net/url"
@@ -20,7 +21,7 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 		warn(err)
 		return
 	}
-	if !settings.AutoMiseTrust {
+	if !settings.AutoMiseTrust && (settings.AutoMiseTrustDecided || !isInteractiveTerminal(command.InOrStdin())) {
 		return
 	}
 	configPath := filepath.Join(worktreePath, "mise.toml")
@@ -53,11 +54,58 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 	if !identity.owns(owner) {
 		return
 	}
+	if !settings.AutoMiseTrust {
+		enabled, err := x.promptAutoMiseTrust(command, settings)
+		if err != nil {
+			warn(err)
+			return
+		}
+		if !enabled {
+			return
+		}
+	}
 	trust := x.command(command.Context(), "mise", "trust", configPath)
 	trust.Dir = worktreePath
 	output, err := trust.CombinedOutput()
 	if err != nil {
 		warn(fmt.Errorf("mise trust failed: %w: %s", err, strings.TrimSpace(string(output))))
+	}
+}
+
+func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config) (bool, error) {
+	output := command.ErrOrStderr()
+	if _, err := fmt.Fprintln(output, "This worktree qualifies for automatic mise trust. Trusting mise configuration permits code execution."); err != nil {
+		return false, err
+	}
+	reader := bufio.NewReader(command.InOrStdin())
+	for {
+		if _, err := fmt.Fprint(output, "Enable automatic mise trust for repositories owned by you or your GitHub organizations? [y/N] "); err != nil {
+			return false, err
+		}
+		answer, err := reader.ReadString('\n')
+		if err != nil {
+			return false, fmt.Errorf("read mise trust choice: %w", err)
+		}
+		switch strings.ToLower(strings.TrimSpace(answer)) {
+		case "y", "yes":
+			settings.AutoMiseTrust = true
+		case "", "n", "no":
+			settings.AutoMiseTrust = false
+		default:
+			if _, err := fmt.Fprintln(output, "Enter yes or no."); err != nil {
+				return false, err
+			}
+			continue
+		}
+		settings.AutoMiseTrustDecided = true
+		if err := writeConfig(x.configPath(), settings); err != nil {
+			return false, fmt.Errorf("save mise trust choice: %w", err)
+		}
+		if !settings.AutoMiseTrust {
+			_, err := fmt.Fprintln(output, "Automatic mise trust remains disabled. Enable it later with: timber config --auto-mise-trust")
+			return false, err
+		}
+		return true, nil
 	}
 }
 

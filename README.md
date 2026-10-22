@@ -83,6 +83,11 @@ go install github.com/nnutter/timber@latest
 Run `timber config` to show settings and create the config file if absent.
 The file is `$XDG_CONFIG_HOME/timber/config.toml` (fallback: `~/.config/timber/config.toml`).
 Automatic mise trust is disabled by default.
+On the first eligible worktree creation in an interactive terminal, Timber offers to enable it.
+The prompt defaults to No and saves your answer, so Timber does not ask again.
+After No, the prompt shows `timber config --auto-mise-trust` so you can enable it later.
+An explicit `timber config --no-auto-mise-trust` also suppresses the prompt.
+Non-interactive creation does not prompt or record a choice.
 
 ```bash
 timber config --auto-mise-trust

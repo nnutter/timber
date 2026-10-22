@@ -12,7 +12,8 @@ import (
 )
 
 type config struct {
-	AutoMiseTrust bool `toml:"auto_mise_trust"`
+	AutoMiseTrust        bool `toml:"auto_mise_trust"`
+	AutoMiseTrustDecided bool `toml:"auto_mise_trust_decided,omitempty"`
 }
 
 func NewConfigCommand(runtime Runtime) *cobra.Command {
@@ -31,6 +32,7 @@ func NewConfigCommand(runtime Runtime) *cobra.Command {
 				if command.Flags().Changed("no-auto-mise-trust") {
 					settings.AutoMiseTrust = !disable
 				}
+				settings.AutoMiseTrustDecided = true
 				if err := writeConfig(runtime.configPath(), settings); err != nil {
 					return err
 				}
