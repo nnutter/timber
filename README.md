@@ -82,13 +82,12 @@ go install github.com/nnutter/timber@latest
 
 Run `timber config` to show settings and create the config file if absent.
 The file is `$XDG_CONFIG_HOME/timber/config.toml` (fallback: `~/.config/timber/config.toml`).
-Automatic mise trust is disabled by default.
-On the first eligible worktree creation in an interactive terminal, Timber offers to enable it.
-The prompt defaults to No and saves your answer, so Timber does not ask again.
-After No, the prompt shows `timber config --auto-mise-trust` so you can enable it later.
-An explicit `timber config --no-auto-mise-trust` also suppresses the prompt.
+Automatic mise trust and automatic hk hook installation are disabled by default.
+On the first eligible worktree creation in an interactive terminal, Timber offers to enable each feature.
+The prompts default to No and save your answers, so Timber does not ask again.
+After No, a prompt shows the matching `timber config` flag so you can enable the feature later.
+An explicit `--no-auto-mise-trust` or `--no-auto-hk-install` also suppresses its prompt.
 Non-interactive creation does not prompt or record a choice.
-Automatic hk hook installation is disabled by default.
 
 ```bash
 timber config --auto-mise-trust
@@ -105,6 +104,7 @@ If Timber cannot refresh an invalid cache, it warns and skips trust without fail
 A failed `mise trust` also produces a warning and keeps the worktree.
 
 Enabling automatic hk hook installation runs `hk install` in eligible worktrees.
+Installed hooks run repository-defined commands on Git events.
 Eligibility requires a root-level, regular `hk.pkl` and a GitHub upstream owned by you or one of your organizations.
 Timber adds `--mise` when the worktree also has a root-level, regular `mise.toml`, so hooks can use mise-managed tools.
 A failed `hk install` also produces a warning and keeps the worktree.
