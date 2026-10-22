@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -25,33 +26,21 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 		return
 	}
 	configPath := filepath.Join(worktreePath, "mise.toml")
-	info, err := os.Lstat(configPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return
-	}
+	regular, err := regularRootFile(configPath)
 	if err != nil {
 		warn(err)
 		return
 	}
 	// Do not trust a symlink that can point outside the new checkout.
-	if !info.Mode().IsRegular() {
+	if !regular {
 		return
 	}
-	remoteURL, err := repository.upstreamRemoteURL(upstream)
+	identity, owned, err := x.githubOwnedWorktree(command, repository, upstream)
 	if err != nil {
 		warn(err)
 		return
 	}
-	owner := githubRemoteOwner(remoteURL)
-	if owner == "" {
-		return
-	}
-	identity, err := x.githubIdentity(command.Context())
-	if err != nil {
-		warn(err)
-		return
-	}
-	if !identity.owns(owner) {
+	if !owned {
 		return
 	}
 	if !settings.AutoMiseTrust {
@@ -72,16 +61,55 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 	}
 }
 
+// regularRootFile reports whether path is a regular file instead of a symlink
+// or directory. A missing file is not an error.
+func regularRootFile(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return info.Mode().IsRegular(), nil
+}
+
+func writeGitHubIdentity(output io.Writer, identity githubIdentity) error {
+	organizations := strings.Join(identity.Organizations, ", ")
+	if organizations == "" {
+		organizations = "none"
+	}
+	_, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations)
+	return err
+}
+
+// githubOwnedWorktree reports whether the selected upstream resolves to a
+// GitHub repository owned by the cached user or one of their organizations.
+func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Repository, upstream string) (githubIdentity, bool, error) {
+	remoteURL, err := repository.upstreamRemoteURL(upstream)
+	if err != nil {
+		return githubIdentity{}, false, err
+	}
+	owner := githubRemoteOwner(remoteURL)
+	if owner == "" {
+		return githubIdentity{}, false, nil
+	}
+	identity, err := x.githubIdentity(command.Context())
+	if err != nil {
+		return githubIdentity{}, false, err
+	}
+	if !identity.owns(owner) {
+		return githubIdentity{}, false, nil
+	}
+	return identity, true, nil
+}
+
 func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config, identity githubIdentity) (bool, error) {
 	output := command.ErrOrStderr()
 	if _, err := fmt.Fprintln(output, "This worktree qualifies for automatic mise trust. Trusting mise configuration permits code execution."); err != nil {
 		return false, err
 	}
-	organizations := strings.Join(identity.Organizations, ", ")
-	if organizations == "" {
-		organizations = "none"
-	}
-	if _, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations); err != nil {
+	if err := writeGitHubIdentity(output, identity); err != nil {
 		return false, err
 	}
 	reader := bufio.NewReader(command.InOrStdin())

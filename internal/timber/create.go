@@ -138,6 +138,7 @@ func (x *createCommandOptions) createWorktree(command *cobra.Command, args []str
 	}
 
 	x.runtime.autoTrustMise(command, repository, upstreamBranch, worktreePath)
+	x.runtime.autoInstallHKHooks(command, repository, upstreamBranch, worktreePath)
 
 	if !x.shouldCreateHerdrWorkspace() {
 		return worktreePath, nil

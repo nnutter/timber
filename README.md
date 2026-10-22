@@ -82,16 +82,18 @@ go install github.com/nnutter/timber@latest
 
 Run `timber config` to show settings and create the config file if absent.
 The file is `$XDG_CONFIG_HOME/timber/config.toml` (fallback: `~/.config/timber/config.toml`).
-Automatic mise trust is disabled by default.
-On the first eligible worktree creation in an interactive terminal, Timber offers to enable it.
-The prompt defaults to No and saves your answer, so Timber does not ask again.
-After No, the prompt shows `timber config --auto-mise-trust` so you can enable it later.
-An explicit `timber config --no-auto-mise-trust` also suppresses the prompt.
+Automatic mise trust and automatic hk hook installation are disabled by default.
+On the first eligible worktree creation in an interactive terminal, Timber offers to enable each feature.
+The prompts default to No and save your answers, so Timber does not ask again.
+After No, a prompt shows the matching `timber config` flag so you can enable the feature later.
+An explicit `--no-auto-mise-trust` or `--no-auto-hk-install` also suppresses its prompt.
 Non-interactive creation does not prompt or record a choice.
 
 ```bash
 timber config --auto-mise-trust
 timber config --no-auto-mise-trust
+timber config --auto-hk-install
+timber config --no-auto-hk-install
 ```
 
 Enabling automatic trust permits mise configuration in eligible worktrees to execute code.
@@ -101,11 +103,18 @@ Remove this cache after switching GitHub accounts or changing organization membe
 If Timber cannot refresh an invalid cache, it warns and skips trust without failing worktree creation.
 A failed `mise trust` also produces a warning and keeps the worktree.
 
+Enabling automatic hk hook installation runs `hk install` in eligible worktrees.
+Installed hooks run repository-defined commands on Git events.
+Eligibility requires a root-level, regular `hk.pkl` and a GitHub upstream owned by you or one of your organizations.
+Timber adds `--mise` when the worktree also has a root-level, regular `mise.toml`, so hooks can use mise-managed tools.
+A failed `hk install` also produces a warning and keeps the worktree.
+
 Entry points:
 
 - [internal/timber/config.go](internal/timber/config.go): settings and config command
 - [internal/timber/github_identity.go](internal/timber/github_identity.go): identity cache
 - [internal/timber/mise_trust.go](internal/timber/mise_trust.go): eligibility and trust
+- [internal/timber/hk_install.go](internal/timber/hk_install.go): hk hook installation
 
 ## Herdr Plugin
 
@@ -246,7 +255,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo import` | Convert an existing clone into a managed repository |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
-| `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` |
+| `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` / `--auto-hk-install` / `--no-auto-hk-install` |
 | `create` | Create a worktree for a branch (`--no-herdr` skips the Herdr space) |
 | `switch` | Shell-only: `cd` into a worktree, creating it first with `-c` |
 | `tui` | Interactively open an existing worktree or create a new one |

@@ -16,11 +16,15 @@ func TestConfigPersistsSettingsUnderXDGConfigHome(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"config"}, "auto_mise_trust = false\n"},
-		{[]string{"config", "--auto-mise-trust"}, "auto_mise_trust = true\nauto_mise_trust_decided = true\n"},
-		{[]string{"config"}, "auto_mise_trust = true\nauto_mise_trust_decided = true\n"},
-		{[]string{"config", "--no-auto-mise-trust"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\n"},
-		{[]string{"config"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\n"},
+		{[]string{"config"}, "auto_mise_trust = false\nauto_hk_install = false\n"},
+		{[]string{"config", "--auto-mise-trust"}, "auto_mise_trust = true\nauto_mise_trust_decided = true\nauto_hk_install = false\n"},
+		{[]string{"config"}, "auto_mise_trust = true\nauto_mise_trust_decided = true\nauto_hk_install = false\n"},
+		{[]string{"config", "--no-auto-mise-trust"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = false\n"},
+		{[]string{"config"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = false\n"},
+		{[]string{"config", "--auto-hk-install"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = true\nauto_hk_install_decided = true\n"},
+		{[]string{"config"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = true\nauto_hk_install_decided = true\n"},
+		{[]string{"config", "--no-auto-hk-install"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = false\nauto_hk_install_decided = true\n"},
+		{[]string{"config"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = false\nauto_hk_install_decided = true\n"},
 	} {
 		result := runTimberCommandWithRuntime(t, runtime, step.args...)
 		require.NoError(t, result.err)
@@ -30,6 +34,9 @@ func TestConfigPersistsSettingsUnderXDGConfigHome(t *testing.T) {
 		assert.Equal(t, step.want, string(contents))
 	}
 	result := runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust", "--no-auto-mise-trust")
+	require.Error(t, result.err)
+	assert.Contains(t, result.err.Error(), "none of the others can be")
+	result = runTimberCommandWithRuntime(t, runtime, "config", "--auto-hk-install", "--no-auto-hk-install")
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "none of the others can be")
 }
