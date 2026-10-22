@@ -175,6 +175,40 @@ func TestCreateAutomaticallyInstallsHKHooksOnlyForEligibleRepositories(t *testin
 	}
 }
 
+func TestCreateTrustsMiseBeforeInstallingHKHooks(t *testing.T) {
+	repository := newTestRepository(t)
+	seedRepositoryFiles(t, repository, true, false, true, false)
+	runGitCommand(t, repository.barePath, "fetch", "origin")
+	runGitCommand(t, repository.barePath, "remote", "add", "source", "git@github.com:alice/project.git")
+	runGitCommand(t, repository.barePath, "update-ref", "refs/remotes/source/main", "refs/remotes/origin/main")
+
+	runtime := repository.runtime
+	cache := fmt.Sprintf(`{"username":"alice","organizations":[],"fetched_at":%q}`, time.Now().UTC().Format(time.RFC3339Nano))
+	require.NoError(t, writePrivateFile(filepath.Join(runtime.DataHome, "timber", "github-identity.json"), []byte(cache)))
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust").err)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-hk-install").err)
+
+	bin := resolvedTempDir(t)
+	logPath := filepath.Join(bin, "automation.log")
+	for name, operation := range map[string]string{"mise": "mise", "hk": "hk"} {
+		script := fmt.Sprintf("#!/bin/sh\nprintf '%s %%s\\n' \"$*\" >> %q\n", operation, logPath)
+		require.NoError(t, os.WriteFile(filepath.Join(bin, name), []byte(script), 0o700))
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	runtime = withTestEnvironment(runtime, "PATH="+os.Getenv("PATH"))
+
+	result := runTimberCommandWithRuntime(t, runtime, "create", "--upstream", "source/main", at(testRepoName, "feature"))
+	require.NoError(t, result.err)
+	assert.NotContains(t, result.stderr, "warning:")
+
+	contents, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(contents)), "\n")
+	require.Len(t, lines, 2)
+	assert.True(t, strings.HasPrefix(lines[0], "mise trust "))
+	assert.Equal(t, "hk install --mise", lines[1])
+}
+
 func seedRepositoryFiles(t *testing.T, repository testRepository, hkFile, hkSymlink, miseFile, miseSymlink bool) {
 	t.Helper()
 	seed := filepath.Join(resolvedTempDir(t), "seed")
