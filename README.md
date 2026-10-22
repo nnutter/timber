@@ -78,6 +78,35 @@ go install github.com/nnutter/timber@latest
 
 `timber` requires Git on `PATH`.
 
+## Configuration
+
+Run `timber config` to show settings and create the config file if absent.
+The file is `$XDG_CONFIG_HOME/timber/config.toml` (fallback: `~/.config/timber/config.toml`).
+Automatic mise trust is disabled by default.
+On the first eligible worktree creation in an interactive terminal, Timber offers to enable it.
+The prompt defaults to No and saves your answer, so Timber does not ask again.
+After No, the prompt shows `timber config --auto-mise-trust` so you can enable it later.
+An explicit `timber config --no-auto-mise-trust` also suppresses the prompt.
+Non-interactive creation does not prompt or record a choice.
+
+```bash
+timber config --auto-mise-trust
+timber config --no-auto-mise-trust
+```
+
+Enabling automatic trust permits mise configuration in eligible worktrees to execute code.
+Eligibility requires a root-level, regular `mise.toml` and a GitHub upstream owned by you or one of your organizations.
+Timber uses authenticated `gh` lookups and caches the identity for 24 hours in `$XDG_DATA_HOME/timber/github-identity.json` (fallback: `~/.local/share/timber/github-identity.json`).
+Remove this cache after switching GitHub accounts or changing organization membership to force a fresh lookup.
+If Timber cannot refresh an invalid cache, it warns and skips trust without failing worktree creation.
+A failed `mise trust` also produces a warning and keeps the worktree.
+
+Entry points:
+
+- [internal/timber/config.go](internal/timber/config.go): settings and config command
+- [internal/timber/github_identity.go](internal/timber/github_identity.go): identity cache
+- [internal/timber/mise_trust.go](internal/timber/mise_trust.go): eligibility and trust
+
 ## Herdr Plugin
 
 Install the bundled [Herdr](https://herdr.dev) plugin with:
@@ -216,6 +245,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo import` | Convert an existing clone into a managed repository |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
+| `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` |
 | `create` | Create a worktree for a branch (`--no-herdr` skips the Herdr space) |
 | `switch` | Shell-only: `cd` into a worktree, creating it first with `-c` |
 | `tui` | Interactively open an existing worktree or create a new one |

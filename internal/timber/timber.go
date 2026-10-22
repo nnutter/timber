@@ -11,6 +11,7 @@ func NewRootCommand(runtime Runtime) *cobra.Command {
 	}
 	rootCommand.CompletionOptions.HiddenDefaultCmd = true
 
+	rootCommand.AddCommand(NewConfigCommand(runtime))
 	rootCommand.AddCommand(NewCreateCommand(runtime))
 	rootCommand.AddCommand(NewListCommand(runtime))
 	rootCommand.AddCommand(NewPruneCommand(runtime))
