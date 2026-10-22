@@ -88,10 +88,13 @@ The prompt defaults to No and saves your answer, so Timber does not ask again.
 After No, the prompt shows `timber config --auto-mise-trust` so you can enable it later.
 An explicit `timber config --no-auto-mise-trust` also suppresses the prompt.
 Non-interactive creation does not prompt or record a choice.
+Automatic hk hook installation is disabled by default.
 
 ```bash
 timber config --auto-mise-trust
 timber config --no-auto-mise-trust
+timber config --auto-hk-install
+timber config --no-auto-hk-install
 ```
 
 Enabling automatic trust permits mise configuration in eligible worktrees to execute code.
@@ -246,7 +249,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo import` | Convert an existing clone into a managed repository |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
-| `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` |
+| `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` / `--auto-hk-install` / `--no-auto-hk-install` |
 | `create` | Create a worktree for a branch (`--no-herdr` skips the Herdr space) |
 | `switch` | Shell-only: `cd` into a worktree, creating it first with `-c` |
 | `tui` | Interactively open an existing worktree or create a new one |
