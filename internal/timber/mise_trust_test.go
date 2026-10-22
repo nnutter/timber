@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,8 +30,10 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 		answer          string
 		wantPrompt      bool
 		explicitDisable bool
+		noOrganizations bool
 	}{
 		{name: "prompt yes", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, answer: "yes", wantPrompt: true, wantTrust: true},
+		{name: "prompt without organizations", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, answer: "yes", wantPrompt: true, wantTrust: true, noOrganizations: true},
 		{name: "prompt no", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, answer: "no", wantPrompt: true},
 		{name: "prompt default no", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, wantPrompt: true},
 		{name: "explicit refusal", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, explicitDisable: true},
@@ -100,7 +103,11 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 				if test.cache == "expired" {
 					fetchedAt = fetchedAt.Add(-25 * time.Hour)
 				}
-				cache := fmt.Sprintf(`{"username":"alice","organizations":["first-org","second-org"],"fetched_at":%q}`, fetchedAt.Format(time.RFC3339Nano))
+				organizations := `["first-org","second-org"]`
+				if test.noOrganizations {
+					organizations = `[]`
+				}
+				cache := fmt.Sprintf(`{"username":"alice","organizations":%s,"fetched_at":%q}`, organizations, fetchedAt.Format(time.RFC3339Nano))
 				if test.cache == "corrupt" {
 					cache = "{"
 				}
@@ -148,6 +155,13 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 			if test.wantPrompt {
 				assert.Contains(t, result.stderr, "permits code execution")
 				assert.Contains(t, result.stderr, "[y/N]")
+				assert.Contains(t, result.stderr, "GitHub username: alice")
+				organizations := "GitHub organizations: first-org, second-org"
+				if test.noOrganizations {
+					organizations = "GitHub organizations: none"
+				}
+				assert.Contains(t, result.stderr, organizations)
+				assert.Less(t, strings.Index(result.stderr, organizations), strings.Index(result.stderr, "[y/N]"))
 				settings, err := runtime.loadConfig()
 				require.NoError(t, err)
 				assert.True(t, settings.AutoMiseTrustDecided)
