@@ -1,5 +1,7 @@
 [tools]
 go = "1.27.3"
+hk = "2.8.0"
+pkl = "0.32.1"
 
 #####################
 # Development Tasks #
@@ -32,8 +34,20 @@ description = "Run tests and generate coverage report"
 run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
 
 [tasks.install-hooks]
-description = "Install Lefthook git hooks"
-run = "go tool lefthook install"
+description = "Replace Lefthook hooks and install hk Git hooks"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+hooks_dir=$(git rev-parse --git-path hooks)
+for hook in "$hooks_dir"/*; do
+  [ -f "$hook" ] || continue
+  if grep -q 'LEFTHOOK' "$hook"; then
+    go run github.com/evilmartians/lefthook/v2@v2.1.12 uninstall
+    break
+  fi
+done
+hk install --mise
+'''
 
 [tasks.refresh-template]
 description = "Refresh from template"
