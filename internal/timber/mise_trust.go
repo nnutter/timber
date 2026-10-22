@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -73,6 +74,15 @@ func regularRootFile(path string) (bool, error) {
 	return info.Mode().IsRegular(), nil
 }
 
+func writeGitHubIdentity(output io.Writer, identity githubIdentity) error {
+	organizations := strings.Join(identity.Organizations, ", ")
+	if organizations == "" {
+		organizations = "none"
+	}
+	_, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations)
+	return err
+}
+
 // githubOwnedWorktree reports whether the selected upstream resolves to a
 // GitHub repository owned by the cached user or one of their organizations.
 func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Repository, upstream string) (githubIdentity, bool, error) {
@@ -99,11 +109,7 @@ func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config, id
 	if _, err := fmt.Fprintln(output, "This worktree qualifies for automatic mise trust. Trusting mise configuration permits code execution."); err != nil {
 		return false, err
 	}
-	organizations := strings.Join(identity.Organizations, ", ")
-	if organizations == "" {
-		organizations = "none"
-	}
-	if _, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations); err != nil {
+	if err := writeGitHubIdentity(output, identity); err != nil {
 		return false, err
 	}
 	reader := bufio.NewReader(command.InOrStdin())
