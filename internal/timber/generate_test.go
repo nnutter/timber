@@ -737,6 +737,60 @@ exit 17
 	assert.Equal(t, fmt.Sprintf("17 %s", canonicalPath(startDir)), strings.TrimSpace(string(output)))
 }
 
+func TestGeneratedZshWrapperKeepsDirectoryOnRemoveOfOtherWorktree(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh is not installed")
+	}
+
+	outDir := resolvedTempDir(t)
+	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
+
+	startDir := resolvedTempDir(t)
+	binDir := resolvedTempDir(t)
+	fakeTimber := `#!/bin/sh
+exit 0
+`
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
+
+	command := testCommand(t,
+		"zsh", "-f", "-c",
+		`source "$1"; cd "$2"; t remove feature@repo >/dev/null; printf '%s' "$PWD"`,
+		"--", filepath.Join(outDir, "t"), startDir,
+	)
+	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := command.CombinedOutput()
+	require.NoError(t, err, string(output))
+	assert.Equal(t, canonicalPath(startDir), strings.TrimSpace(string(output)))
+}
+
+func TestGeneratedZshWrapperLeavesRemovedCurrentDirectoryForHome(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh is not installed")
+	}
+
+	outDir := resolvedTempDir(t)
+	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
+
+	removedDir := resolvedTempDir(t)
+	binDir := resolvedTempDir(t)
+	fakeTimber := `#!/bin/sh
+cd / && rm -rf "$2"
+`
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
+
+	command := testCommand(t,
+		"zsh", "-f", "-c",
+		`source "$1"; cd "$2"; t remove "$2" >/dev/null; printf '%s' "$PWD"`,
+		"--", filepath.Join(outDir, "t"), removedDir,
+	)
+	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := command.CombinedOutput()
+	require.NoError(t, err, string(output))
+	assert.Equal(t, canonicalPath(command.Dir), strings.TrimSpace(string(output)))
+}
+
 func TestGeneratedZshWrapperChangesDirectoryOnSwitch(t *testing.T) {
 	t.Parallel()
 	targetDir := resolvedTempDir(t)

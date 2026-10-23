@@ -190,7 +190,7 @@ The generated function:
 - `t switch <Tab>` completes worktree names from every registered repository
 - Unique names complete without `@`
 - If a name exists in more than one repository, completion offers `<name>@<repo>` for each one (`artisinal@liaison`, `artisinal@persona`)
-- after a successful `t remove` or `t repo import`, `cd`s to `$HOME`
+- after a successful `t remove` of the worktree the shell is in, or after a successful `t repo import`, `cd`s to `$HOME`
 
 ```bash
 t repo add nnutter/timber
@@ -206,7 +206,7 @@ t herdr install                 # install the Herdr plugin
 t herdr space                   # current worktree
 t herdr space feature/login@timber
 t create --no-cd other@timber   # create only
-t remove feature/login          # then cd $HOME
+t remove feature/login          # cd $HOME only if you are inside it
 t list
 t list @timber
 ```
