@@ -235,22 +235,17 @@ func (x *zshCommandOptions) writeFunctionFile(target string) error {
         esac
         ;;
     remove|rm)
-        # Snapshot cwd, then leave it before remove deletes the current worktree.
-        local previous_dir=$PWD
-        cd "$HOME" || return $?
         local command_status
-        (
-            cd "$previous_dir" || exit $?
-            command timber "$@"
-        )
+        command timber "$@"
         command_status=$?
         if (( command_status != 0 )); then
-            # A failed command did not remove the original directory, so leave
-            # the caller where they started rather than stranded in $HOME.
-            cd "$previous_dir" 2>/dev/null || return $command_status
             return $command_status
         fi
-        cd "$HOME"
+        # Only leave the directory if remove deleted it. Removing some other
+        # worktree leaves the caller's directory in place.
+        if ! [[ -d "$PWD" ]]; then
+            cd "$HOME"
+        fi
         ;;
     *)
         command timber "$@"
