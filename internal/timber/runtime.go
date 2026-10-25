@@ -62,6 +62,10 @@ type Runtime struct {
 	// the embedded file; an empty value reports an error instead of
 	// writing an empty skill.
 	TodoSkillContent string
+
+	// SkillContent holds skills/timber/SKILL.md, embedded by main and
+	// installed by `timber --install-skill`.
+	SkillContent string
 }
 
 // RuntimeFromProcess captures the process state needed by a timber command.

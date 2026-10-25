@@ -116,6 +116,34 @@ Entry points:
 - [internal/timber/mise_trust.go](internal/timber/mise_trust.go): eligibility and trust
 - [internal/timber/hk_install.go](internal/timber/hk_install.go): hk hook installation
 
+## Agent skills
+
+Install the bundled general-purpose Timber skill for agents with:
+
+```bash
+timber --install-skill
+# To update an existing installation explicitly:
+timber --install-skill --force
+```
+
+This writes [skills/timber/SKILL.md](skills/timber/SKILL.md) to
+`~/.agents/skills/timber/SKILL.md`, using the same installation layout as
+`timber todo --install-skill` for the separate `timber-todo` checklist skill.
+Existing skill files are preserved unless `--force` is given. No repository
+registration or GitHub authentication is needed to install a skill.
+Use a build containing this feature if an older binary does not recognize the flag.
+
+The general skill covers repository discovery, explicitly qualified worktree
+creation, JSON status inspection, TODO lookup, and approval-gated cleanup.
+It requires Timber and Git on the agent runner's `PATH`; GitHub PR status also
+requires authenticated `gh`. It does not require the interactive zsh wrapper or
+Herdr. See the skill for configuration, side effects, and safety limitations.
+
+Agents that discover `~/.agents/skills` can load the installed `timber` skill.
+For agents with another skill directory, copy `skills/timber` into that agent's
+documented discovery location; the installer does not configure individual agents.
+Restart or refresh the agent's skill catalog if it caches discovery.
+
 ## Herdr Plugin
 
 Install the bundled [Herdr](https://herdr.dev) plugin with:
