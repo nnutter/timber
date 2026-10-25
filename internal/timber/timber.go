@@ -3,12 +3,17 @@ package timber
 import "github.com/spf13/cobra"
 
 func NewRootCommand(runtime Runtime) *cobra.Command {
+	options := &skillCommandOptions{runtime: runtime}
 	rootCommand := &cobra.Command{
 		Use:           "timber",
 		Short:         "Manage Git worktrees",
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		Args:          cobra.NoArgs,
+		RunE:          options.Execute,
 	}
+	rootCommand.Flags().BoolVar(&options.install, "install-skill", false, "Install the timber skill to ~/.agents/skills")
+	rootCommand.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
 	rootCommand.CompletionOptions.HiddenDefaultCmd = true
 
 	rootCommand.AddCommand(NewConfigCommand(runtime))
