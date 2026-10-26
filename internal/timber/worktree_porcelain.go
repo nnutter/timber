@@ -9,6 +9,7 @@ type porcelainWorktree struct {
 	BranchRef  string
 	CommitHash string
 	Detached   bool
+	Bare       bool
 	Prunable   string
 }
 

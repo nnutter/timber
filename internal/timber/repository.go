@@ -212,6 +212,8 @@ func (x *Repository) listPorcelainWorktrees() ([]porcelainWorktree, error) {
 				worktree.CommitHash = strings.TrimPrefix(line, "HEAD ")
 			case line == "detached":
 				worktree.Detached = true
+			case line == "bare":
+				worktree.Bare = true
 			case strings.HasPrefix(line, "prunable "):
 				worktree.Prunable = strings.TrimPrefix(line, "prunable ")
 			}

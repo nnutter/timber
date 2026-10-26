@@ -77,7 +77,7 @@ func (x importFixture) importRun(t *testing.T, args ...string) commandResult {
 }
 
 func (x importFixture) barePath(repoName string) string {
-	return filepath.Join(x.runtime.HomeDirectory, ".local", "share", "timber", "repos", repoName+".git")
+	return x.runtime.bareRepoPath(repoName)
 }
 
 func (x importFixture) managedWorktreePath(repoName string, name string) string {
@@ -257,8 +257,14 @@ func TestRepoImportSkipsWorktreeWithNoCommits(t *testing.T) {
 	// The source repository is left in place.
 	_, err := os.Stat(unbornPath)
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(runtime.WorktreeRoot, "unborn"))
-	assert.ErrorIs(t, err, os.ErrNotExist)
+	// The placeholder holds the bare repository and no checkout.
+	barePath := runtime.bareRepoPath("unborn")
+	_, err = os.Stat(barePath)
+	require.NoError(t, err)
+	entries, err := os.ReadDir(filepath.Dir(barePath))
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, ".git", entries[0].Name())
 }
 
 func TestRepoImportPreservesLocalOnlyBranches(t *testing.T) {
@@ -307,9 +313,7 @@ func TestRepoImportFailsWhenRepoNameAlreadyExists(t *testing.T) {
 	t.Parallel()
 	fixture := newImportFixture(t)
 
-	reposDirectory := filepath.Join(fixture.runtime.HomeDirectory, ".local", "share", "timber", "repos")
-	require.NoError(t, os.MkdirAll(reposDirectory, 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(reposDirectory, "project.git"), 0o755))
+	require.NoError(t, os.MkdirAll(fixture.barePath("project"), 0o755))
 
 	result := fixture.importRun(t, "--name", "project")
 	require.Error(t, result.err)

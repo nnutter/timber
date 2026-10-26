@@ -33,7 +33,6 @@ func TestStructuredRepoRenameMovesWorktreeHierarchy(t *testing.T) {
 	assert.DirExists(t, runtime.bareRepoPath("timber"))
 	assert.DirExists(t, runtime.managedWorktreePath("timber", branchName))
 	// Empty grouping directories are pruned on the way back to a simple name.
-	assert.NoDirExists(t, filepath.Join(runtime.reposDirectory(), "nnutter"))
 	assert.NoDirExists(t, filepath.Join(runtime.WorktreeRoot, "nnutter"))
 }
 
@@ -45,7 +44,7 @@ func TestStructuredRepoRemovePrunesEmptyParents(t *testing.T) {
 	result := fixture.runTimber(t, "repo", "remove", "acme/timber")
 	require.NoError(t, result.err, result.stderr)
 	assert.NoDirExists(t, fixture.runtime.bareRepoPath("acme/timber"))
-	assert.NoDirExists(t, filepath.Join(fixture.runtime.reposDirectory(), "acme"))
+	assert.NoDirExists(t, filepath.Join(fixture.runtime.WorktreeRoot, "acme"))
 }
 
 func TestStructuredRepoCreateUsesNestedLayout(t *testing.T) {

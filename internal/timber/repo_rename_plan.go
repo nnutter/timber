@@ -51,6 +51,11 @@ func (x *repositoryRenamePlan) collectWorktrees() error {
 	}
 
 	for _, worktree := range worktrees {
+		// A Git directory named .git makes `worktree list` report the parent
+		// directory, not the Git directory, as the bare entry.
+		if worktree.Bare {
+			continue
+		}
 		sameAsBareRepo, err := samePath(worktree.Path, x.sourceRepo.BarePath)
 		if err != nil {
 			return err

@@ -183,7 +183,9 @@ func TestGeneratedCreateCompletesUniqueRepoPrefix(t *testing.T) {
 	home := resolvedTempDir(t)
 	dataHome := filepath.Join(home, ".local", "share")
 	worktreeRoot := filepath.Join(home, "worktrees")
-	require.NoError(t, os.MkdirAll(filepath.Join(dataHome, "timber", "repos", "timber.git"), 0o755))
+	barePath := filepath.Join(worktreeRoot, "timber", ".git")
+	require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
+	runGitCommand(t, home, "init", "--bare", barePath)
 
 	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)

@@ -15,7 +15,7 @@ func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 	home := resolvedTempDir(t)
 	runtime := testRuntimeForHome(home, home)
 
-	barePath := filepath.Join(runtime.DataHome, "timber", "repos", "local.git")
+	barePath := runtime.bareRepoPath("local")
 	require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
 	runGitCommand(t, resolvedTempDir(t), "init", "--bare", barePath)
 
@@ -42,6 +42,7 @@ func TestRepoListSortOrder(t *testing.T) {
 		{name: "local"},
 	} {
 		barePath := runtime.bareRepoPath(repo.name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
 		runGitCommand(t, home, "init", "--bare", barePath)
 		if repo.origin != "" {
 			runGitCommand(t, barePath, "remote", "add", "origin", repo.origin)
