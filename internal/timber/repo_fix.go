@@ -1,0 +1,193 @@
+package timber
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/spf13/cobra"
+)
+
+const legacyReposDirName = "timber/repos"
+
+type repoFixCommandOptions struct {
+	runtime Runtime
+}
+
+func NewRepoFixCommand(runtime Runtime) *cobra.Command {
+	options := &repoFixCommandOptions{runtime: runtime}
+	return &cobra.Command{
+		Use:   "fix",
+		Short: "Move bare repositories into the worktree root and repair worktrees",
+		Args:  cobra.NoArgs,
+		RunE:  options.Execute,
+	}
+}
+
+func (x *repoFixCommandOptions) Execute(command *cobra.Command, _ []string) error {
+	legacyRepos, err := x.runtime.listLegacyRepos()
+	if err != nil {
+		return err
+	}
+	for _, repo := range legacyRepos {
+		moved, err := x.runtime.moveLegacyRepo(repo)
+		if err != nil {
+			return err
+		}
+		if !moved {
+			continue
+		}
+		if _, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("moved repository "+repo.Name)); err != nil {
+			return err
+		}
+	}
+
+	repos, err := x.runtime.listRegisteredRepos()
+	if err != nil {
+		return err
+	}
+	for _, repo := range repos {
+		repaired, err := x.runtime.repairStaleWorktrees(repo)
+		if err != nil {
+			return err
+		}
+		if !repaired {
+			continue
+		}
+		if _, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("repaired worktrees for "+repo.Name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (x Runtime) legacyReposDirectory() string {
+	return filepath.Join(x.xdgDataHome(), legacyReposDirName)
+}
+
+func (x Runtime) listLegacyRepos() ([]registeredRepo, error) {
+	directory := x.legacyReposDirectory()
+	if _, err := os.Stat(directory); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return make([]registeredRepo, 0), nil
+		}
+		return nil, fmt.Errorf("read legacy repos directory %q: %w", directory, err)
+	}
+
+	repos := make([]registeredRepo, 0)
+	walkErr := filepath.WalkDir(directory, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || !entry.IsDir() || path == directory {
+			return nil
+		}
+		if !strings.HasSuffix(entry.Name(), bareRepoSuffix) {
+			return nil
+		}
+		bare, bareErr := pathIsBareRepository(x, path)
+		if bareErr != nil || !bare {
+			return filepath.SkipDir
+		}
+		relative, relErr := filepath.Rel(directory, path)
+		if relErr != nil {
+			return filepath.SkipDir
+		}
+		repoName := filepath.ToSlash(strings.TrimSuffix(relative, bareRepoSuffix))
+		if err := validateRepoName(repoName); err != nil {
+			return filepath.SkipDir
+		}
+		repos = append(repos, registeredRepo{Name: repoName, BarePath: path})
+		return filepath.SkipDir
+	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("read legacy repos directory %q: %w", directory, walkErr)
+	}
+	slices.SortFunc(repos, func(left, right registeredRepo) int {
+		return strings.Compare(left.Name, right.Name)
+	})
+	return repos, nil
+}
+
+func (x Runtime) moveLegacyRepo(repo registeredRepo) (bool, error) {
+	destination := x.bareRepoPath(repo.Name)
+	same, err := samePath(repo.BarePath, destination)
+	if err != nil {
+		return false, err
+	}
+	if same {
+		return false, nil
+	}
+	if _, err := os.Lstat(destination); err == nil {
+		return false, fmt.Errorf("repository %q already exists at %s", repo.Name, destination)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("inspect repository path %q: %w", destination, err)
+	}
+	if err := ensureDirectory(filepath.Dir(destination)); err != nil {
+		return false, err
+	}
+	if err := os.Rename(repo.BarePath, destination); err != nil {
+		return false, fmt.Errorf("move bare repository %q to %q: %w", repo.BarePath, destination, err)
+	}
+	if err := removeEmptyParents(repo.BarePath, x.legacyReposDirectory()); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (x Runtime) repairStaleWorktrees(repo registeredRepo) (bool, error) {
+	repository, err := openBareRepository(x, repo.BarePath)
+	if err != nil {
+		return false, err
+	}
+	worktrees, err := repository.listPorcelainWorktrees()
+	if err != nil {
+		return false, err
+	}
+
+	stale := make([]string, 0)
+	for _, worktree := range worktrees {
+		if worktree.Bare || worktree.Prunable != "" {
+			continue
+		}
+		needsRepair, err := worktreeGitDirIsStale(worktree.Path, repo.BarePath)
+		if err != nil {
+			return false, err
+		}
+		if needsRepair {
+			stale = append(stale, worktree.Path)
+		}
+	}
+	if len(stale) == 0 {
+		return false, nil
+	}
+	if err := repairWorktrees(x, repo.BarePath, stale); err != nil {
+		return false, err
+	}
+	for _, worktreePath := range stale {
+		if err := validateLinkedWorktree(x, worktreePath, repo.BarePath); err != nil {
+			return false, fmt.Errorf("verify repaired worktree: %w", err)
+		}
+	}
+	return true, nil
+}
+
+func worktreeGitDirIsStale(worktreePath string, barePath string) (bool, error) {
+	content, err := os.ReadFile(filepath.Join(worktreePath, ".git"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return true, nil
+		}
+		return false, fmt.Errorf("read worktree gitdir %q: %w", worktreePath, err)
+	}
+	line := strings.TrimSpace(string(content))
+	gitdir, ok := strings.CutPrefix(line, "gitdir: ")
+	if !ok {
+		return true, nil
+	}
+	gitdir = strings.TrimSpace(gitdir)
+	if !filepath.IsAbs(gitdir) {
+		gitdir = filepath.Join(worktreePath, gitdir)
+	}
+	return !pathIsWithin(barePath, filepath.Clean(gitdir)), nil
+}

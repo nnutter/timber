@@ -106,9 +106,11 @@ timber remove feature/login@owner/repo
 ## Pitfalls and limitations
 
 - `list` and `prune` default to every registered repository: always qualify
-  cleanup with `@<repo>`. `repo remove`, `repo rename`, and `repo import` are
-  broader operations requiring explicit approval; import relocates existing
-  clean checkouts and requires a `trash` CLI. Do not use it as simple registration.
+  cleanup with `@<repo>`. `repo remove`, `repo rename`, `repo import`, and
+  `repo fix` are broader operations requiring explicit approval. `repo fix`
+  moves bare repositories into the worktree root and rewrites worktree
+  links. Import relocates existing clean checkouts and requires a `trash`
+  CLI. Do not use import as simple registration.
 - Detached worktrees are not managed. Names for manually linked checkouts can
   change when collisions appear; rediscover before acting.
 - The zsh wrapper `t` supplies shell integration and `cd` behavior. Do not

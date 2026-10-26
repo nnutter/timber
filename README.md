@@ -15,6 +15,9 @@ Defaults:
 - bare repos: `$TIMBER_WORKTREE_ROOT/<repo-name>/.git` (fallback: `~/worktrees/<repo-name>/.git`)
 - worktrees: `$TIMBER_WORKTREE_ROOT/<repo-name>/<worktree-name>/<repo-short-name>` (fallback: `~/worktrees/<repo-name>/<worktree-name>/<repo-short-name>`)
 
+Existing installs keep bare repositories under `$XDG_DATA_HOME/timber/repos` (fallback: `~/.local/share/timber/repos`).
+`timber repo fix` moves them into the worktree root and repairs linked worktrees.
+
 For Timber-created worktrees, the worktree name and branch name are identical (including `/`).
 
 Pass an optional second argument to create a worktree at an exact checkout path instead of using the shared root:
@@ -281,6 +284,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo add` | Register a bare repository (GitHub `owner/repo` shorthand supported) |
 | `repo list` | List registered repositories with aliases and origin URLs |
 | `repo import` | Convert an existing clone into a managed repository |
+| `repo fix` | Move bare repositories from the old data directory into the worktree root and repair worktree links |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
 | `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` / `--auto-hk-install` / `--no-auto-hk-install` |
