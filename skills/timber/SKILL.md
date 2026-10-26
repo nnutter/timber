@@ -31,9 +31,10 @@ logging service. For detailed checklist editing, use the separate
 - `timber config` shows settings and creates the configuration file if absent:
   `$XDG_CONFIG_HOME/timber/config.toml`, falling back to
   `~/.config/timber/config.toml`.
-- Bare repositories live under `$XDG_DATA_HOME/timber/repos` (fallback
-  `~/.local/share/timber/repos`). `TIMBER_WORKTREE_ROOT` overrides the
-  default `~/worktrees` checkout root. Preserve the user's environment.
+- Bare repositories live at `$TIMBER_WORKTREE_ROOT/<repo-name>/.git`
+  (fallback `~/worktrees/<repo-name>/.git`). `TIMBER_WORKTREE_ROOT`
+  overrides the default `~/worktrees` checkout root. Preserve the user's
+  environment.
 - Automatic mise trust and hk installation default to disabled. Do not enable
   them without approval: they permit repository-defined code execution.
   Already-enabled settings still apply to headless creation; `--no-herdr`
@@ -105,9 +106,11 @@ timber remove feature/login@owner/repo
 ## Pitfalls and limitations
 
 - `list` and `prune` default to every registered repository: always qualify
-  cleanup with `@<repo>`. `repo remove`, `repo rename`, and `repo import` are
-  broader operations requiring explicit approval; import relocates existing
-  clean checkouts and requires a `trash` CLI. Do not use it as simple registration.
+  cleanup with `@<repo>`. `repo remove`, `repo rename`, `repo import`, and
+  `repo fix` are broader operations requiring explicit approval. `repo fix`
+  moves bare repositories into the worktree root and rewrites worktree
+  links. Import relocates existing clean checkouts and requires a `trash`
+  CLI. Do not use import as simple registration.
 - Detached worktrees are not managed. Names for manually linked checkouts can
   change when collisions appear; rediscover before acting.
 - The zsh wrapper `t` supplies shell integration and `cd` behavior. Do not

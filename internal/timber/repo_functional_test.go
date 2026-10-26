@@ -22,7 +22,7 @@ func TestRepoAddListRemove(t *testing.T) {
 	require.NoError(t, addResult.err, addResult.stderr)
 	assert.Contains(t, addResult.stderr, "added repository demo")
 
-	barePath := filepath.Join(runtime.DataHome, "timber", "repos", "demo.git")
+	barePath := runtime.bareRepoPath("demo")
 	fetch := strings.TrimSpace(runGitCommand(t, barePath, "config", "--get", "remote.origin.fetch"))
 	assert.Equal(t, "+refs/heads/*:refs/remotes/origin/*", fetch)
 	originHead := strings.TrimSpace(runGitCommand(t, barePath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"))

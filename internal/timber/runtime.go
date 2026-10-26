@@ -18,7 +18,6 @@ import (
 
 const (
 	createPathFileEnvVarName = "TIMBER_CREATE_PATH_FILE"
-	reposDirName             = "timber/repos"
 	worktreesDirName         = "worktrees"
 	worktreeRootEnvVarName   = "TIMBER_WORKTREE_ROOT"
 )
@@ -118,16 +117,16 @@ func (x Runtime) xdgConfigHome() string {
 	return x.ConfigHome
 }
 
-func (x Runtime) reposDirectory() string {
-	return filepath.Join(x.xdgDataHome(), reposDirName)
-}
-
 func (x Runtime) worktreeRoot() string {
 	return x.WorktreeRoot
 }
 
+// bareRepoPath returns <worktree-root>/<repo-name>/.git.
+// The Git directory is named .git so a scanner that looks for a child
+// .git directory can see the repository placeholder. Git still reports
+// the parent directory as the bare worktree path.
 func (x Runtime) bareRepoPath(repoName string) string {
-	return filepath.Join(x.reposDirectory(), filepath.FromSlash(repoName)+bareRepoSuffix)
+	return filepath.Join(x.worktreeRoot(), filepath.FromSlash(repoName), bareRepoSuffix)
 }
 
 // managedWorktreePath returns
@@ -368,10 +367,10 @@ func (x Runtime) removeEmptySourceParents(path string) error {
 }
 
 // removeEmptyBareParents prunes newly-empty grouping directories left
-// behind in the bare-repo store (e.g. repos/nnutter/ after moving
-// repos/nnutter/timber.git away). It never removes the store itself.
+// behind under the worktree root (e.g. worktrees/nnutter/ after moving
+// worktrees/nnutter/timber/.git away). It never removes the root itself.
 func (x Runtime) removeEmptyBareParents(path string) error {
-	return removeEmptyParents(path, x.reposDirectory())
+	return removeEmptyParents(path, x.worktreeRoot())
 }
 
 func (x Runtime) writePathFile(pathFile string, value string) (err error) {
@@ -591,52 +590,68 @@ func (x Runtime) completeWorktreeNamesAcrossRepos(toComplete string) ([]string, 
 }
 
 func (x Runtime) listRegisteredRepos() ([]registeredRepo, error) {
-	directory := x.reposDirectory()
-	if _, err := os.Stat(directory); err != nil {
+	root := x.worktreeRoot()
+	if _, err := os.Stat(root); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return make([]registeredRepo, 0), nil
 		}
-		return nil, fmt.Errorf("read repos directory %q: %w", directory, err)
+		return nil, fmt.Errorf("read worktree root %q: %w", root, err)
 	}
 
 	repos := make([]registeredRepo, 0)
-	walkErr := filepath.WalkDir(directory, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
+	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || !entry.IsDir() {
 			return nil
 		}
-		if path == directory {
-			return nil
+		repo, found, skipChildren := x.registeredRepoAt(root, path)
+		if found {
+			repos = append(repos, repo)
 		}
-		if !entry.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(entry.Name(), bareRepoSuffix) {
-			return nil
-		}
-		relative, err := filepath.Rel(directory, path)
-		if err != nil {
-			return nil
-		}
-		repoName := filepath.ToSlash(strings.TrimSuffix(relative, bareRepoSuffix))
-		if err := validateRepoName(repoName); err != nil {
+		if skipChildren {
 			return filepath.SkipDir
 		}
-		repos = append(repos, registeredRepo{
-			Name:     repoName,
-			BarePath: path,
-		})
-		// Bare repositories contain their own object database; never
-		// descend into them looking for nested registrations.
-		return filepath.SkipDir
+		return nil
 	})
 	if walkErr != nil {
-		return nil, fmt.Errorf("read repos directory %q: %w", directory, walkErr)
+		return nil, fmt.Errorf("read worktree root %q: %w", root, walkErr)
 	}
 
 	slices.SortFunc(repos, func(left, right registeredRepo) int {
 		return strings.Compare(left.Name, right.Name)
 	})
 	return repos, nil
+}
+
+// registeredRepoAt reports a bare repository whose Git directory is path/.git.
+// skipChildren is true when path is a repository placeholder or a linked
+// checkout, so the walk does not enter object databases or worktree files.
+func (x Runtime) registeredRepoAt(root string, path string) (registeredRepo, bool, bool) {
+	gitDir := filepath.Join(path, bareRepoSuffix)
+	info, err := os.Lstat(gitDir)
+	if err != nil {
+		return registeredRepo{}, false, false
+	}
+	// The worktree root can itself contain a .git entry. Do not treat that
+	// as a reason to skip every repository under it.
+	if path == root {
+		return registeredRepo{}, false, false
+	}
+	if !info.IsDir() {
+		return registeredRepo{}, false, true
+	}
+	bare, bareErr := pathIsBareRepository(x, gitDir)
+	if bareErr != nil || !bare {
+		return registeredRepo{}, false, true
+	}
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return registeredRepo{}, false, true
+	}
+	repoName := filepath.ToSlash(relative)
+	if err := validateRepoName(repoName); err != nil {
+		return registeredRepo{}, false, true
+	}
+	return registeredRepo{Name: repoName, BarePath: gitDir}, true, true
 }
 
 func (x Runtime) registeredRepoByName(name string) (registeredRepo, error) {
@@ -722,12 +737,16 @@ func (x Runtime) buildImportPlan(sourcePath string, requestedName string) (impor
 		return importPlan{}, errors.New("repository has no worktrees")
 	}
 
-	// A bare repository with linked worktrees lists the bare directory as its
-	// main worktree; such a repository is already in the managed shape.
+	// A bare repository with linked worktrees lists itself first. When the
+	// Git directory is named .git, that path is the parent, not commonDir.
 	mainEntry := porcelainWorktrees[0]
-	bareMain, err := samePath(mainEntry.Path, commonDir)
-	if err != nil {
-		return importPlan{}, err
+	bareMain := mainEntry.Bare
+	if !bareMain {
+		var err error
+		bareMain, err = samePath(mainEntry.Path, commonDir)
+		if err != nil {
+			return importPlan{}, err
+		}
 	}
 	if bareMain {
 		display := x.displayHomePath(mainEntry.Path)

@@ -54,6 +54,9 @@ func (x *repoRemoveCommandOptions) Execute(command *cobra.Command, args []string
 	}
 	linked := 0
 	for _, worktree := range porcelain {
+		if worktree.Bare {
+			continue
+		}
 		same, err := samePath(worktree.Path, repo.BarePath)
 		if err != nil {
 			return err

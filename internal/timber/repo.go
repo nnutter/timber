@@ -14,6 +14,7 @@ func NewRepoCommand(runtime Runtime) *cobra.Command {
 	}
 	command.AddCommand(NewRepoAddCommand(runtime))
 	command.AddCommand(NewRepoImportCommand(runtime))
+	command.AddCommand(NewRepoFixCommand(runtime))
 	command.AddCommand(NewRepoListCommand(runtime))
 	command.AddCommand(NewRepoRemoveCommand(runtime))
 	command.AddCommand(NewRepoRenameCommand(runtime))

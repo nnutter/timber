@@ -12,8 +12,11 @@ The worktree leaf keeps only the short name (the last segment).
 
 Defaults:
 
-- bare repos: `$XDG_DATA_HOME/timber/repos/<repo-name>.git` (fallback: `~/.local/share/timber/repos/<repo-name>.git`)
+- bare repos: `$TIMBER_WORKTREE_ROOT/<repo-name>/.git` (fallback: `~/worktrees/<repo-name>/.git`)
 - worktrees: `$TIMBER_WORKTREE_ROOT/<repo-name>/<worktree-name>/<repo-short-name>` (fallback: `~/worktrees/<repo-name>/<worktree-name>/<repo-short-name>`)
+
+Existing installs keep bare repositories under `$XDG_DATA_HOME/timber/repos` (fallback: `~/.local/share/timber/repos`).
+`timber repo fix` moves them into the worktree root and repairs linked worktrees.
 
 For Timber-created worktrees, the worktree name and branch name are identical (including `/`).
 
@@ -34,7 +37,7 @@ Detached worktrees are not listed or managed.
 Example:
 
 - repo name: `timber`
-- bare repo: `~/.local/share/timber/repos/timber.git`
+- bare repo: `~/worktrees/timber/.git`
 - branch: `nn/my-feature`
 - worktree path: `~/worktrees/timber/nn/my-feature/timber`
 
@@ -43,7 +46,7 @@ structured name; GitHub URLs keep `owner/repo`, other hosted paths keep
 their full grouping):
 
 - repo name: `nnutter/timber`
-- bare repo: `~/.local/share/timber/repos/nnutter/timber.git`
+- bare repo: `~/worktrees/nnutter/timber/.git`
 - branch: `structured-names`
 - worktree path: `~/worktrees/nnutter/timber/structured-names/timber`
 
@@ -281,6 +284,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo add` | Register a bare repository (GitHub `owner/repo` shorthand supported) |
 | `repo list` | List registered repositories with aliases and origin URLs |
 | `repo import` | Convert an existing clone into a managed repository |
+| `repo fix` | Move bare repositories from the old data directory into the worktree root and repair worktree links |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
 | `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` / `--auto-hk-install` / `--no-auto-hk-install` |

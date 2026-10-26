@@ -403,9 +403,9 @@ func newTestRepository(t *testing.T) testRepository {
 	remotePath := filepath.Join(remoteParent, "remote.git")
 	require.NoError(t, os.CopyFS(remotePath, os.DirFS(fixture.fixture.remotePath)))
 
-	reposDir := filepath.Join(home, ".local", "share", "timber", "repos")
-	require.NoError(t, os.MkdirAll(reposDir, 0o755))
-	barePath := filepath.Join(reposDir, testRepoName+".git")
+	reposDir := runtime.bareRepoPath(testRepoName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(reposDir), 0o755))
+	barePath := reposDir
 	require.NoError(t, os.CopyFS(barePath, os.DirFS(fixture.fixture.barePath)))
 	require.NoError(t, replaceGitRemotePath(barePath, fixture.fixture.remotePath, remotePath))
 
@@ -425,8 +425,7 @@ func registerAdditionalRepo(t *testing.T, base testRepository, name string) stri
 	fixture := getTestRepositoryFixture()
 	require.NoError(t, fixture.err)
 
-	reposDir := filepath.Join(base.home, ".local", "share", "timber", "repos")
-	barePath := filepath.Join(reposDir, filepath.FromSlash(name)+".git")
+	barePath := base.runtime.bareRepoPath(name)
 	require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
 	require.NoError(t, os.CopyFS(barePath, os.DirFS(fixture.fixture.barePath)))
 	require.NoError(t, replaceGitRemotePath(barePath, fixture.fixture.remotePath, base.remotePath))
