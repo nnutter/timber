@@ -28,6 +28,8 @@ func TestRepoFixMovesLegacyRepositoryAndRepairsWorktree(t *testing.T) {
 	worktreePath := runtime.managedWorktreePath(repoName, "feature")
 	require.NoError(t, os.MkdirAll(filepath.Dir(worktreePath), 0o755))
 	runGitCommand(t, legacyPath, "worktree", "add", "-b", "feature", worktreePath, "origin/main")
+	internalPath := filepath.Join(legacyPath, "git-review", "worktree")
+	runGitCommand(t, legacyPath, "worktree", "add", "--detach", internalPath, "origin/main")
 
 	result := runTimberCommandWithRuntime(t, runtime, "repo", "fix")
 	require.NoError(t, result.err, result.stderr)
@@ -41,11 +43,37 @@ func TestRepoFixMovesLegacyRepositoryAndRepairsWorktree(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), runtime.bareRepoPath(repoName))
 	runGitCommand(t, worktreePath, "status", "--short", "--branch")
+	movedInternalPath := filepath.Join(runtime.bareRepoPath(repoName), "git-review", "worktree")
+	runGitCommand(t, movedInternalPath, "status", "--short", "--branch")
 
 	again := runTimberCommandWithRuntime(t, runtime, "repo", "fix")
 	require.NoError(t, again.err, again.stderr)
 	assert.NotContains(t, again.stderr, "moved")
 	assert.NotContains(t, again.stderr, "repaired")
+}
+
+func TestRepoFixLeavesUnmatchedInternalCheckoutUntouched(t *testing.T) {
+	t.Parallel()
+	fixture := getTestRepositoryFixture()
+	require.NoError(t, fixture.err)
+	home := resolvedTempDir(t)
+	runtime := testRuntimeForHome(home, home)
+	legacyPath := filepath.Join(home, ".local", "share", "timber", "repos", "timber.git")
+	require.NoError(t, os.MkdirAll(filepath.Dir(legacyPath), 0o755))
+	require.NoError(t, os.CopyFS(legacyPath, os.DirFS(fixture.fixture.barePath)))
+	oldPath := filepath.Join(legacyPath, "git-review", "worktree")
+	runGitCommand(t, legacyPath, "worktree", "add", "--detach", oldPath, "HEAD")
+	gitFile := filepath.Join(oldPath, ".git")
+	require.NoError(t, os.WriteFile(gitFile, []byte("gitdir: "+filepath.Join(legacyPath, "worktrees", "other")+"\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(runtime.bareRepoPath("timber")), 0o755))
+	require.NoError(t, os.Rename(legacyPath, runtime.bareRepoPath("timber")))
+
+	result := runTimberCommandWithRuntime(t, runtime, "repo", "fix")
+	require.NoError(t, result.err, result.stderr)
+	content, err := os.ReadFile(filepath.Join(runtime.bareRepoPath("timber"), "git-review", "worktree", ".git"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), filepath.Join(legacyPath, "worktrees", "other"))
+	assert.NotContains(t, result.stderr, "repaired")
 }
 
 func TestRepoFixRefusesToOverwriteDestination(t *testing.T) {

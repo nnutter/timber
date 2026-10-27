@@ -119,6 +119,23 @@ Entry points:
 - [internal/timber/mise_trust.go](internal/timber/mise_trust.go): eligibility and trust
 - [internal/timber/hk_install.go](internal/timber/hk_install.go): hk hook installation
 
+## Commit review
+
+`timber review` embeds the Go implementation from [nnutter/git-review](https://github.com/nnutter/git-review).
+It uses the same saved review state as the standalone tool.
+Interactive review still requires `tuicr` on `PATH`.
+
+```bash
+timber review status --json
+timber review log --oneline
+timber review commits
+timber review feedback --json
+```
+
+The generated shell wrapper also supports `t review …`, including nested command and flag completion.
+Review commands operate on the current checkout, not a Timber worktree selector.
+Run `timber review --help` for all commands and flags.
+
 ## Agent skills
 
 Install the bundled general-purpose Timber skill for agents with:
@@ -293,7 +310,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `tui` | Interactively open an existing worktree or create a new one |
 | `herdr install` | Install the bundled Herdr plugin |
 | `herdr space` | Open a Herdr Agent + Shell space for a worktree |
-| `list` | List worktrees with merge/dirtiness status and TODO.md progress (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
+| `list` | List worktrees with merge/dirtiness status, TODO.md progress, and commit review progress when `git-review` is installed (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |
