@@ -25,6 +25,7 @@ type managedWorktree struct {
 	Clean           bool
 	Merged          bool
 	PullRequest     string
+	Review          *reviewProgress
 }
 
 func (x managedWorktree) branchName() string {

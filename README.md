@@ -310,7 +310,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `tui` | Interactively open an existing worktree or create a new one |
 | `herdr install` | Install the bundled Herdr plugin |
 | `herdr space` | Open a Herdr Agent + Shell space for a worktree |
-| `list` | List worktrees with merge/dirtiness status and TODO.md progress (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
+| `list` | List worktrees with merge/dirtiness status, TODO.md progress, and commit review progress when `git-review` is installed (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |

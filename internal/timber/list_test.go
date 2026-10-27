@@ -52,7 +52,7 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 				assert.Equal(t, names, rows[index][0])
 			}
 
-			tableView := newOutputTable("Name", "Repo", "Status", "Todo", "Commit", "Dirty").BorderRow(true)
+			tableView := newOutputTable("Name", "Repo", "Status", "Todo", "Review", "Commit", "Dirty").BorderRow(true)
 			tableView.Rows(rows...)
 			tableOutput := dottedListRowRules(tableView.String())
 			assert.Equal(t, testCase.horizontalRuleRows, strings.Count(tableOutput, "├"))
@@ -71,11 +71,11 @@ func TestGroupListTableRowsIncludesPullRequestColumnWhenEnabled(t *testing.T) {
 
 	rows := groupListTableRows(worktrees, newListStatusFormatter(worktrees), true, false)
 	require.Len(t, rows, 1)
-	assert.Equal(t, "#42 ✓\n", rows[0][6])
+	assert.Equal(t, "#42 ✓\n", rows[0][7])
 
 	rows = groupListTableRows(worktrees, newListStatusFormatter(worktrees), false, false)
 	require.Len(t, rows, 1)
-	assert.Len(t, rows[0], 6)
+	assert.Len(t, rows[0], 7)
 }
 
 func TestListLocationIsOptionalLastColumn(t *testing.T) {
