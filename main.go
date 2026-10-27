@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	_ "embed"
+	"io"
 	"os"
+
+	"github.com/nnutter/timber/internal/gitreview/display"
 
 	"charm.land/fang/v2"
 
@@ -27,10 +30,24 @@ func main() {
 	runtime.TodoSkillContent = todoSkillContent
 	runtime.SkillContent = skillContent
 
+	root := timber.NewRootCommand(runtime)
 	if err := fang.Execute(
 		context.Background(),
-		timber.NewRootCommand(runtime),
+		root,
 		fang.WithVersion(version),
+		fang.WithErrorHandler(func(w io.Writer, styles fang.Styles, err error) {
+			args := os.Args[1:]
+			if len(args) > 0 && args[0] == "review" && display.WantsJSON(args[1:]) {
+				failed, _, _ := root.Find(args)
+				name := "review"
+				if failed != nil {
+					name = failed.Name()
+				}
+				_ = display.WriteJSON(root.OutOrStdout(), display.ErrorResult{Version: 1, Command: name, Status: "error", Error: err.Error()})
+				return
+			}
+			fang.DefaultErrorHandler(w, styles, err)
+		}),
 	); err != nil {
 		os.Exit(1)
 	}

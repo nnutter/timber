@@ -22,6 +22,7 @@ func NewRootCommand(runtime Runtime) *cobra.Command {
 	rootCommand.AddCommand(NewPruneCommand(runtime))
 	rootCommand.AddCommand(NewRemoveCommand(runtime))
 	rootCommand.AddCommand(NewRepoCommand(runtime))
+	rootCommand.AddCommand(NewReviewCommand(runtime))
 	rootCommand.AddCommand(NewHerdrCommand(runtime))
 	rootCommand.AddCommand(NewSwitchCommand(runtime))
 	rootCommand.AddCommand(NewTodoCommand(runtime))

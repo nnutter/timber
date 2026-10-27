@@ -119,6 +119,23 @@ Entry points:
 - [internal/timber/mise_trust.go](internal/timber/mise_trust.go): eligibility and trust
 - [internal/timber/hk_install.go](internal/timber/hk_install.go): hk hook installation
 
+## Commit review
+
+`timber review` embeds the Go implementation from [nnutter/git-review](https://github.com/nnutter/git-review).
+It uses the same saved review state as the standalone tool.
+Interactive review still requires `tuicr` on `PATH`.
+
+```bash
+timber review status --json
+timber review log --oneline
+timber review commits
+timber review feedback --json
+```
+
+The generated shell wrapper also supports `t review …`, including nested command and flag completion.
+Review commands operate on the current checkout, not a Timber worktree selector.
+Run `timber review --help` for all commands and flags.
+
 ## Agent skills
 
 Install the bundled general-purpose Timber skill for agents with:
