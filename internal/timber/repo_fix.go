@@ -147,7 +147,17 @@ func (x Runtime) repairStaleWorktrees(repo registeredRepo) (bool, error) {
 
 	stale := make([]string, 0)
 	for _, worktree := range worktrees {
-		if worktree.Bare || worktree.Prunable != "" {
+		if worktree.Bare {
+			continue
+		}
+		if worktree.Prunable != "" {
+			path, err := x.movedInternalWorktree(repo, worktree.Path)
+			if err != nil {
+				return false, err
+			}
+			if path != "" {
+				stale = append(stale, path)
+			}
 			continue
 		}
 		needsRepair, err := worktreeGitDirIsStale(worktree.Path, repo.BarePath)
@@ -170,6 +180,48 @@ func (x Runtime) repairStaleWorktrees(repo registeredRepo) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// movedInternalWorktree recognizes a checkout that moved with a legacy bare
+// repository. Both old links must agree before Git can repair either one.
+func (x Runtime) movedInternalWorktree(repo registeredRepo, oldPath string) (string, error) {
+	oldBare := filepath.Join(x.legacyReposDirectory(), filepath.FromSlash(repo.Name)+bareRepoSuffix)
+	rel, err := filepath.Rel(oldBare, oldPath)
+	if err != nil || rel == "." || !pathIsWithin(oldBare, oldPath) {
+		return "", nil
+	}
+	path := filepath.Join(repo.BarePath, rel)
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return "", nil
+	}
+	content, err := os.ReadFile(filepath.Join(path, ".git"))
+	if err != nil {
+		return "", nil
+	}
+	gitdir, ok := strings.CutPrefix(strings.TrimSpace(string(content)), "gitdir: ")
+	if !ok {
+		return "", nil
+	}
+	oldAdmin := filepath.Join(oldBare, "worktrees")
+	adminRel, err := filepath.Rel(oldAdmin, filepath.Clean(gitdir))
+	if err != nil || adminRel == "." || adminRel == ".." || filepath.Base(adminRel) != adminRel {
+		return "", nil
+	}
+	backlink, err := os.ReadFile(filepath.Join(repo.BarePath, "worktrees", adminRel, "gitdir"))
+	if err != nil || filepath.Clean(strings.TrimSpace(string(backlink))) != filepath.Join(oldPath, ".git") {
+		return "", nil
+	}
+	if _, err := os.Lstat(oldPath); !errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	return path, nil
 }
 
 func worktreeGitDirIsStale(worktreePath string, barePath string) (bool, error) {

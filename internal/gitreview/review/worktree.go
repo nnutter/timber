@@ -72,16 +72,27 @@ func lockWorktree(path string) (*os.File, error) {
 // prepareWorktree discards incidental file edits only in the owned review checkout.
 // The caller must hold its worktree lock throughout preparation and review.
 func prepareWorktree(ctx context.Context, source Repository, path string, stack Stack) error {
-	tracked, err := registeredReviewWorktree(ctx, source, path)
+	tracked, _, err := registeredReviewWorktree(ctx, source, path)
 	if err != nil {
 		return err
 	}
 	if !tracked {
-		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("review checkout path already exists or is unreadable: %s", path)
+		if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
+			_, err := source.git(ctx, "worktree", "add", "--detach", path, stack.Tip)
+			return err
+		} else if err != nil {
+			return fmt.Errorf("review checkout path is unreadable: %w", err)
 		}
-		_, err := source.git(ctx, "worktree", "add", "--detach", path, stack.Tip)
-		return err
+		if err := repairMovedReviewCheckout(ctx, source, path); err != nil {
+			return err
+		}
+		tracked, _, err = registeredReviewWorktree(ctx, source, path)
+		if err != nil {
+			return err
+		}
+		if !tracked {
+			return fmt.Errorf("repaired review checkout is not registered: %s", path)
+		}
 	}
 	if err := validateReviewCheckout(ctx, source, path); err != nil {
 		return err
@@ -97,22 +108,87 @@ func prepareWorktree(ctx context.Context, source Repository, path string, stack 
 	return err
 }
 
-func registeredReviewWorktree(ctx context.Context, source Repository, path string) (bool, error) {
+// repairMovedReviewCheckout only repairs a checkout whose two stale pointers
+// identify the same old review checkout and registration.
+func repairMovedReviewCheckout(ctx context.Context, source Repository, path string) error {
+	invalid := fmt.Errorf("review checkout path already exists or is not a safely movable review checkout: %s", path)
+	expected, err := WorktreePath(source.Dir)
+	if err != nil || path != expected {
+		return invalid
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return invalid
+	}
+	gitfile := filepath.Join(path, ".git")
+	info, err = os.Lstat(gitfile)
+	if err != nil || !info.Mode().IsRegular() {
+		return invalid
+	}
+	data, err := os.ReadFile(gitfile)
+	if err != nil {
+		return invalid
+	}
+	oldGitDir, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir: ")
+	if !ok || !filepath.IsAbs(oldGitDir) || filepath.Clean(oldGitDir) != oldGitDir {
+		return invalid
+	}
+	id := filepath.Base(oldGitDir)
+	oldWorktrees := filepath.Dir(oldGitDir)
+	if id == "." || id == ".." || filepath.Base(oldWorktrees) != "worktrees" {
+		return invalid
+	}
+	oldCommon := filepath.Dir(oldWorktrees)
+	oldPath := filepath.Join(oldCommon, "git-review", "worktree")
+	if oldPath == path {
+		return invalid
+	}
+	tracked, prunable, err := registeredReviewWorktree(ctx, source, oldPath)
+	if err != nil {
+		return err
+	}
+	if !tracked || !prunable {
+		return invalid
+	}
+	common := filepath.Dir(filepath.Dir(path))
+	registration := filepath.Join(common, "worktrees", id)
+	info, err = os.Lstat(registration)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return invalid
+	}
+	backlink, err := os.ReadFile(filepath.Join(registration, "gitdir"))
+	if err != nil || strings.TrimSpace(string(backlink)) != filepath.Join(oldPath, ".git") {
+		return invalid
+	}
+	_, err = source.git(ctx, "worktree", "repair", path)
+	return err
+}
+
+func registeredReviewWorktree(ctx context.Context, source Repository, path string) (registered, prunable bool, err error) {
 	list, err := source.git(ctx, "worktree", "list", "--porcelain")
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	for record := range strings.SplitSeq(list, "\n\n") {
 		lines := strings.Split(record, "\n")
 		if lines[0] != "worktree "+path {
 			continue
 		}
-		if !slices.Contains(lines, "detached") {
-			return false, fmt.Errorf("review checkout is not detached: %s", path)
+		if registered {
+			return false, false, fmt.Errorf("review checkout has multiple registrations: %s", path)
 		}
-		return true, nil
+		if !slices.Contains(lines, "detached") {
+			return false, false, fmt.Errorf("review checkout is not detached: %s", path)
+		}
+		registered = true
+		for _, line := range lines {
+			if strings.HasPrefix(line, "prunable ") {
+				prunable = true
+				break
+			}
+		}
 	}
-	return false, nil
+	return registered, prunable, nil
 }
 
 func validateReviewCheckout(ctx context.Context, source Repository, path string) error {
