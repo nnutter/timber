@@ -9,7 +9,7 @@ import (
 	"charm.land/huh/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/nnutter/timber/internal/display"
+	"github.com/nnutter/timber/internal/cli/review/display"
 	"github.com/nnutter/timber/internal/timber/review"
 )
 

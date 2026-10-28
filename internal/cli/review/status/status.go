@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	reviewdisplay "github.com/nnutter/timber/internal/cli/review/display"
 	"github.com/nnutter/timber/internal/display"
 	"github.com/nnutter/timber/internal/timber/review"
 )
@@ -63,5 +64,5 @@ func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	return display.Write(c.Output, asJSON, result, c.Verbose)
+	return reviewdisplay.Write(c.Output, asJSON, result, c.Verbose)
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nnutter/timber/internal/display"
+	"github.com/nnutter/timber/internal/cli/review/display"
 	"github.com/nnutter/timber/internal/timber/review"
 )
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	reviewdisplay "github.com/nnutter/timber/internal/cli/review/display"
 	"github.com/nnutter/timber/internal/display"
 	"github.com/nnutter/timber/internal/timber/review"
 )
@@ -70,17 +71,17 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 	require.NotContains(t, out, "Saved review details")
 	require.Contains(t, out, "Active attempt: reviewing")
 	for i, stack := range view.Stacks {
-		require.Contains(t, out, display.ShortStack(stack))
+		require.Contains(t, out, reviewdisplay.ShortStack(stack))
 		require.Contains(t, out, stack.Subject)
-		require.Contains(t, out, display.StatusLabel(entryStates[i]))
+		require.Contains(t, out, reviewdisplay.StatusLabel(entryStates[i]))
 	}
 	filtered, terminal, err := executeBinary(t, binary, dir, "status", "--needs-review")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	for _, stack := range view.Stacks[:4] {
-		require.Contains(t, filtered, display.ShortStack(stack))
+		require.Contains(t, filtered, reviewdisplay.ShortStack(stack))
 	}
-	require.NotContains(t, filtered, display.ShortStack(view.Stacks[4]))
+	require.NotContains(t, filtered, reviewdisplay.ShortStack(view.Stacks[4]))
 	filtered, _, err = executeBinary(t, binary, dir, "status", "--needs-review", "--json")
 	require.NoError(t, err)
 	var result review.Result

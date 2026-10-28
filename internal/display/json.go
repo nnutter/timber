@@ -1,4 +1,4 @@
-// Package display presents CLI helpers used by every review subcommand.
+// Package display provides general CLI output helpers.
 package display
 
 import (
