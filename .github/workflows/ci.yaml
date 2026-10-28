@@ -27,11 +27,11 @@ jobs:
         with:
           version: 2026.10.17
 
-      - name: Run hk checks
-        run: hk check --pr
+      - name: Run fix
+        run: mise run fix
 
       - name: Run tests
-        run: mise run ci-tests
+        run: mise run ci-test
 
       - name: Run govulncheck
-        run: mise run lint-govulncheck
+        run: mise run check-govulncheck
