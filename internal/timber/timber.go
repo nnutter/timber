@@ -1,6 +1,10 @@
 package timber
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+
+	"github.com/nnutter/timber/internal/cli/generate"
+)
 
 func NewRootCommand(runtime Runtime) *cobra.Command {
 	options := &skillCommandOptions{runtime: runtime}
@@ -28,7 +32,7 @@ func NewRootCommand(runtime Runtime) *cobra.Command {
 	rootCommand.AddCommand(NewTodoCommand(runtime))
 	rootCommand.AddCommand(NewGitCommand(runtime))
 	rootCommand.AddCommand(NewTUICommand(runtime))
-	rootCommand.AddCommand(NewGenerateCommand(runtime))
+	rootCommand.AddCommand(generate.New(runtime.xdgDataHome()))
 
 	return rootCommand
 }

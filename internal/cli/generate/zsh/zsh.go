@@ -1,4 +1,4 @@
-package timber
+package zsh
 
 import (
 	"fmt"
@@ -10,10 +10,9 @@ import (
 )
 
 type zshCommandOptions struct {
-	runtime Runtime
-	name    string
-	out     string
-	force   bool
+	name  string
+	out   string
+	force bool
 }
 
 type generatedZshFile struct {
@@ -22,8 +21,8 @@ type generatedZshFile struct {
 	write func(string) error
 }
 
-func NewZshCommand(runtime Runtime) *cobra.Command {
-	options := &zshCommandOptions{runtime: runtime}
+func New(dataHome string) *cobra.Command {
+	options := &zshCommandOptions{}
 
 	command := &cobra.Command{
 		Use:   `zsh`,
@@ -33,7 +32,7 @@ func NewZshCommand(runtime Runtime) *cobra.Command {
 	}
 
 	command.Flags().StringVarP(&options.name, `name`, `n`, `t`, `name of generated zsh function`)
-	command.Flags().StringVarP(&options.out, `out`, `o`, runtime.xdgDataHome()+`/zsh/site-functions`, `output directory for generated files`)
+	command.Flags().StringVarP(&options.out, `out`, `o`, dataHome+`/zsh/site-functions`, `output directory for generated files`)
 	command.Flags().BoolVarP(&options.force, `force`, `f`, false, `overwrite existing generated files`)
 
 	return command

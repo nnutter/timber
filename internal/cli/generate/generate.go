@@ -1,12 +1,14 @@
-package timber
+package generate
 
 import (
 	"github.com/spf13/cobra"
+
+	"github.com/nnutter/timber/internal/cli/generate/zsh"
 )
 
 type generateCommandOptions struct{}
 
-func NewGenerateCommand(runtime Runtime) *cobra.Command {
+func New(dataHome string) *cobra.Command {
 	options := &generateCommandOptions{}
 
 	command := &cobra.Command{
@@ -17,7 +19,7 @@ func NewGenerateCommand(runtime Runtime) *cobra.Command {
 	}
 	command.CompletionOptions.HiddenDefaultCmd = true
 
-	command.AddCommand(NewZshCommand(runtime))
+	command.AddCommand(zsh.New(dataHome))
 
 	return command
 }
