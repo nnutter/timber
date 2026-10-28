@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/nnutter/timber/internal/gitreview/display"
+	"github.com/nnutter/timber/internal/display"
 
 	"charm.land/fang/v2"
 

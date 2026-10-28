@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nnutter/timber/internal/gitreview/review"
+	"github.com/nnutter/timber/internal/review"
 )
 
 const reviewLookupConcurrency = 4
