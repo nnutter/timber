@@ -2,12 +2,12 @@
  * Timber review extension.
  *
  * Reads `timber review status --needs-review --json` for the current Git feature branch and
- * publishes the `commits` counts on `git-review:status`. Outside a Git repository it
+ * publishes the `commits` counts on `timber-review:status`. Outside a Git repository it
  * publishes nothing. Optional lifecycle checks do not delay event dispatch;
  * explicit refresh requests remain awaitable.
  *
  * Recap (and anything else) can ask for a fresh post with
- * `git-review:request-status`. The request object may set `refresh(cwd)`.
+ * `timber-review:request-status`. The request object may set `refresh(cwd)`.
  *
  * The extension never messages the model on its own. The user starts feedback
  * handling with `/feedback`.
@@ -21,12 +21,12 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import {
 	MISE_AFTER_ON_STOP_EVENT,
 	MISE_COORDINATES_EVENT,
-	parseGitReviewStatus,
-	GIT_REVIEW_READY_EVENT,
-	GIT_REVIEW_REQUEST_STATUS_EVENT,
-	GIT_REVIEW_STATUS_EVENT,
-	type GitReviewStatus,
-	type GitReviewStatusRequest,
+	parseTimberReviewStatus,
+	TIMBER_REVIEW_READY_EVENT,
+	TIMBER_REVIEW_REQUEST_STATUS_EVENT,
+	TIMBER_REVIEW_STATUS_EVENT,
+	type TimberReviewStatus,
+	type TimberReviewStatusRequest,
 } from "./support.ts";
 
 const GIT_TIMEOUT_MS = 5_000;
@@ -37,7 +37,7 @@ type AfterOnStopHook = (ctx: ExtensionContext, aborted: boolean) => Promise<void
 
 export default function (pi: ExtensionAPI) {
 	let miseCoordinates = false;
-	const statusReads = new Map<string, Promise<GitReviewStatus | undefined>>();
+	const statusReads = new Map<string, Promise<TimberReviewStatus | undefined>>();
 	let idleTimer: ReturnType<typeof setInterval> | undefined;
 	let generation = 0;
 
@@ -50,7 +50,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	/** Coalesce readers without making optional checks delay lifecycle handlers. */
-	function readAndPublish(cwd: string): Promise<GitReviewStatus | undefined> {
+	function readAndPublish(cwd: string): Promise<TimberReviewStatus | undefined> {
 		const epoch = generation;
 		const key = JSON.stringify([epoch, cwd]);
 		const existing = statusReads.get(key);
@@ -62,16 +62,16 @@ export default function (pi: ExtensionAPI) {
 		return pending;
 	}
 
-	async function readStatus(cwd: string, epoch: number): Promise<GitReviewStatus | undefined> {
+	async function readStatus(cwd: string, epoch: number): Promise<TimberReviewStatus | undefined> {
 		if (!(await isRepository(cwd)) || epoch !== generation) return undefined;
 		const result = await pi.exec("timber", ["review", "status", "--needs-review", "--json"], {
 			cwd,
 			timeout: STATUS_TIMEOUT_MS,
 		});
 		if (result.killed || result.code !== 0 || epoch !== generation) return undefined;
-		const status = parseGitReviewStatus(result.stdout);
+		const status = parseTimberReviewStatus(result.stdout);
 		if (!status) return undefined;
-		pi.events.emit(GIT_REVIEW_STATUS_EVENT, {
+		pi.events.emit(TIMBER_REVIEW_STATUS_EVENT, {
 			needsReview: status.needsReview,
 			total: status.total,
 			feedback: status.feedback,
@@ -106,9 +106,9 @@ export default function (pi: ExtensionAPI) {
 		hooks.push((ctx) => readAndPublish(ctx.cwd).then(() => undefined, () => undefined));
 	});
 
-	pi.events.on(GIT_REVIEW_REQUEST_STATUS_EVENT, (data) => {
+	pi.events.on(TIMBER_REVIEW_REQUEST_STATUS_EVENT, (data) => {
 		if (data === null || typeof data !== "object" || Array.isArray(data)) return;
-		(data as GitReviewStatusRequest).refresh = async (cwd: string) => {
+		(data as TimberReviewStatusRequest).refresh = async (cwd: string) => {
 			await readAndPublish(cwd);
 		};
 	});
@@ -116,7 +116,7 @@ export default function (pi: ExtensionAPI) {
 	// Announce after the listeners above are registered. Mise may already
 	// be loaded, in which case it answers this event. If mise loads later,
 	// it emits MISE_COORDINATES_EVENT itself.
-	pi.events.emit(GIT_REVIEW_READY_EVENT, undefined);
+	pi.events.emit(TIMBER_REVIEW_READY_EVENT, undefined);
 
 	pi.on("session_start", (_event, ctx) => {
 		stopMonitoring();

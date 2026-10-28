@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseGitReviewStatus } from "../support.ts";
+import { parseTimberReviewStatus } from "../support.ts";
 
 const summary = [
 	{ state: "needs_review", count: 0 },
@@ -12,7 +12,7 @@ const summary = [
 
 test("status parser reads idle summary and includes additional states in total", () => {
 	const result = { version: 1, command: "status", status: "idle", entries: [], summary: [...summary, { state: "future", count: 2 }] };
-	assert.deepEqual(parseGitReviewStatus(JSON.stringify(result)), {
+	assert.deepEqual(parseTimberReviewStatus(JSON.stringify(result)), {
 		needsReview: 0, total: 5, feedback: 0, line: "Needs Review: 0/5",
 	});
 });
@@ -30,7 +30,7 @@ test("status parser rejects unsupported envelopes and invalid summaries", () => 
 		{ ...result, summary: [...summary, summary[0]] },
 		...[-1, 0.5, "1"].map(count => ({ ...result, summary: [...summary.slice(0, -1), { state: "approved", count }] })),
 	]) {
-		assert.equal(parseGitReviewStatus(JSON.stringify(invalid)), undefined);
+		assert.equal(parseTimberReviewStatus(JSON.stringify(invalid)), undefined);
 	}
-	assert.equal(parseGitReviewStatus("not json"), undefined);
+	assert.equal(parseTimberReviewStatus("not json"), undefined);
 });

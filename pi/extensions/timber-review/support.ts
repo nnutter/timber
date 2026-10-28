@@ -9,26 +9,26 @@
  * the exit code before parsing.
  */
 
-export const GIT_REVIEW_STATUS_EVENT = "git-review:status";
-export const GIT_REVIEW_REQUEST_STATUS_EVENT = "git-review:request-status";
+export const TIMBER_REVIEW_STATUS_EVENT = "timber-review:status";
+export const TIMBER_REVIEW_REQUEST_STATUS_EVENT = "timber-review:request-status";
 
 /** Mise emits this with a mutable hook list at the end of on-stop. */
 export const MISE_AFTER_ON_STOP_EVENT = "mise-hooks:after-on-stop";
 
 /** The review extension emits this at load. Mise answers with MISE_COORDINATES_EVENT. */
-export const GIT_REVIEW_READY_EVENT = "git-review:ready";
+export const TIMBER_REVIEW_READY_EVENT = "timber-review:ready";
 export const MISE_COORDINATES_EVENT = "mise-hooks:coordinates-on-stop";
 
 const REQUIRED_STATES = ["needs_review", "reviewing", "feedback", "incomplete", "approved"] as const;
 
-export type GitReviewStatus = {
+export type TimberReviewStatus = {
 	needsReview: number;
 	total: number;
 	feedback: number;
 	line: string;
 };
 
-export type GitReviewStatusRequest = {
+export type TimberReviewStatusRequest = {
 	refresh?: (cwd: string) => Promise<void>;
 };
 
@@ -41,7 +41,7 @@ export function reviewStatusLine(needsReview: number, total: number): string {
  * Returns undefined for unsupported results, malformed rows, or a missing required state.
  * `total` is the sum of every state in summary, including states this parser does not name.
  */
-export function parseGitReviewStatus(stdout: string): GitReviewStatus | undefined {
+export function parseTimberReviewStatus(stdout: string): TimberReviewStatus | undefined {
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(stdout);

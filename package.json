@@ -6,7 +6,7 @@
   "description": "Pi integration for timber review",
   "keywords": ["pi-package"],
   "pi": {
-    "extensions": ["./pi/extensions/git-review/index.ts"],
+    "extensions": ["./pi/extensions/timber-review/index.ts"],
     "skills": ["./skills/timber-review"]
   },
   "peerDependencies": {

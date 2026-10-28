@@ -3,8 +3,8 @@ import { EventEmitter } from "node:events";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import gitReview from "../index.ts";
-import { GIT_REVIEW_REQUEST_STATUS_EVENT, MISE_AFTER_ON_STOP_EVENT, MISE_COORDINATES_EVENT, type GitReviewStatusRequest } from "../support.ts";
+import timberReview from "../index.ts";
+import { MISE_AFTER_ON_STOP_EVENT, MISE_COORDINATES_EVENT, type TimberReviewStatusRequest } from "../support.ts";
 
 function harness(mode: ExtensionContext["mode"] = "tui") {
 	const events = new EventEmitter();
@@ -41,8 +41,8 @@ function harness(mode: ExtensionContext["mode"] = "tui") {
 			deliveries.push(options);
 		},
 	} as unknown as ExtensionAPI;
-	events.on("git-review:status", data => published.push(data));
-	gitReview(pi);
+	events.on("timber-review:status", data => published.push(data));
+	timberReview(pi);
 	return {
 		events, messages, deliveries, published, ctx,
 		command: async (name: string) => { await commands.get(name)!.handler("", ctx); },
@@ -57,6 +57,19 @@ function harness(mode: ExtensionContext["mode"] = "tui") {
 		},
 	};
 }
+
+test("extension announces readiness after registering refresh", () => {
+	const events = new EventEmitter();
+	let ready = false;
+	events.on("timber-review:ready", () => {
+		const request: TimberReviewStatusRequest = {};
+		events.emit("timber-review:request-status", request);
+		assert.equal(typeof request.refresh, "function");
+		ready = true;
+	});
+	timberReview({ events, registerCommand() {}, on() {} } as unknown as ExtensionAPI);
+	assert.equal(ready, true);
+});
 
 test("/feedback asks the model to pull feedback and queues when busy", async () => {
 	for (const idle of [true, false]) {
@@ -165,8 +178,8 @@ test("slow status reads do not delay lifecycle handlers and explicit refreshes s
 		await setImmediate();
 		assert.equal(started, true, "session startup does not await Git");
 		assert.equal(h.statusCalls(), 1);
-		const request: GitReviewStatusRequest = {};
-		h.events.emit(GIT_REVIEW_REQUEST_STATUS_EVENT, request);
+		const request: TimberReviewStatusRequest = {};
+		h.events.emit("timber-review:request-status", request);
 		let refreshed = false;
 		const refresh = request.refresh!(h.ctx.cwd).then(() => { refreshed = true; });
 		let settled = false;
