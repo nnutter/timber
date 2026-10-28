@@ -3,12 +3,13 @@ package timber
 import (
 	"github.com/spf13/cobra"
 
+	cliconfig "github.com/nnutter/timber/internal/cli/config"
 	"github.com/nnutter/timber/internal/cli/generate"
 )
 
 func Commands(runtime Runtime) []*cobra.Command {
 	return []*cobra.Command{
-		NewConfigCommand(runtime),
+		cliconfig.New(runtime),
 		NewCreateCommand(runtime),
 		NewListCommand(runtime),
 		NewPruneCommand(runtime),
