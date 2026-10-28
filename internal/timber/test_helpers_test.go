@@ -14,6 +14,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/cli/root"
 )
 
 type commandResult struct {
@@ -248,14 +250,18 @@ func withTestEnvironment(runtime Runtime, replacements ...string) Runtime {
 	return runtime
 }
 
+func newRootCommand(runtime Runtime) *cobra.Command {
+	return root.New(runtime.HomeDirectory, runtime.SkillContent, Commands(runtime)...)
+}
+
 func newTestRootCommand(t *testing.T) *cobra.Command {
 	t.Helper()
-	return NewRootCommand(testRuntime(t))
+	return newRootCommand(testRuntime(t))
 }
 
 func newTestRootCommandWithRuntime(t *testing.T, runtime Runtime) *cobra.Command {
 	t.Helper()
-	return NewRootCommand(runtime)
+	return newRootCommand(runtime)
 }
 
 func runCompleteWithRuntime(t *testing.T, runtime Runtime, args ...string) string {

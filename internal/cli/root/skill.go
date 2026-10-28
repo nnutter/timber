@@ -1,17 +1,19 @@
-package timber
+package root
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 )
 
 type skillCommandOptions struct {
-	runtime Runtime
-	install bool
-	force   bool
+	homeDirectory string
+	content       string
+	install       bool
+	force         bool
 }
 
 func (x *skillCommandOptions) Execute(command *cobra.Command, _ []string) error {
@@ -21,10 +23,10 @@ func (x *skillCommandOptions) Execute(command *cobra.Command, _ []string) error 
 		}
 		return command.Help()
 	}
-	if x.runtime.SkillContent == "" {
+	if x.content == "" {
 		return fmt.Errorf("timber skill content is not available")
 	}
-	destination := filepath.Join(x.runtime.HomeDirectory, ".agents", "skills", "timber", "SKILL.md")
+	destination := filepath.Join(x.homeDirectory, ".agents", "skills", "timber", "SKILL.md")
 	if _, err := os.Stat(destination); err == nil && !x.force {
 		return fmt.Errorf("skill already exists at %s (use --force to overwrite)", destination)
 	} else if err != nil && !os.IsNotExist(err) {
@@ -33,9 +35,9 @@ func (x *skillCommandOptions) Execute(command *cobra.Command, _ []string) error 
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		return fmt.Errorf("create skill directory: %w", err)
 	}
-	if err := os.WriteFile(destination, []byte(x.runtime.SkillContent), 0o644); err != nil {
+	if err := os.WriteFile(destination, []byte(x.content), 0o644); err != nil {
 		return fmt.Errorf("write skill file: %w", err)
 	}
-	_, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("installed timber skill to "+destination))
+	_, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("installed timber skill to "+destination))
 	return err
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/nnutter/timber/internal/cli/root"
 	"github.com/nnutter/timber/internal/display"
 
 	"charm.land/fang/v2"
@@ -34,7 +35,7 @@ func main() {
 	runtime.SkillContent = skillContent
 	runtime.ReviewSkillContent = reviewSkillContent
 
-	root := timber.NewRootCommand(runtime)
+	root := root.New(runtime.HomeDirectory, runtime.SkillContent, timber.Commands(runtime)...)
 	if err := fang.Execute(
 		context.Background(),
 		root,

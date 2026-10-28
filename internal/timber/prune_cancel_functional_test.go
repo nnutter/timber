@@ -15,7 +15,7 @@ func TestFunctionalPruneCancellationKeepsDefaultSelection(t *testing.T) {
 	const branch = "feature/keep"
 	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, branch)).err)
 	head := runGitCommand(t, repository.worktreePath(branch), "rev-parse", "HEAD")
-	command := NewRootCommand(repository.runtime)
+	command := newRootCommand(repository.runtime)
 	command.SetArgs([]string{"prune", "--prompt", at(testRepoName, "")})
 	command.SetIn(strings.NewReader("\x03"))
 	command.SetOut(io.Discard)

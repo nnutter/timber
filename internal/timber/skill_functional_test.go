@@ -36,7 +36,7 @@ func TestTimberSkillExamplesMatchCLI(t *testing.T) {
 		examples++
 		t.Run(line, func(t *testing.T) {
 			args := strings.Fields(line)[1:]
-			root := NewRootCommand(Runtime{})
+			root := newRootCommand(Runtime{})
 			command, remaining, err := root.Find(args)
 			require.NoError(t, err)
 			require.NotSame(t, root, command, "example must resolve to a subcommand")

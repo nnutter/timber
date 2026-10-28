@@ -6,33 +6,20 @@ import (
 	"github.com/nnutter/timber/internal/cli/generate"
 )
 
-func NewRootCommand(runtime Runtime) *cobra.Command {
-	options := &skillCommandOptions{runtime: runtime}
-	rootCommand := &cobra.Command{
-		Use:           "timber",
-		Short:         "Manage Git worktrees",
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		Args:          cobra.NoArgs,
-		RunE:          options.Execute,
+func Commands(runtime Runtime) []*cobra.Command {
+	return []*cobra.Command{
+		NewConfigCommand(runtime),
+		NewCreateCommand(runtime),
+		NewListCommand(runtime),
+		NewPruneCommand(runtime),
+		NewRemoveCommand(runtime),
+		NewRepoCommand(runtime),
+		NewReviewCommand(runtime),
+		NewHerdrCommand(runtime),
+		NewSwitchCommand(runtime),
+		NewTodoCommand(runtime),
+		NewGitCommand(runtime),
+		NewTUICommand(runtime),
+		generate.New(runtime.xdgDataHome()),
 	}
-	rootCommand.Flags().BoolVar(&options.install, "install-skill", false, "Install the timber skill to ~/.agents/skills")
-	rootCommand.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
-	rootCommand.CompletionOptions.HiddenDefaultCmd = true
-
-	rootCommand.AddCommand(NewConfigCommand(runtime))
-	rootCommand.AddCommand(NewCreateCommand(runtime))
-	rootCommand.AddCommand(NewListCommand(runtime))
-	rootCommand.AddCommand(NewPruneCommand(runtime))
-	rootCommand.AddCommand(NewRemoveCommand(runtime))
-	rootCommand.AddCommand(NewRepoCommand(runtime))
-	rootCommand.AddCommand(NewReviewCommand(runtime))
-	rootCommand.AddCommand(NewHerdrCommand(runtime))
-	rootCommand.AddCommand(NewSwitchCommand(runtime))
-	rootCommand.AddCommand(NewTodoCommand(runtime))
-	rootCommand.AddCommand(NewGitCommand(runtime))
-	rootCommand.AddCommand(NewTUICommand(runtime))
-	rootCommand.AddCommand(generate.New(runtime.xdgDataHome()))
-
-	return rootCommand
 }
