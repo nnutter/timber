@@ -248,7 +248,7 @@ func (r Repository) gitInput(ctx context.Context, input string, args ...string) 
 	out, err := cmd.Output()
 	if err != nil {
 		if strings.HasPrefix(stderr.String(), "fatal: not a git repository") {
-			return "", fmt.Errorf("git-review must be used from inside a Git repository")
+			return "", fmt.Errorf("timber review must be used from inside a Git repository")
 		}
 		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}

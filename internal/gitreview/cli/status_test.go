@@ -202,7 +202,7 @@ func TestStatusDebugLogsStayOffJSON(t *testing.T) {
 func TestStatusOutsideGitRepository(t *testing.T) {
 	binary := buildGitReview(t)
 	dir := t.TempDir()
-	const message = "git-review must be used from inside a Git repository"
+	const message = "timber review must be used from inside a Git repository"
 	for _, args := range [][]string{{"status"}, {"status", "--json"}} {
 		t.Run(args[len(args)-1], func(t *testing.T) {
 			out, terminal, err := executeBinary(t, binary, dir, args...)
@@ -218,7 +218,7 @@ func TestStatusOutsideGitRepository(t *testing.T) {
 				require.Equal(t, message, failed.Error)
 			} else {
 				require.Empty(t, out)
-				require.Contains(t, terminal, "Git-Review must be used from inside a Git repository.")
+				require.Contains(t, terminal, "Timber review must be used from inside a Git repository.")
 				require.NotContains(t, terminal, "git symbolic-ref")
 				require.NotContains(t, terminal, "detached HEAD")
 				require.NotContains(t, terminal, "exit status")

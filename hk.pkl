@@ -38,7 +38,7 @@ hooks {
     fix = true
     steps {
       ["change-id"] {
-        fix = "git-review commit-msg \"{{commit_msg_file}}\""
+        fix = "timber review commit-msg \"{{commit_msg_file}}\""
       }
     }
   }

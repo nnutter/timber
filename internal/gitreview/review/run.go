@@ -213,7 +213,7 @@ func (r Reviewer) launch(ctx context.Context, path string, stack Stack, lock *os
 	// Keep the worktree locked if git-review dies while tuicr is still running.
 	cmd.ExtraFiles = []*os.File{lock}
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("tuicr interrupted or failed; use git-review commits to recover or replace: %w", err)
+		return fmt.Errorf("tuicr interrupted or failed; use timber review commits to recover or replace: %w", err)
 	}
 	return nil
 }
@@ -554,7 +554,7 @@ func replacementStack(plan reviewPlan) (Stack, error) {
 			return stack, nil
 		}
 	}
-	return Stack{}, fmt.Errorf("interrupted stack is no longer current; select its replacement with git-review commits <commit>")
+	return Stack{}, fmt.Errorf("interrupted stack is no longer current; select its replacement with timber review commits <commit>")
 }
 
 func (options ReviewOptions) hasBounds() bool {

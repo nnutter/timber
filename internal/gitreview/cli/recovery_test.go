@@ -47,7 +47,7 @@ func TestRecoveryDecisionExplainsSavedWork(t *testing.T) {
 				require.NotContains(t, text, "New review commits")
 			}
 			if tc.replacement == "none" {
-				require.Contains(t, text, "No current replacement scope. Select one with git-review commits <commit>.")
+				require.Contains(t, text, "No current replacement scope. Select one with timber review commits <commit>.")
 			}
 			require.Contains(t, text, "Replacement keeps the prior attempt in history. Tuicr may reuse its saved session.")
 			require.NotContains(t, text, "internal-id")

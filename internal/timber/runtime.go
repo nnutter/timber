@@ -65,6 +65,9 @@ type Runtime struct {
 	// SkillContent holds skills/timber/SKILL.md, embedded by main and
 	// installed by `timber --install-skill`.
 	SkillContent string
+
+	// ReviewSkillContent is installed by `timber review --install-skill`.
+	ReviewSkillContent string
 }
 
 // RuntimeFromProcess captures the process state needed by a timber command.

@@ -136,6 +136,10 @@ The generated shell wrapper also supports `t review …`, including nested comma
 Review commands operate on the current checkout, not a Timber worktree selector.
 Run `timber review --help` for all commands and flags.
 
+Install the review feedback skill with `timber review --install-skill`.
+Use `--force` to replace an existing installation. For the Pi extension and
+package installation, see [pi/README.md](pi/README.md).
+
 ## Agent skills
 
 Install the bundled general-purpose Timber skill for agents with:
@@ -212,7 +216,7 @@ Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-t
 `mise run coverage` (or `mise run cover`) runs the tests and prints coverage.
 `mise run demo` re-renders the [demo](#demo) GIF, MP4, and still from `docs/demo/demo.tape` (needs a working Chrome for VHS).
 `mise run install-hooks` replaces existing Lefthook hooks with the hooks in `hk.pkl`.
-The commit-message hook requires `git-review` on `PATH`.
+The commit-message hook requires `timber` on `PATH`.
 
 ## Shell integration
 
@@ -310,7 +314,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `tui` | Interactively open an existing worktree or create a new one |
 | `herdr install` | Install the bundled Herdr plugin |
 | `herdr space` | Open a Herdr Agent + Shell space for a worktree |
-| `list` | List worktrees with merge/dirtiness status, TODO.md progress, and commit review progress when `git-review` is installed (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
+| `list` | List worktrees with merge/dirtiness status, TODO.md progress, and commit review progress (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |

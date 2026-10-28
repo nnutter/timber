@@ -160,7 +160,7 @@ func TestReviewAliasProducesDecisionWithoutPromptOrStateChanges(t *testing.T) {
 	require.Equal(t, before, after)
 	out, _, err = execute(t, dir, "run")
 	require.NoError(t, err)
-	require.Contains(t, out, "git-review commits --recover")
+	require.Contains(t, out, "timber review commits --recover")
 }
 
 func TestTerminalRenderingRetainsFeedbackAndRemovesControlSequences(t *testing.T) {

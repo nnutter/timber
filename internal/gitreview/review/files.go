@@ -146,7 +146,7 @@ func (r FileReviewer) launch(ctx context.Context, args []string, lock *os.File) 
 	// Keep the worktree locked if git-review dies while tuicr is still running.
 	cmd.ExtraFiles = []*os.File{lock}
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("tuicr interrupted or failed; use git-review files to retry: %w", err)
+		return fmt.Errorf("tuicr interrupted or failed; use timber review files to retry: %w", err)
 	}
 	return nil
 }
