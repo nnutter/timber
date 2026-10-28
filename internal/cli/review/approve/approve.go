@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nnutter/timber/internal/display"
-	"github.com/nnutter/timber/internal/review"
+	"github.com/nnutter/timber/internal/timber/review"
 )
 
 // Command houses positional arguments for the approval review.

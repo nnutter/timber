@@ -13,7 +13,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/nnutter/timber/internal/review"
+	"github.com/nnutter/timber/internal/timber/review"
 )
 
 func Render(output io.Writer, result review.Result, verbose bool) error {

@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/nnutter/timber/internal/display"
-	"github.com/nnutter/timber/internal/review"
+	"github.com/nnutter/timber/internal/timber/review"
 )
 
 func canPrompt(input io.Reader, output io.Writer) bool {

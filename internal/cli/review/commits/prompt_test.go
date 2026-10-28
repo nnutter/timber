@@ -13,7 +13,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nnutter/timber/internal/review"
+	"github.com/nnutter/timber/internal/timber/review"
 )
 
 type promptReader struct{ file *os.File }

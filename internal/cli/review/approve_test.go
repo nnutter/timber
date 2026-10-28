@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nnutter/timber/internal/review"
+	"github.com/nnutter/timber/internal/timber/review"
 )
 
 func TestApproveAllRecordsEveryStack(t *testing.T) {

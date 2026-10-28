@@ -3,7 +3,7 @@ package display
 import (
 	"io"
 
-	"github.com/nnutter/timber/internal/review"
+	"github.com/nnutter/timber/internal/timber/review"
 )
 
 // Write emits a stack result as JSON or terminal text.

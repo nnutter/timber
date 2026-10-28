@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	reviewroot "github.com/nnutter/timber/internal/cli/review/root"
-	"github.com/nnutter/timber/internal/review"
+	"github.com/nnutter/timber/internal/timber/review"
 )
 
 // NewReviewCommand attaches the review workflow to the current checkout.

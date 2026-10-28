@@ -22,7 +22,7 @@ import (
 	"github.com/nnutter/timber/internal/cli/review/log"
 	"github.com/nnutter/timber/internal/cli/review/status"
 	"github.com/nnutter/timber/internal/display"
-	"github.com/nnutter/timber/internal/review"
+	"github.com/nnutter/timber/internal/timber/review"
 )
 
 // Command houses setup state for the root command.
