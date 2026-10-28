@@ -1,9 +1,9 @@
 [tools]
-go = "1.27.0"
-hk = "2.8.0"
-"github:swanysimon/mdlint" = "0.3.24"
-"ubi:noirbizarre/git-tpl" = "0.13.0"
-"go:github.com/nnutter/git-review" = "0.8.1"
+go = "latest"
+hk = "latest"
+"github:nnutter/mdlint" = "latest"
+"go:github.com/nnutter/git-review" = "latest"
+"ubi:noirbizarre/git-tpl" = "latest"
 
 #####################
 # Development Tasks #
