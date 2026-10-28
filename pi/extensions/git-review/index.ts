@@ -1,5 +1,5 @@
 /**
- * git-review extension.
+ * Timber review extension.
  *
  * Reads `timber review status --needs-review --json` for the current Git feature branch and
  * publishes the `commits` counts on `git-review:status`. Outside a Git repository it

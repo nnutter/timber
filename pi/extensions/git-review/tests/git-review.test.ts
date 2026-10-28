@@ -190,7 +190,7 @@ test("optional background query failures do not prevent later refreshes", async 
 	let reject!: (error: Error) => void;
 	h.setStatusGate(new Promise<void>((_resolve, fail) => { reject = fail; }));
 	await h.emit("session_start");
-	reject(new Error("git-review unavailable"));
+	reject(new Error("timber review unavailable"));
 	await setImmediate();
 	assert.equal(h.published.length, 0);
 	h.setStatusGate(Promise.resolve());

@@ -200,7 +200,7 @@ func TestTuicrKeepsWorktreeLockedAfterGitReviewDies(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	bin := t.TempDir()
-	binary := filepath.Join(bin, "git-review")
+	binary := filepath.Join(bin, "review-test")
 	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "./testdata/standalone")
 	buildOut, err := build.CombinedOutput()
 	require.NoError(t, err, "%s", buildOut)

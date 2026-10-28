@@ -207,10 +207,10 @@ func (r Reviewer) launch(ctx context.Context, path string, stack Stack, lock *os
 		cmd.Stdin = wrapped.UnwrapReader()
 	}
 	// --stdout bypasses tuicr's clipboard confirmation. The TUI uses /dev/tty;
-	// git-review reads persisted feedback instead of the exported markdown.
+	// Timber reads persisted feedback instead of the exported markdown.
 	cmd.Stdout = io.Discard
 	cmd.Stderr = r.Terminal
-	// Keep the worktree locked if git-review dies while tuicr is still running.
+	// Keep the worktree locked if Timber dies while tuicr is still running.
 	cmd.ExtraFiles = []*os.File{lock}
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("tuicr interrupted or failed; use timber review commits to recover or replace: %w", err)

@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the git-review extension.
+ * Pure helpers for the Timber review extension.
  *
  * No Pi imports: node:test can load this file outside the Pi process.
  * `timber review status --needs-review --json` prints `commits` stacks with a summary of { state, count }.
@@ -15,7 +15,7 @@ export const GIT_REVIEW_REQUEST_STATUS_EVENT = "git-review:request-status";
 /** Mise emits this with a mutable hook list at the end of on-stop. */
 export const MISE_AFTER_ON_STOP_EVENT = "mise-hooks:after-on-stop";
 
-/** git-review emits this at load. Mise answers with MISE_COORDINATES_EVENT. */
+/** The review extension emits this at load. Mise answers with MISE_COORDINATES_EVENT. */
 export const GIT_REVIEW_READY_EVENT = "git-review:ready";
 export const MISE_COORDINATES_EVENT = "mise-hooks:coordinates-on-stop";
 
@@ -81,7 +81,7 @@ export function parseGitReviewStatus(stdout: string): GitReviewStatus | undefine
 	};
 }
 
-/** Accept only the status object git-review publishes. */
+/** Accept only the status object the review extension publishes. */
 export function reviewLineFromEvent(data: unknown): string | undefined {
 	if (data === null || typeof data !== "object") return undefined;
 	const record = data as { needsReview?: unknown; total?: unknown; line?: unknown; feedback?: unknown };

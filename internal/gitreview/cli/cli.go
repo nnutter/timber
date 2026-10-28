@@ -1,4 +1,4 @@
-// Package cli exposes git-review's review workflow through Cobra and Fang.
+// Package cli exposes the review workflow through Cobra and Fang.
 package cli
 
 import (

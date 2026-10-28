@@ -1,4 +1,4 @@
-// Package display presents CLI helpers used by every git-review subcommand.
+// Package display presents CLI helpers used by every review subcommand.
 package display
 
 import (
