@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"fmt"
@@ -6,20 +6,21 @@ import (
 	"os"
 	"path/filepath"
 
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
 	reviewroot "github.com/nnutter/timber/internal/cli/review/root"
 	"github.com/nnutter/timber/internal/timber/review"
 )
 
-// NewReviewCommand attaches the review workflow to the current checkout.
-func NewReviewCommand(runtime Runtime) *cobra.Command {
+// New attaches the review workflow to the current checkout.
+func New(directory, homeDirectory, skillContent string) *cobra.Command {
 	var command *cobra.Command
 	var installSkill, force bool
 	input := reviewInput{command: &command}
 	output := reviewOutput{command: &command}
 	terminal := reviewOutput{command: &command, terminal: true}
-	command = reviewroot.New(review.Service{Repository: review.Repository{Dir: runtime.CurrentDirectory}}, input, output, terminal, false)
+	command = reviewroot.New(review.Service{Repository: review.Repository{Dir: directory}}, input, output, terminal, false)
 	command.Use = "review"
 	command.Args = cobra.NoArgs
 	command.Flags().BoolVar(&installSkill, "install-skill", false, "Install the timber-review skill to ~/.agents/skills")
@@ -31,10 +32,10 @@ func NewReviewCommand(runtime Runtime) *cobra.Command {
 			}
 			return cmd.Help()
 		}
-		if runtime.ReviewSkillContent == "" {
+		if skillContent == "" {
 			return fmt.Errorf("timber-review skill content is not available")
 		}
-		destination := filepath.Join(runtime.HomeDirectory, ".agents", "skills", "timber-review", "SKILL.md")
+		destination := filepath.Join(homeDirectory, ".agents", "skills", "timber-review", "SKILL.md")
 		if _, err := os.Stat(destination); err == nil && !force {
 			return fmt.Errorf("skill already exists at %s (use --force to overwrite)", destination)
 		} else if err != nil && !os.IsNotExist(err) {
@@ -43,10 +44,10 @@ func NewReviewCommand(runtime Runtime) *cobra.Command {
 		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 			return fmt.Errorf("create skill directory: %w", err)
 		}
-		if err := os.WriteFile(destination, []byte(runtime.ReviewSkillContent), 0o644); err != nil {
+		if err := os.WriteFile(destination, []byte(skillContent), 0o644); err != nil {
 			return fmt.Errorf("write skill file: %w", err)
 		}
-		_, err := fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", statusStyle.Render("installed timber-review skill to "+destination))
+		_, err := fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("installed timber-review skill to "+destination))
 		return err
 	}
 	return command
