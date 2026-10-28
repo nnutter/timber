@@ -147,7 +147,7 @@ This keeps older target commit IDs unchanged while you replay later history.
 Refresh the current view when a target no longer matches the captured stack.
 Do not guess lineage for split or combined changes.
 
-Make fixes in the feature checkout, not `<git-common-dir>/git-review/worktree`.
+Make fixes in the feature checkout, not `<git-common-dir>/timber-review/worktree`.
 The review checkout is disposable and is only for code exploration.
 Do not edit timber review's state file or tuicr's saved sessions.
 

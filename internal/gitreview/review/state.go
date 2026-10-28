@@ -28,7 +28,7 @@ type Attempt struct {
 	Extra          map[string]jsontext.Value `json:",inline"`
 }
 
-// State retains Pi's version-1 attempt format in the shared tuicr-reviews path.
+// State retains the version-1 attempt format.
 type State struct {
 	Version  int                       `json:"version"`
 	Attempts []Attempt                 `json:"attempts"`

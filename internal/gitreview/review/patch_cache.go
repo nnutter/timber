@@ -20,7 +20,7 @@ type patchCache struct {
 }
 
 func patchCachePath(view Snapshot) string {
-	return filepath.Join(filepath.Dir(filepath.Dir(view.Path)), "git-review", "cache", "patch-v2")
+	return filepath.Join(filepath.Dir(filepath.Dir(view.Path)), "cache", "patch-v2")
 }
 
 func newPatchCache(ctx context.Context, r Repository, view Snapshot, repo string) *patchCache {

@@ -129,7 +129,7 @@ func (r Repository) PruneCache(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return prunePatchCache(ctx, filepath.Join(common, "git-review", "cache", "patch-v2"))
+	return prunePatchCache(ctx, filepath.Join(common, "timber-review", "cache", "patch-v2"))
 }
 
 // Resolve accepts a commit reference but never interprets it as an option.
@@ -224,7 +224,7 @@ func (r Repository) checkoutView(ctx context.Context) (Snapshot, string, error) 
 		return view, "", err
 	}
 	view.Branch = branch
-	view.Path = filepath.Join(common, "tuicr-reviews", fmt.Sprintf("%x.json", sha256.Sum256([]byte(branch))))
+	view.Path = filepath.Join(common, "timber-review", "state", fmt.Sprintf("%x.json", sha256.Sum256([]byte(branch))))
 	return view, repo, nil
 }
 

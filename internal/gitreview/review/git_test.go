@@ -49,7 +49,7 @@ func TestSnapshot(t *testing.T) {
 	require.Equal(t, []string{first, tip}, view.Stacks[0].Commits)
 	require.Equal(t, first+".."+tip, view.Stacks[0].Key)
 	require.Equal(t, id, view.Stacks[0].ChangeID)
-	require.Contains(t, view.Path, "/tuicr-reviews/")
+	require.Contains(t, view.Path, "/timber-review/state/")
 
 	gitTest(t, r.Dir, "reset", "--hard", first)
 	gitTest(t, r.Dir, "commit", "--amend", "--allow-empty", "-m", "Rewrite feature\n\nChange-Id: "+id)

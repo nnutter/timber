@@ -117,5 +117,5 @@ func TestListReviewProgressIgnoresAmbientGitEnvironment(t *testing.T) {
 func reviewStatePath(t *testing.T, repository testRepository, branch string) string {
 	t.Helper()
 	common := strings.TrimSpace(runGitCommand(t, repository.worktreePath(branch), "rev-parse", "--path-format=absolute", "--git-common-dir"))
-	return filepath.Join(common, "tuicr-reviews", fmt.Sprintf("%x.json", sha256.Sum256([]byte(branch))))
+	return filepath.Join(common, "timber-review", "state", fmt.Sprintf("%x.json", sha256.Sum256([]byte(branch))))
 }

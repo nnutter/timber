@@ -28,7 +28,7 @@ func TestRepoFixMovesLegacyRepositoryAndRepairsWorktree(t *testing.T) {
 	worktreePath := runtime.managedWorktreePath(repoName, "feature")
 	require.NoError(t, os.MkdirAll(filepath.Dir(worktreePath), 0o755))
 	runGitCommand(t, legacyPath, "worktree", "add", "-b", "feature", worktreePath, "origin/main")
-	internalPath := filepath.Join(legacyPath, "git-review", "worktree")
+	internalPath := filepath.Join(legacyPath, "timber-review", "worktree")
 	runGitCommand(t, legacyPath, "worktree", "add", "--detach", internalPath, "origin/main")
 
 	result := runTimberCommandWithRuntime(t, runtime, "repo", "fix")
@@ -43,7 +43,7 @@ func TestRepoFixMovesLegacyRepositoryAndRepairsWorktree(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), runtime.bareRepoPath(repoName))
 	runGitCommand(t, worktreePath, "status", "--short", "--branch")
-	movedInternalPath := filepath.Join(runtime.bareRepoPath(repoName), "git-review", "worktree")
+	movedInternalPath := filepath.Join(runtime.bareRepoPath(repoName), "timber-review", "worktree")
 	runGitCommand(t, movedInternalPath, "status", "--short", "--branch")
 
 	again := runTimberCommandWithRuntime(t, runtime, "repo", "fix")
@@ -61,7 +61,7 @@ func TestRepoFixLeavesUnmatchedInternalCheckoutUntouched(t *testing.T) {
 	legacyPath := filepath.Join(home, ".local", "share", "timber", "repos", "timber.git")
 	require.NoError(t, os.MkdirAll(filepath.Dir(legacyPath), 0o755))
 	require.NoError(t, os.CopyFS(legacyPath, os.DirFS(fixture.fixture.barePath)))
-	oldPath := filepath.Join(legacyPath, "git-review", "worktree")
+	oldPath := filepath.Join(legacyPath, "timber-review", "worktree")
 	runGitCommand(t, legacyPath, "worktree", "add", "--detach", oldPath, "HEAD")
 	gitFile := filepath.Join(oldPath, ".git")
 	require.NoError(t, os.WriteFile(gitFile, []byte("gitdir: "+filepath.Join(legacyPath, "worktrees", "other")+"\n"), 0o644))
@@ -70,7 +70,7 @@ func TestRepoFixLeavesUnmatchedInternalCheckoutUntouched(t *testing.T) {
 
 	result := runTimberCommandWithRuntime(t, runtime, "repo", "fix")
 	require.NoError(t, result.err, result.stderr)
-	content, err := os.ReadFile(filepath.Join(runtime.bareRepoPath("timber"), "git-review", "worktree", ".git"))
+	content, err := os.ReadFile(filepath.Join(runtime.bareRepoPath("timber"), "timber-review", "worktree", ".git"))
 	require.NoError(t, err)
 	assert.Contains(t, string(content), filepath.Join(legacyPath, "worktrees", "other"))
 	assert.NotContains(t, result.stderr, "repaired")

@@ -122,7 +122,8 @@ Entry points:
 ## Commit review
 
 `timber review` embeds the Go implementation from [nnutter/git-review](https://github.com/nnutter/git-review).
-It uses the same saved review state as the standalone tool.
+It stores review state separately from the standalone tool.
+History from the standalone tool and earlier Timber builds is not migrated.
 Interactive review still requires `tuicr` on `PATH`.
 
 ```bash

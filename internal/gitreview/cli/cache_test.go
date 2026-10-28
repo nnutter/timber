@@ -39,7 +39,7 @@ func TestCacheWarmTargetsCurrentStack(t *testing.T) {
 			require.Empty(t, out)
 			require.Equal(t, 1, strings.Count(terminal, "Patch cache miss"))
 			require.NotContains(t, terminal, "Patch cache hit")
-			state, err := filepath.Glob(filepath.Join(dir, ".git", "tuicr-reviews", "*.json"))
+			state, err := filepath.Glob(filepath.Join(dir, ".git", "timber-review", "state", "*.json"))
 			require.NoError(t, err)
 			require.Empty(t, state)
 
@@ -57,7 +57,7 @@ func TestCachePruneSharedRepositoryCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 	require.Empty(t, terminal)
-	cache := filepath.Join(dir, ".git", "git-review", "cache", "patch-v2")
+	cache := filepath.Join(dir, ".git", "timber-review", "cache", "patch-v2")
 	require.NoDirExists(t, cache, "pruning an absent cache must not create it")
 	require.NoError(t, os.MkdirAll(cache, 0o700))
 	stale := filepath.Join(cache, strings.Repeat("a", 64)+".patch")
@@ -67,7 +67,7 @@ func TestCachePruneSharedRepositoryCache(t *testing.T) {
 	}
 	old := time.Now().Add(-31 * 24 * time.Hour)
 	require.NoError(t, os.Chtimes(stale, old, old))
-	state := filepath.Join(dir, ".git", "tuicr-reviews", "preserve.json")
+	state := filepath.Join(dir, ".git", "timber-review", "state", "preserve.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(state), 0o700))
 	require.NoError(t, os.WriteFile(state, []byte("not valid review history"), 0o600))
 
