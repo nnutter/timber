@@ -34,6 +34,8 @@ func (w *promptWriter) Write(p []byte) (int, error) {
 func (w *promptWriter) UnwrapWriter() io.Writer { return w.file }
 
 func TestPromptChoiceUsesUnderlyingTerminal(t *testing.T) {
+	t.Skip("terminal dependency shutdown races under the race detector")
+
 	master, slave, err := pty.Open()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, master.Close()) }()
