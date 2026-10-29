@@ -1,7 +1,9 @@
 package timber
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -13,7 +15,8 @@ func TestRepoRenameRollsBackCompletedWorktreeMoves(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
 	for _, branchName := range []string{"feature/first", "feature/second"} {
-		require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+		_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false)
+		require.NoError(t, err)
 	}
 
 	renameCalls := 0
@@ -47,7 +50,8 @@ func TestRepoRenameRollsBackAfterRepairFailure(t *testing.T) {
 	const branchName = "feature/repair-failure"
 
 	testRepository := newTestRepository(t)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false)
+	require.NoError(t, err)
 
 	repairCalls := 0
 	repair := func(barePath string, worktreePaths []string) error {
