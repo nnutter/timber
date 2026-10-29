@@ -36,8 +36,8 @@ func (w *promptWriter) UnwrapWriter() io.Writer { return w.file }
 func TestPromptChoiceUsesUnderlyingTerminal(t *testing.T) {
 	master, slave, err := pty.Open()
 	require.NoError(t, err)
-	defer master.Close()
-	defer slave.Close()
+	defer func() { require.NoError(t, master.Close()) }()
+	defer func() { require.NoError(t, slave.Close()) }()
 	require.NoError(t, pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}))
 
 	before, err := term.GetState(slave.Fd())
