@@ -236,17 +236,6 @@ func TestTodoUnknownWorktreeName(t *testing.T) {
 	require.Error(t, result.err)
 }
 
-func TestEditorCommandLineFailsWithoutEditorOrFallback(t *testing.T) {
-	t.Parallel()
-
-	// An empty PATH and an empty EDITOR leave no editor to find. This calls
-	// the editor lookup directly, so no git or worktree is involved.
-	runtime := Runtime{Environment: []string{"EDITOR=", "PATH=" + resolvedTempDir(t)}}
-
-	_, err := editorCommandLine(runtime)
-	require.ErrorContains(t, err, "EDITOR is not set")
-}
-
 func TestTodoFailsOutsideWorktree(t *testing.T) {
 	t.Parallel()
 

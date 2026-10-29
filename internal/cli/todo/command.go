@@ -1,7 +1,9 @@
-package timber
+package todo
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,29 +11,40 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nnutter/timber/internal/timber/todo"
+	tododata "github.com/nnutter/timber/internal/timber/todo"
 )
 
 // fallbackEditors is tried in order when EDITOR is unset.
 var fallbackEditors = []string{"nvim", "nano", "vim", "vi"}
 
+type Dependencies struct {
+	CurrentDirectory string
+	HomeDirectory    string
+	Environment      []string
+	SkillContent     string
+	ResolveGitDir    func(io.Reader, []string) (string, error)
+	Command          func(context.Context, string, ...string) *exec.Cmd
+	Complete         func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
+	RenderStatus     func(string) string
+}
+
 type todoCommandOptions struct {
-	repoSelection
+	deps         Dependencies
 	pathOnly     bool
 	installSkill bool
 	force        bool
 	jsonOutput   bool
 }
 
-func NewTodoCommand(runtime Runtime) *cobra.Command {
-	options := &todoCommandOptions{runtime: runtime}
+func New(deps Dependencies) *cobra.Command {
+	options := &todoCommandOptions{deps: deps}
 
 	command := &cobra.Command{
 		Use:               "todo [name[@repo]]",
 		Short:             "Open the worktree-specific TODO.md",
 		Args:              cobra.MaximumNArgs(1),
 		RunE:              options.Execute,
-		ValidArgsFunction: runtime.completeQualifiedWorktreeNames,
+		ValidArgsFunction: deps.Complete,
 	}
 	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO.md path instead of opening it")
 	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
@@ -49,12 +62,12 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return x.installTodoSkill(command)
 	}
 
-	gitDir, err := x.resolveTodoGitDir(command, args)
+	gitDir, err := x.deps.ResolveGitDir(command.InOrStdin(), args)
 	if err != nil {
 		return err
 	}
 
-	todoPath := todo.Path(gitDir)
+	todoPath := tododata.Path(gitDir)
 	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("create TODO.md: %w", err)
@@ -72,15 +85,15 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return x.reportTodoJSON(command, gitDir)
 	}
 
-	editorLine, err := editorCommandLine(x.runtime)
+	editorLine, err := editorCommandLine(x.deps.Environment)
 	if err != nil {
 		return err
 	}
 	fields := strings.Fields(editorLine)
 	editorArgs := append(fields[1:], todoPath)
 
-	editorCommand := x.runtime.command(command.Context(), fields[0], editorArgs...)
-	editorCommand.Dir = x.runtime.CurrentDirectory
+	editorCommand := x.deps.Command(command.Context(), fields[0], editorArgs...)
+	editorCommand.Dir = x.deps.CurrentDirectory
 	editorCommand.Stdin = command.InOrStdin()
 	editorCommand.Stdout = command.OutOrStdout()
 	editorCommand.Stderr = command.ErrOrStderr()
@@ -90,44 +103,12 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 	return nil
 }
 
-// resolveTodoGitDir returns the git directory holding the TODO.md. With no
-// arguments it is the current directory's git directory, so plain `todo`
-// works in any checkout. With a worktree selector it is the managed
-// worktree's git directory, resolved like the other worktree commands.
-func (x *todoCommandOptions) resolveTodoGitDir(command *cobra.Command, args []string) (string, error) {
-	if len(args) == 0 {
-		gitDirResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--absolute-git-dir")
-		if err != nil {
-			return "", fmt.Errorf("not inside a worktree: pass a worktree name or run inside a worktree")
-		}
-
-		bareResult, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "rev-parse", "--is-bare-repository")
-		if err != nil {
-			return "", err
-		}
-		if bareResult.stdout == "true" {
-			return "", fmt.Errorf("not inside a worktree: pass a worktree name or run inside a worktree")
-		}
-		return filepath.Clean(gitDirResult.stdout), nil
-	}
-
-	_, _, worktree, err := x.resolveQualifiedWorktree(command.InOrStdin(), args[0])
-	if err != nil {
-		return "", err
-	}
-	worktreeRepository, err := openRepository(x.runtime, worktree.Path)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Clean(worktreeRepository.GitDir), nil
-}
-
 func (x *todoCommandOptions) installTodoSkill(command *cobra.Command) error {
-	if x.runtime.TodoSkillContent == "" {
+	if x.deps.SkillContent == "" {
 		return fmt.Errorf("timber-todo skill content is not available")
 	}
 
-	destination := filepath.Join(x.runtime.HomeDirectory, ".agents", "skills", "timber-todo", "SKILL.md")
+	destination := filepath.Join(x.deps.HomeDirectory, ".agents", "skills", "timber-todo", "SKILL.md")
 	if _, err := os.Stat(destination); err == nil && !x.force {
 		return fmt.Errorf("skill already exists at %s (use --force to overwrite)", destination)
 	} else if err != nil && !os.IsNotExist(err) {
@@ -137,23 +118,23 @@ func (x *todoCommandOptions) installTodoSkill(command *cobra.Command) error {
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		return fmt.Errorf("create skill directory: %w", err)
 	}
-	if err := os.WriteFile(destination, []byte(x.runtime.TodoSkillContent), 0o644); err != nil {
+	if err := os.WriteFile(destination, []byte(x.deps.SkillContent), 0o644); err != nil {
 		return fmt.Errorf("write skill file: %w", err)
 	}
 
-	_, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("installed timber-todo skill to "+destination))
+	_, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", x.deps.RenderStatus("installed timber-todo skill to "+destination))
 	return err
 }
 
-func editorCommandLine(runtime Runtime) (string, error) {
-	if runtime.Environment != nil {
-		for _, entry := range runtime.Environment {
+func editorCommandLine(environment []string) (string, error) {
+	if environment != nil {
+		for _, entry := range environment {
 			key, value, _ := strings.Cut(entry, "=")
 			if key == "EDITOR" && value != "" {
 				return value, nil
 			}
 		}
-		if candidate, found := lookupFallbackEditor(runtimePathEnv(runtime.Environment)); found {
+		if candidate, found := lookupFallbackEditor(runtimePathEnv(environment)); found {
 			return candidate, nil
 		}
 	} else {
