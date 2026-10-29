@@ -48,7 +48,7 @@ func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg
 	}
 
 	var selectedWorktrees []managedWorktree
-	if prompt {
+	if prompt && prompter != nil {
 		refs := make([]WorktreeRef, 0, len(enrichedWorktrees))
 		for _, worktree := range enrichedWorktrees {
 			refs = append(refs, worktree.ref())
