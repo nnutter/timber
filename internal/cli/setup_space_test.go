@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"os"
@@ -8,14 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func parentDashboardLogLine() string {
-	return fakeHerdrLogLine("pane", "run", "w1:p1", "while :; do clear; timber list '@"+testRepoName+"' --pr; sleep 60; done")
-}
-
-func parentDashboardLogLineWithoutPR() string {
-	return fakeHerdrLogLine("pane", "run", "w1:p1", "while :; do clear; timber list '@"+testRepoName+"'; sleep 60; done")
-}
 
 func TestSetupSpaceOpensNamedWorktreeInNewHerdrWorkspace(t *testing.T) {
 	t.Parallel()
@@ -32,8 +24,8 @@ func TestSetupSpaceOpensNamedWorktreeInNewHerdrWorkspace(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
 
-	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
-	barePath := canonicalPath(testRepository.barePath)
+	worktreePath := shellCanonicalPath(testRepository.worktreePath(branchName))
+	barePath := shellCanonicalPath(testRepository.barePath)
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
 		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
@@ -65,8 +57,8 @@ func TestSetupSpaceDashboardOmitsPullRequestsWithoutGhAuth(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
 
-	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
-	barePath := canonicalPath(testRepository.barePath)
+	worktreePath := shellCanonicalPath(testRepository.worktreePath(branchName))
+	barePath := shellCanonicalPath(testRepository.barePath)
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
 		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
@@ -98,8 +90,8 @@ func TestSetupSpaceReusesExistingParentWorkspace(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
 
-	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
-	barePath := canonicalPath(testRepository.barePath)
+	worktreePath := shellCanonicalPath(testRepository.worktreePath(branchName))
+	barePath := shellCanonicalPath(testRepository.barePath)
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
 		fakeHerdrLogLine("workspace", "get", "w7"),
@@ -132,8 +124,8 @@ func TestSetupSpaceRenamesLegacyParentLabel(t *testing.T) {
 	result := testRepository.runTimber(t, "herdr", "space", "--new", at(testRepoName, branchName))
 	require.NoError(t, result.err, result.stderr)
 
-	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
-	barePath := canonicalPath(testRepository.barePath)
+	worktreePath := shellCanonicalPath(testRepository.worktreePath(branchName))
+	barePath := shellCanonicalPath(testRepository.barePath)
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
 		fakeHerdrLogLine("workspace", "get", "w7"),
@@ -164,8 +156,8 @@ func TestSetupSpaceFocusesAlreadyOpenWorktreeWithoutReconfiguring(t *testing.T) 
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stderr, "opened herdr space for "+branchName)
 
-	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
-	barePath := canonicalPath(testRepository.barePath)
+	worktreePath := shellCanonicalPath(testRepository.worktreePath(branchName))
+	barePath := shellCanonicalPath(testRepository.barePath)
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("worktree", "list", "--cwd", barePath),
 		fakeHerdrLogLine("workspace", "create", "--cwd", barePath, "--label", testRepoName, "--no-focus"),
@@ -191,7 +183,7 @@ func TestSetupSpaceDefinesNamedWorktreeTabsInCurrentHerdrSpace(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stderr, "defined herdr tabs in current space for "+branchName)
 
-	worktreePath := canonicalPath(testRepository.worktreePath(branchName))
+	worktreePath := shellCanonicalPath(testRepository.worktreePath(branchName))
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("pane", "current", "--current"),
 		fakeHerdrLogLine("tab", "rename", "w9:t1", "Agent"),
@@ -237,7 +229,7 @@ func TestSetupSpaceUsesCurrentWorktreeFromSubdirectory(t *testing.T) {
 	result := testRepository.runTimberFrom(t, subdirectory, "herdr", "space")
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, readFakeHerdrLog(t, logPath), fakeHerdrLogLine(
-		"tab", "create", "--workspace", "w9", "--cwd", canonicalPath(testRepository.worktreePath(branchName)),
+		"tab", "create", "--workspace", "w9", "--cwd", shellCanonicalPath(testRepository.worktreePath(branchName)),
 		"--label", "Shell", "--no-focus",
 	))
 }
@@ -330,7 +322,7 @@ func TestSetupSpaceFailsWhenParentLookupFails(t *testing.T) {
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "herdr worktree list")
 	assert.Equal(t, []string{
-		fakeHerdrLogLine("worktree", "list", "--cwd", canonicalPath(testRepository.barePath)),
+		fakeHerdrLogLine("worktree", "list", "--cwd", shellCanonicalPath(testRepository.barePath)),
 	}, readFakeHerdrLog(t, logPath))
 }
 

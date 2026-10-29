@@ -135,6 +135,10 @@ func readFakeHerdrLog(t *testing.T, logPath string) []string {
 	return strings.Split(strings.TrimSpace(string(contents)), "\n")
 }
 
+func parentDashboardLogLineWithoutPR() string {
+	return fakeHerdrLogLine("pane", "run", "w1:p1", "while :; do clear; timber list '@"+testRepoName+"'; sleep 60; done")
+}
+
 func parentDashboardLogLine() string {
 	return fakeHerdrLogLine("pane", "run", "w1:p1", "while :; do clear; timber list '@"+testRepoName+"' --pr; sleep 60; done")
 }

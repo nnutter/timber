@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"os"
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nnutter/timber/herdr"
+	"github.com/nnutter/timber/internal/timber"
 )
 
 func TestHerdrInstallWritesPluginAndLinks(t *testing.T) {
@@ -16,7 +17,7 @@ func TestHerdrInstallWritesPluginAndLinks(t *testing.T) {
 	configHome := resolvedTempDir(t)
 	runtime := testRuntime(t)
 	runtime.ConfigHome = configHome
-	runtime.Environment = replaceTestEnvironment(runtime.Environment, "XDG_CONFIG_HOME="+configHome)
+	runtime.Environment = shellTestEnvironment(runtime.Environment, "XDG_CONFIG_HOME="+configHome)
 	logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 	runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 
@@ -27,7 +28,7 @@ func TestHerdrInstallWritesPluginAndLinks(t *testing.T) {
 	assert.Contains(t, result.stderr, "installed herdr plugin to "+destination)
 	assert.Contains(t, result.stderr, "linked herdr plugin nnutter.timber")
 	assert.Contains(t, result.stdout, filepath.Join(configHome, "herdr", "config.toml"))
-	assert.Contains(t, result.stdout, HerdrKeybindingTOML)
+	assert.Contains(t, result.stdout, timber.HerdrKeybindingTOML)
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("plugin", "link", destination, "--enabled"),
 	}, readFakeHerdrLog(t, logPath))
@@ -50,7 +51,7 @@ func TestHerdrInstallFailsWhenPluginLinkFails(t *testing.T) {
 	configHome := resolvedTempDir(t)
 	runtime := testRuntime(t)
 	runtime.ConfigHome = configHome
-	runtime.Environment = replaceTestEnvironment(
+	runtime.Environment = shellTestEnvironment(
 		runtime.Environment,
 		"XDG_CONFIG_HOME="+configHome,
 		"FAKE_HERDR_FAIL=plugin link",
@@ -63,7 +64,7 @@ func TestHerdrInstallFailsWhenPluginLinkFails(t *testing.T) {
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "herdr plugin link")
 	assert.FileExists(t, filepath.Join(configHome, "herdr", "plugins", "timber", "herdr-plugin.toml"))
-	assert.NotContains(t, result.stdout, HerdrKeybindingTOML)
+	assert.NotContains(t, result.stdout, timber.HerdrKeybindingTOML)
 }
 
 func mustEmbeddedPluginFiles(t *testing.T) []string {
