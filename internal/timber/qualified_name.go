@@ -16,10 +16,3 @@ func rejectAtInWorktreeName(name string) error {
 	}
 	return nil
 }
-
-func nameArgs(name string) []string {
-	if name == "" {
-		return nil
-	}
-	return []string{name}
-}

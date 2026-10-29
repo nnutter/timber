@@ -56,11 +56,6 @@ func newRootCommand(runtime Runtime) *cobra.Command {
 	return root.New(runtime.HomeDirectory, runtime.SkillContent, Commands(runtime)...)
 }
 
-func newTestRootCommand(t *testing.T) *cobra.Command {
-	t.Helper()
-	return newRootCommand(testRuntime(t))
-}
-
 func newTestRootCommandWithRuntime(t *testing.T, runtime Runtime) *cobra.Command {
 	t.Helper()
 	return newRootCommand(runtime)
