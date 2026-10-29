@@ -44,6 +44,12 @@ func runTimberCommandWithRuntime(t *testing.T, runtime timber.Runtime, args ...s
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 
+func runTimberFromWithRuntime(t *testing.T, runtime timber.Runtime, directory string, args ...string) commandResult {
+	t.Helper()
+	runtime.CurrentDirectory = directory
+	return runTimberCommandWithRuntime(t, runtime, args...)
+}
+
 func runCompleteWithRuntime(t *testing.T, runtime timber.Runtime, args ...string) string {
 	t.Helper()
 	command := newRootCommand(runtime)
@@ -73,6 +79,9 @@ func testRuntime(t *testing.T) timber.Runtime {
 			"XDG_DATA_HOME="+dataHome,
 			"XDG_CONFIG_HOME="+configHome,
 			"TIMBER_WORKTREE_ROOT="+worktreeRoot,
+			// Fixtures can live inside this checkout. Do not discover its
+			// repository when the command runs outside a fixture worktree.
+			"GIT_CEILING_DIRECTORIES="+filepath.Dir(home),
 		),
 	}
 }
@@ -126,9 +135,7 @@ func (x testRepository) runTimber(t *testing.T, args ...string) commandResult {
 
 func (x testRepository) runTimberFrom(t *testing.T, directory string, args ...string) commandResult {
 	t.Helper()
-	runtime := x.runtime
-	runtime.CurrentDirectory = directory
-	return runTimberCommandWithRuntime(t, runtime, args...)
+	return runTimberFromWithRuntime(t, x.runtime, directory, args...)
 }
 
 func (x testRepository) commitFileInWorktree(t *testing.T, branch, name, contents string) {
