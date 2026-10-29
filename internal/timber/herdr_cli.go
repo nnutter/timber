@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/nnutter/timber/internal/display"
+
 	"github.com/spf13/cobra"
 
 	cliherdr "github.com/nnutter/timber/internal/cli/herdr"
@@ -13,7 +15,7 @@ import (
 
 func herdrCommand(runtime Runtime) *cobra.Command {
 	selection := repoSelection{runtime: runtime}
-	renderStatus := func(message string) string { return statusStyle.Render(message) }
+	renderStatus := func(message string) string { return display.StatusStyle.Render(message) }
 	installDeps := install.Dependencies{
 		Directory:  runtime.herdrPluginInstallDirectory(),
 		ConfigFile: runtime.herdrConfigFilePath(),

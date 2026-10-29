@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nnutter/timber/internal/display"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -145,7 +147,7 @@ func (m *createWizardModel) View() string {
 	view += tuiWorktreeInputBoxStyle.Render(m.input.View()) + "\n" +
 		m.list.View()
 	if m.err != nil {
-		view += "\n" + warningStyle.Render(m.err.Error())
+		view += "\n" + display.WarningStyle.Render(m.err.Error())
 	}
 	return tuiWorktreeViewStyle.Render(view + "\n" + tuiWorktreeLegendStyle.Render(tuiWorktreeLegend))
 }

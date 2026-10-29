@@ -8,6 +8,11 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+var (
+	aheadStatusStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	behindStatusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+)
+
 type listStatusFormatter struct {
 	aheadCountWidth  int
 	behindCountWidth int

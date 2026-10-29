@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/nnutter/timber/internal/display"
 )
 
 // RemoveWorktree resolves a worktree selector and removes it. It returns the
@@ -89,17 +91,17 @@ func (runtime Runtime) removeResolvedWorktree(repository *Repository, worktree m
 
 func reportWorktreeRemoval(output io.Writer, worktree managedWorktree, removingCurrentDirectory bool) error {
 	if _, err := os.Stat(worktree.Path); err == nil {
-		if _, writeErr := fmt.Fprintf(output, "%s\n", warningStyle.Render("warning: worktree directory still exists: "+worktree.Path)); writeErr != nil {
+		if _, writeErr := fmt.Fprintf(output, "%s\n", display.WarningStyle.Render("warning: worktree directory still exists: "+worktree.Path)); writeErr != nil {
 			return writeErr
 		}
 	}
 
 	message := fmt.Sprintf("removed %s at %s", worktree.Name, worktree.shortCommitHash())
-	if _, err := fmt.Fprintf(output, "%s\n", statusStyle.Render(message)); err != nil {
+	if _, err := fmt.Fprintf(output, "%s\n", display.StatusStyle.Render(message)); err != nil {
 		return err
 	}
 	if removingCurrentDirectory {
-		_, err := fmt.Fprintf(output, "%s\n", warningStyle.Render("current directory was removed"))
+		_, err := fmt.Fprintf(output, "%s\n", display.WarningStyle.Render("current directory was removed"))
 		return err
 	}
 	return nil

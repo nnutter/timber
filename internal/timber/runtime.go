@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nnutter/timber/internal/display"
+
 	"github.com/spf13/cobra"
 
 	"github.com/nnutter/timber/internal/timber/todo"
@@ -409,7 +411,7 @@ func (x Runtime) reportPruneDryRun(output io.Writer, worktrees []managedWorktree
 			worktree.Repo,
 			x.displayHomePath(worktree.Path),
 		)
-		if _, err := fmt.Fprintf(output, "%s\n", statusStyle.Render(message)); err != nil {
+		if _, err := fmt.Fprintf(output, "%s\n", display.StatusStyle.Render(message)); err != nil {
 			return err
 		}
 	}

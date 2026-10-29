@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"slices"
 
-	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 
+	"github.com/nnutter/timber/internal/display"
 	"github.com/nnutter/timber/internal/timber/repo"
 )
 
@@ -42,14 +41,7 @@ func New(query func(bool) ([]repo.Repo, error)) *cobra.Command {
 				}
 				return nil
 			}
-			tableView := table.New().Headers("Name", "Alias", "Origin").
-				Border(lipgloss.NormalBorder()).BorderHeader(true).
-				StyleFunc(func(row, column int) lipgloss.Style {
-					if row == table.HeaderRow {
-						return lipgloss.NewStyle().Bold(true).PaddingLeft(1).PaddingRight(1)
-					}
-					return lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1)
-				})
+			tableView := display.NewOutputTable("Name", "Alias", "Origin")
 			for _, repo := range repos {
 				tableView.Row(repo.Name, repo.Alias, repo.Origin)
 			}

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/nnutter/timber/internal/display"
 )
 
 // ListWorktrees lists managed worktrees as a table or JSON document. All
@@ -59,7 +61,7 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 		}
 	}
 	statusFormatter := newListStatusFormatter(worktrees)
-	tableView := newOutputTable(headers...).BorderRow(true)
+	tableView := display.NewOutputTable(headers...).BorderRow(true)
 	tableView.Rows(groupListTableRows(worktrees, statusFormatter, pullRequests, location)...)
 
 	_, err = fmt.Fprintln(stdout, dottedListRowRules(tableView.String()))
@@ -171,7 +173,7 @@ func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusF
 
 func formatDirtyStatus(clean bool) string {
 	if !clean {
-		return warningStyle.Render("dirty")
+		return display.WarningStyle.Render("dirty")
 	}
 	return "clean"
 }

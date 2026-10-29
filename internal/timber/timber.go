@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/nnutter/timber/internal/display"
+
 	"github.com/spf13/cobra"
 
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
@@ -47,29 +49,29 @@ func Commands(runtime Runtime) []*cobra.Command {
 		cliremove.New(cliremove.Dependencies{
 			Remove:       runtime.RemoveWorktree,
 			Complete:     runtime.completeQualifiedWorktreeNames,
-			RenderStatus: func(message string) string { return statusStyle.Render(message) },
+			RenderStatus: func(message string) string { return display.StatusStyle.Render(message) },
 			RenderWarning: func(message string) string {
-				return warningStyle.Render(message)
+				return display.WarningStyle.Render(message)
 			},
 		}),
 		clirepo.New(
 			repoadd.New(repoadd.Dependencies{
 				Add:          runtime.AddRepo,
-				RenderStatus: func(message string) string { return statusStyle.Render(message) },
+				RenderStatus: func(message string) string { return display.StatusStyle.Render(message) },
 			}),
 			repoimport.New(repoimport.Dependencies{
 				Import: runtime.ImportRepo,
 			}),
 			repofix.New(repofix.Dependencies{
 				Fix:          runtime.FixRepos,
-				RenderStatus: func(message string) string { return statusStyle.Render(message) },
+				RenderStatus: func(message string) string { return display.StatusStyle.Render(message) },
 			}),
 			repolist.New(runtime.ListRepos),
-			reporemove.New(runtime.removeRepo, runtime.completeRegisteredRepoNames, func(message string) string { return statusStyle.Render(message) }),
+			reporemove.New(runtime.removeRepo, runtime.completeRegisteredRepoNames, func(message string) string { return display.StatusStyle.Render(message) }),
 			reporename.New(reporename.Dependencies{
 				Rename:       runtime.RenameRepo,
 				Complete:     runtime.completeRepoRenameArguments,
-				RenderStatus: func(message string) string { return statusStyle.Render(message) },
+				RenderStatus: func(message string) string { return display.StatusStyle.Render(message) },
 			}),
 		),
 		clireview.New(runtime.CurrentDirectory, runtime.HomeDirectory, runtime.ReviewSkillContent),
@@ -107,7 +109,7 @@ func todoCommand(runtime Runtime) *cobra.Command {
 		SkillContent:     runtime.TodoSkillContent,
 		Command:          runtime.command,
 		Complete:         runtime.completeQualifiedWorktreeNames,
-		RenderStatus:     func(message string) string { return statusStyle.Render(message) },
+		RenderStatus:     func(message string) string { return display.StatusStyle.Render(message) },
 		ResolveGitDir:    runtime.resolveTodoGitDir,
 	})
 }

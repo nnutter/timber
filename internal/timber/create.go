@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/nnutter/timber/internal/display"
 )
 
 // CreateManagedWorktree creates a managed worktree and runs automatic setup.
@@ -100,7 +102,7 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 		}
 	}
 
-	if _, err := fmt.Fprintf(output, "%s\n", statusStyle.Render("created "+worktreePath)); err != nil {
+	if _, err := fmt.Fprintf(output, "%s\n", display.StatusStyle.Render("created "+worktreePath)); err != nil {
 		return "", false, err
 	}
 

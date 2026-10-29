@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/display"
 )
 
 func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
@@ -52,7 +54,7 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 				assert.Equal(t, names, rows[index][0])
 			}
 
-			tableView := newOutputTable("Name", "Repo", "Status", "Todo", "Review", "Commit", "Dirty").BorderRow(true)
+			tableView := display.NewOutputTable("Name", "Repo", "Status", "Todo", "Review", "Commit", "Dirty").BorderRow(true)
 			tableView.Rows(rows...)
 			tableOutput := dottedListRowRules(tableView.String())
 			assert.Equal(t, testCase.horizontalRuleRows, strings.Count(tableOutput, "├"))
@@ -127,7 +129,7 @@ func TestListLocationIsOptionalLastColumn(t *testing.T) {
 func TestFormatDirtyStatusColorsTrueYellow(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "clean", formatDirtyStatus(true))
-	assert.Equal(t, warningStyle.Render("dirty"), formatDirtyStatus(false))
+	assert.Equal(t, display.WarningStyle.Render("dirty"), formatDirtyStatus(false))
 }
 
 func TestListReportsTodoProgress(t *testing.T) {

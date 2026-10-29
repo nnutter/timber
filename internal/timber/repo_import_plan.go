@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/nnutter/timber/internal/display"
 )
 
 type importPlan struct {
@@ -110,7 +112,7 @@ func (x *importPlan) run(stderr io.Writer) error {
 		x.repoName,
 		x.runtime.displayHomePath(x.barePath),
 	)
-	if _, err := fmt.Fprintf(stderr, "%s\n", statusStyle.Render(registeredMessage)); err != nil {
+	if _, err := fmt.Fprintf(stderr, "%s\n", display.StatusStyle.Render(registeredMessage)); err != nil {
 		return err
 	}
 
@@ -196,13 +198,13 @@ func (x *importPlan) reportSummary(stderr io.Writer) error {
 			x.runtime.displayHomePath(skip.Path),
 			skip.Reason,
 		)
-		if _, err := fmt.Fprintf(stderr, "%s\n", warningStyle.Render(message)); err != nil {
+		if _, err := fmt.Fprintf(stderr, "%s\n", display.WarningStyle.Render(message)); err != nil {
 			return err
 		}
 	}
 
 	message := fmt.Sprintf("imported %d worktrees:", len(x.worktrees))
-	if _, err := fmt.Fprintf(stderr, "%s\n", statusStyle.Render(message)); err != nil {
+	if _, err := fmt.Fprintf(stderr, "%s\n", display.StatusStyle.Render(message)); err != nil {
 		return err
 	}
 	for _, worktree := range x.worktrees {
@@ -212,14 +214,14 @@ func (x *importPlan) reportSummary(stderr io.Writer) error {
 			x.runtime.displayHomePath(worktree.CurrentPath),
 			x.runtime.displayHomePath(worktree.TargetPath),
 		)
-		if _, err := fmt.Fprintf(stderr, "%s\n", statusStyle.Render(message)); err != nil {
+		if _, err := fmt.Fprintf(stderr, "%s\n", display.StatusStyle.Render(message)); err != nil {
 			return err
 		}
 	}
 
 	if len(x.worktrees) > 0 {
 		note := "old worktrees were moved to the system trash; restore them from there if needed"
-		if _, err := fmt.Fprintf(stderr, "%s\n", statusStyle.Render(note)); err != nil {
+		if _, err := fmt.Fprintf(stderr, "%s\n", display.StatusStyle.Render(note)); err != nil {
 			return err
 		}
 	}
