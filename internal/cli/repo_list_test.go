@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"os"
@@ -12,10 +12,9 @@ import (
 
 func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
+	runtime := testRuntime(t)
 
-	barePath := runtime.bareRepoPath("local")
+	barePath := repoTestBarePath(runtime, "local")
 	require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
 	runGitCommand(t, resolvedTempDir(t), "init", "--bare", barePath)
 
@@ -23,13 +22,13 @@ func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stdout, "Origin")
 	assert.Contains(t, result.stdout, "local")
-	assert.NotContains(t, result.stdout, runtime.displayHomePath(barePath))
+	assert.NotContains(t, result.stdout, filepath.Join("~", "worktrees", "local", ".git"))
 }
 
 func TestRepoListSortOrder(t *testing.T) {
 	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
+	runtime := testRuntime(t)
+	home := runtime.HomeDirectory
 	for _, repo := range []struct {
 		name   string
 		alias  string
@@ -41,7 +40,7 @@ func TestRepoListSortOrder(t *testing.T) {
 		{name: "gamma", alias: "aardvark"},
 		{name: "local"},
 	} {
-		barePath := runtime.bareRepoPath(repo.name)
+		barePath := repoTestBarePath(runtime, repo.name)
 		require.NoError(t, os.MkdirAll(filepath.Dir(barePath), 0o755))
 		runGitCommand(t, home, "init", "--bare", barePath)
 		if repo.origin != "" {
