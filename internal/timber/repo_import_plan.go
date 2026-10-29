@@ -141,7 +141,7 @@ func (x *importPlan) run(reporter ImportReporter) error {
 		Worktrees: make([]ImportMove, 0, len(x.worktrees)),
 	}
 	for _, skip := range x.skips {
-		summary.Skipped = append(summary.Skipped, ImportSkipped{Path: skip.Path, Reason: skip.Reason})
+		summary.Skipped = append(summary.Skipped, ImportSkipped(skip))
 	}
 	for _, worktree := range x.worktrees {
 		summary.Worktrees = append(summary.Worktrees, ImportMove{
