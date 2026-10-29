@@ -56,7 +56,7 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 		}),
 		cliprune.New(cliprune.Dependencies{
 			Prune: func(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool) error {
-				return runtime.PruneWorktrees(input, output, repoArg, prompt, dryRun, nil)
+				return runtime.PruneWorktrees(input, output, repoArg, prompt, dryRun, huhWorktreePrompter{})
 			},
 			Complete: cliComplete.RepoQualifiers(runtime),
 		}),

@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"io"
@@ -7,11 +7,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/timber"
 )
 
 func TestFunctionalPrunePromptDistinguishesSameNameAcrossRepositories(t *testing.T) {
 	t.Parallel()
-	worktrees := []WorktreeRef{
+	worktrees := []timber.WorktreeRef{
 		{Repo: "alpha", Name: "feature", Clean: true},
 		{Repo: "beta", Name: "feature", Clean: true},
 	}

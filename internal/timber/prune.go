@@ -1,6 +1,7 @@
 package timber
 
 import (
+	"errors"
 	"io"
 
 	"github.com/samber/lo"
@@ -8,8 +9,13 @@ import (
 
 // PruneWorktrees removes merged and clean managed worktrees. With prompt it
 // asks which worktrees to remove; with dryRun it only reports candidates.
+// A non-nil prompter is required when prompt is true.
 // All progress is written to output, preserving CLI reporting order.
 func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool, prompter WorktreePrompter) error {
+	if prompt && prompter == nil {
+		return errors.New("prune prompt requires a worktree prompter")
+	}
+
 	selection := repoSelection{runtime: runtime}
 	if repoArg != "" {
 		repo, err := runtime.parseRepoOnlyArg(repoArg)
@@ -31,9 +37,6 @@ func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg
 
 	var selectedWorktrees []managedWorktree
 	if prompt {
-		if prompter == nil {
-			prompter = huhWorktreePrompter{}
-		}
 		refs := make([]WorktreeRef, 0, len(enrichedWorktrees))
 		for _, worktree := range enrichedWorktrees {
 			refs = append(refs, worktree.ref())
