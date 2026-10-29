@@ -12,6 +12,7 @@ import (
 	repofix "github.com/nnutter/timber/internal/cli/repo/fix"
 	repolist "github.com/nnutter/timber/internal/cli/repo/list"
 	reporemove "github.com/nnutter/timber/internal/cli/repo/remove"
+	reporename "github.com/nnutter/timber/internal/cli/repo/rename"
 	clireview "github.com/nnutter/timber/internal/cli/review"
 	clitodo "github.com/nnutter/timber/internal/cli/todo"
 )
@@ -42,7 +43,11 @@ func Commands(runtime Runtime) []*cobra.Command {
 			}),
 			repolist.New(runtime.ListRepos),
 			reporemove.New(runtime.removeRepo, runtime.completeRegisteredRepoNames, func(message string) string { return statusStyle.Render(message) }),
-			NewRepoRenameCommand(runtime),
+			reporename.New(reporename.Dependencies{
+				Rename:       runtime.RenameRepo,
+				Complete:     runtime.completeRepoRenameArguments,
+				RenderStatus: func(message string) string { return statusStyle.Render(message) },
+			}),
 		),
 		clireview.New(runtime.CurrentDirectory, runtime.HomeDirectory, runtime.ReviewSkillContent),
 		herdrCommand(runtime),

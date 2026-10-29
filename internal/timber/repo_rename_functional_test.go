@@ -2,7 +2,6 @@ package timber
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -206,24 +205,20 @@ func TestRepoRenameRollsBackCompletedWorktreeMoves(t *testing.T) {
 	}
 
 	renameCalls := 0
-	options := &repoRenameCommandOptions{
-		runtime: testRepository.runtime,
-		renamePath: func(source string, destination string) error {
-			renameCalls++
-			if renameCalls == 2 {
-				return fmt.Errorf("injected rename failure")
-			}
-			return os.Rename(source, destination)
-		},
-		repairWorktrees: func(barePath string, worktreePaths []string) error {
-			return repairWorktrees(testRepository.runtime, barePath, worktreePaths)
-		},
+	renamePath := func(source string, destination string) error {
+		renameCalls++
+		if renameCalls == 2 {
+			return fmt.Errorf("injected rename failure")
+		}
+		return os.Rename(source, destination)
 	}
-	command := newTestRootCommandWithRuntime(t, testRepository.runtime)
-	command.SetOut(io.Discard)
-	command.SetErr(io.Discard)
+	repair := func(barePath string, worktreePaths []string) error {
+		return repairWorktrees(testRepository.runtime, barePath, worktreePaths)
+	}
 
-	err := options.Execute(command, []string{testRepoName, "renamed"})
+	plan, err := testRepository.runtime.buildRepositoryRenamePlan(testRepoName, "renamed")
+	require.NoError(t, err)
+	err = plan.apply(renamePath, repair)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "injected rename failure")
 	assert.DirExists(t, testRepository.barePath)
@@ -243,22 +238,17 @@ func TestRepoRenameRollsBackAfterRepairFailure(t *testing.T) {
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 
 	repairCalls := 0
-	options := &repoRenameCommandOptions{
-		runtime:    testRepository.runtime,
-		renamePath: os.Rename,
-		repairWorktrees: func(barePath string, worktreePaths []string) error {
-			repairCalls++
-			if repairCalls == 1 {
-				return fmt.Errorf("injected repair failure")
-			}
-			return repairWorktrees(testRepository.runtime, barePath, worktreePaths)
-		},
+	repair := func(barePath string, worktreePaths []string) error {
+		repairCalls++
+		if repairCalls == 1 {
+			return fmt.Errorf("injected repair failure")
+		}
+		return repairWorktrees(testRepository.runtime, barePath, worktreePaths)
 	}
-	command := newTestRootCommandWithRuntime(t, testRepository.runtime)
-	command.SetOut(io.Discard)
-	command.SetErr(io.Discard)
 
-	err := options.Execute(command, []string{testRepoName, "renamed"})
+	plan, err := testRepository.runtime.buildRepositoryRenamePlan(testRepoName, "renamed")
+	require.NoError(t, err)
+	err = plan.apply(os.Rename, repair)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "injected repair failure")
 	assert.DirExists(t, testRepository.barePath)
