@@ -11,7 +11,7 @@ import (
 
 func TestFunctionalPrunePromptDefaultsToCleanMergedWorktrees(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
+	worktrees := []WorktreeRef{
 		{Repo: "alpha", Name: "merged", Clean: true, Merged: true},
 		{Repo: "alpha", Name: "unmerged", Clean: true, Merged: false},
 		{Repo: "alpha", Name: "dirty", Clean: false, Merged: true},

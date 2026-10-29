@@ -11,7 +11,7 @@ import (
 
 func TestFunctionalPrunePromptDistinguishesSameNameAcrossRepositories(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
+	worktrees := []WorktreeRef{
 		{Repo: "alpha", Name: "feature", Clean: true},
 		{Repo: "beta", Name: "feature", Clean: true},
 	}

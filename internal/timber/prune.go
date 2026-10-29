@@ -9,7 +9,7 @@ import (
 // PruneWorktrees removes merged and clean managed worktrees. With prompt it
 // asks which worktrees to remove; with dryRun it only reports candidates.
 // All progress is written to output, preserving CLI reporting order.
-func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool, prompter worktreePrompter) error {
+func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool, prompter WorktreePrompter) error {
 	selection := repoSelection{runtime: runtime}
 	if repoArg != "" {
 		repo, err := runtime.parseRepoOnlyArg(repoArg)
@@ -34,9 +34,20 @@ func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg
 		if prompter == nil {
 			prompter = huhWorktreePrompter{}
 		}
-		selectedWorktrees, err = prompter.Prompt(input, output, enrichedWorktrees)
+		refs := make([]WorktreeRef, 0, len(enrichedWorktrees))
+		for _, worktree := range enrichedWorktrees {
+			refs = append(refs, worktree.ref())
+		}
+		selectedRefs, err := prompter.Prompt(input, output, refs)
 		if err != nil {
 			return err
+		}
+		for _, ref := range selectedRefs {
+			worktree, err := managedWorktreeByKey(enrichedWorktrees, worktreeRefKey(ref))
+			if err != nil {
+				return err
+			}
+			selectedWorktrees = append(selectedWorktrees, worktree)
 		}
 	} else {
 		selectedWorktrees = lo.Filter(enrichedWorktrees, func(worktree managedWorktree, _ int) bool {

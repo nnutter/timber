@@ -25,23 +25,23 @@ type commandResult struct {
 }
 
 type stubPrompter struct {
-	selected []managedWorktree
+	selected []WorktreeRef
 	err      error
 }
 
 type stubCreateWizardPrompter struct {
-	selection createWizardSelection
+	selection WizardSelection
 	err       error
-	repos     []registeredRepo
-	worktrees []managedWorktree
+	repos     []RepoRef
+	worktrees []WorktreeRef
 	showTitle bool
 }
 
-func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []managedWorktree) ([]managedWorktree, error) {
+func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []WorktreeRef) ([]WorktreeRef, error) {
 	if x.err != nil {
 		return nil, x.err
 	}
-	var selected []managedWorktree
+	var selected []WorktreeRef
 	for _, choice := range x.selected {
 		for _, worktree := range worktrees {
 			if worktree.Name == choice.Name && (choice.Repo == "" || worktree.Repo == choice.Repo) {
@@ -55,10 +55,10 @@ func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []mana
 func (x *stubCreateWizardPrompter) Prompt(
 	input io.Reader,
 	output io.Writer,
-	repos []registeredRepo,
-	worktrees []managedWorktree,
+	repos []RepoRef,
+	worktrees []WorktreeRef,
 	showTitle bool,
-) (createWizardSelection, error) {
+) (WizardSelection, error) {
 	x.repos = repos
 	x.worktrees = worktrees
 	x.showTitle = showTitle
@@ -528,7 +528,7 @@ type tuiTestOptions struct {
 func runTUICreate(
 	t *testing.T,
 	options *tuiTestOptions,
-	prompter createWizardPrompter,
+	prompter WizardPrompter,
 ) commandResult {
 	t.Helper()
 

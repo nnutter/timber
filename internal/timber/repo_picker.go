@@ -10,8 +10,19 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type repoPrompter interface {
-	Prompt(repos []registeredRepo) (registeredRepo, error)
+// RepoRef identifies a registered repository for selection UI.
+type RepoRef struct {
+	Name     string
+	BarePath string
+}
+
+// RepoPrompter selects a registered repository interactively.
+type RepoPrompter interface {
+	Prompt(repos []RepoRef) (RepoRef, error)
+}
+
+func (x registeredRepo) ref() RepoRef {
+	return RepoRef{Name: x.Name, BarePath: x.BarePath}
 }
 
 type bubbleteaRepoPrompter struct {
@@ -19,7 +30,7 @@ type bubbleteaRepoPrompter struct {
 	output io.Writer
 }
 
-func newRepoPickerModel(repos []registeredRepo) repoPickerModel {
+func newRepoPickerModel(repos []RepoRef) repoPickerModel {
 	items := make([]list.Item, 0, len(repos))
 	for _, repo := range repos {
 		items = append(items, repoListItem{repo: repo})
@@ -37,7 +48,7 @@ func newRepoPickerModel(repos []registeredRepo) repoPickerModel {
 	return repoPickerModel{list: repoList}
 }
 
-func (x bubbleteaRepoPrompter) Prompt(repos []registeredRepo) (registeredRepo, error) {
+func (x bubbleteaRepoPrompter) Prompt(repos []RepoRef) (RepoRef, error) {
 	model := newRepoPickerModel(repos)
 	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
 	if x.input != nil {
@@ -50,21 +61,21 @@ func (x bubbleteaRepoPrompter) Prompt(repos []registeredRepo) (registeredRepo, e
 	program := tea.NewProgram(model, programOptions...)
 	finalModel, err := program.Run()
 	if err != nil {
-		return registeredRepo{}, fmt.Errorf("repository picker: %w", err)
+		return RepoRef{}, fmt.Errorf("repository picker: %w", err)
 	}
 
 	result, ok := finalModel.(repoPickerModel)
 	if !ok {
-		return registeredRepo{}, errors.New("repository picker returned unexpected model")
+		return RepoRef{}, errors.New("repository picker returned unexpected model")
 	}
 	if result.cancelled || result.choice.Name == "" {
-		return registeredRepo{}, errors.New("repository selection cancelled")
+		return RepoRef{}, errors.New("repository selection cancelled")
 	}
 	return result.choice, nil
 }
 
 type repoListItem struct {
-	repo registeredRepo
+	repo RepoRef
 }
 
 func (x repoListItem) FilterValue() string { return x.repo.Name }
@@ -73,7 +84,7 @@ func (x repoListItem) Description() string { return x.repo.BarePath }
 
 type repoPickerModel struct {
 	list      list.Model
-	choice    registeredRepo
+	choice    RepoRef
 	cancelled bool
 }
 

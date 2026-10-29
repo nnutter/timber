@@ -16,7 +16,7 @@ func TestFunctionalRepositoryPickerCancellationDoesNotSelectRepository(t *testin
 		{Type: tea.KeyRunes, Runes: []rune("q")},
 	} {
 		t.Run(key.String(), func(t *testing.T) {
-			model := newRepoPickerModel([]registeredRepo{{Name: "alpha"}})
+			model := newRepoPickerModel([]RepoRef{{Name: "alpha"}})
 
 			updated, command := model.Update(key)
 			result := updated.(repoPickerModel)

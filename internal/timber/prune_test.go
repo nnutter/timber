@@ -85,7 +85,7 @@ func TestPruneDryRunWithPromptListsSelectedWorktrees(t *testing.T) {
 		at(testRepoName, ""),
 		true,
 		true,
-		stubPrompter{selected: []managedWorktree{{Name: branchName, Repo: testRepoName}}},
+		stubPrompter{selected: []WorktreeRef{{Name: branchName, Repo: testRepoName}}},
 	)
 	require.NoError(t, err, stderr.String())
 	assert.Contains(t, stderr.String(), "would prune "+branchName+" ("+testRepoName+")")
@@ -173,7 +173,7 @@ func TestPrunePromptDistinguishesSameNameInTwoRepos(t *testing.T) {
 		"",
 		true,
 		false,
-		stubPrompter{selected: []managedWorktree{{Repo: secondaryName, Name: branchName}}},
+		stubPrompter{selected: []WorktreeRef{{Repo: secondaryName, Name: branchName}}},
 	), stderr.String())
 
 	primary.assertPathPresent(t, primary.worktreePath(branchName))
@@ -210,7 +210,7 @@ func TestPrunePromptCanForceRemoveSelectedWorktrees(t *testing.T) {
 		at(testRepoName, ""),
 		true,
 		false,
-		stubPrompter{selected: []managedWorktree{{Name: branchName}}},
+		stubPrompter{selected: []WorktreeRef{{Name: branchName}}},
 	)
 	require.NoError(t, err, stderr.String())
 	testRepository.assertPathMissing(t, testRepository.worktreePath(branchName))

@@ -13,12 +13,12 @@ import (
 
 func TestCreateWizardUsesQualifiedWorktreeLabels(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
+	worktrees := []WorktreeRef{
 		{Repo: "timber", Name: "feature/one", DisplayPath: "/home/user/worktrees/feature/one"},
 		{Repo: "other", Name: "feature/one"},
 	}
 
-	model := driveCreateWizardWith(t, []registeredRepo{{Name: "other"}, {Name: "timber"}}, worktrees)
+	model := driveCreateWizardWith(t, []RepoRef{{Name: "other"}, {Name: "timber"}}, worktrees)
 
 	assert.Equal(t, []string{
 		"feature/one@timber",
@@ -46,7 +46,7 @@ func TestCreateWizardUsesQualifiedWorktreeLabels(t *testing.T) {
 
 func TestCreateWizardNoTitleSuppressesHeader(t *testing.T) {
 	t.Parallel()
-	model := newCreateWizardModel([]registeredRepo{{Name: testRepoName}}, make([]managedWorktree, 0), false)
+	model := newCreateWizardModel([]RepoRef{{Name: testRepoName}}, make([]WorktreeRef, 0), false)
 	_ = model.Init()
 	updated, _ := model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	model = updated.(*createWizardModel)
@@ -88,14 +88,14 @@ func TestFilterWizardWorktreesByRepositoryAfterAt(t *testing.T) {
 
 func TestCreateWizardFiltersWorktreesAndRepositories(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
+	worktrees := []WorktreeRef{
 		{Repo: "timber", Name: "feature/login"},
 		{Repo: "other", Name: "feature/login"},
 		{Repo: "timber", Name: "bugfix/login"},
 	}
 	model := driveCreateWizardWith(
 		t,
-		[]registeredRepo{{Name: "other"}, {Name: "timber"}},
+		[]RepoRef{{Name: "other"}, {Name: "timber"}},
 		worktrees,
 		tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("feature@other")},
 	)
@@ -108,8 +108,8 @@ func TestCreateWizardFiltersWorktreesAndRepositories(t *testing.T) {
 
 func TestCreateWizardOffersNewWorktreesForMatchingRepositories(t *testing.T) {
 	t.Parallel()
-	repos := []registeredRepo{{Name: "alpha"}, {Name: "beta"}, {Name: "gamma"}}
-	worktrees := []managedWorktree{{Repo: "alpha", Name: "feature"}}
+	repos := []RepoRef{{Name: "alpha"}, {Name: "beta"}, {Name: "gamma"}}
+	worktrees := []WorktreeRef{{Repo: "alpha", Name: "feature"}}
 
 	model := driveCreateWizardWith(
 		t,
@@ -128,8 +128,8 @@ func TestCreateWizardOffersNewWorktreeForRepoWithoutExistingWorktrees(t *testing
 	t.Parallel()
 	model := driveCreateWizardWith(
 		t,
-		[]registeredRepo{{Name: "alpha"}, {Name: "beta"}},
-		make([]managedWorktree, 0),
+		[]RepoRef{{Name: "alpha"}, {Name: "beta"}},
+		make([]WorktreeRef, 0),
 		tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("feature@be")},
 	)
 
@@ -139,13 +139,13 @@ func TestCreateWizardOffersNewWorktreeForRepoWithoutExistingWorktrees(t *testing
 
 func TestCreateWizardEnterOpensSelectedWorktree(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
+	worktrees := []WorktreeRef{
 		{Repo: "timber", Name: "feature/one"},
 		{Repo: "other", Name: "feature/two"},
 	}
 	model := driveCreateWizardWith(
 		t,
-		[]registeredRepo{{Name: "other"}, {Name: "timber"}},
+		[]RepoRef{{Name: "other"}, {Name: "timber"}},
 		worktrees,
 		tea.KeyMsg{Type: tea.KeyDown},
 	)
@@ -153,10 +153,10 @@ func TestCreateWizardEnterOpensSelectedWorktree(t *testing.T) {
 	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(*createWizardModel)
 
-	assert.Equal(t, createWizardSelection{
-		action:       wizardActionOpen,
-		repoName:     "other",
-		worktreeName: "feature/two",
+	assert.Equal(t, WizardSelection{
+		Action:       WizardActionOpen,
+		RepoName:     "other",
+		WorktreeName: "feature/two",
 	}, model.selection)
 	require.NotNil(t, command)
 	assert.Equal(t, tea.Quit(), command())
@@ -166,8 +166,8 @@ func TestCreateWizardEnterCreatesSelectedNewWorktree(t *testing.T) {
 	t.Parallel()
 	model := driveCreateWizardWith(
 		t,
-		[]registeredRepo{{Name: "other"}},
-		[]managedWorktree{{Repo: "other", Name: "feature/login"}},
+		[]RepoRef{{Name: "other"}},
+		[]WorktreeRef{{Repo: "other", Name: "feature/login"}},
 		tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("feature@other")},
 		tea.KeyMsg{Type: tea.KeyDown},
 	)
@@ -175,10 +175,10 @@ func TestCreateWizardEnterCreatesSelectedNewWorktree(t *testing.T) {
 	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(*createWizardModel)
 
-	assert.Equal(t, createWizardSelection{
-		action:       wizardActionCreate,
-		repoName:     "other",
-		worktreeName: "feature",
+	assert.Equal(t, WizardSelection{
+		Action:       WizardActionCreate,
+		RepoName:     "other",
+		WorktreeName: "feature",
 	}, model.selection)
 	require.NotNil(t, command)
 	assert.Equal(t, tea.Quit(), command())
@@ -188,8 +188,8 @@ func TestCreateWizardEnterCreatesUnmatchedQualifiedWorktree(t *testing.T) {
 	t.Parallel()
 	model := driveCreateWizardWith(
 		t,
-		[]registeredRepo{{Name: testRepoName}},
-		[]managedWorktree{{Repo: testRepoName, Name: "feature/existing"}},
+		[]RepoRef{{Name: testRepoName}},
+		[]WorktreeRef{{Repo: testRepoName, Name: "feature/existing"}},
 		tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("feature/new@" + testRepoName)},
 	)
 
@@ -198,10 +198,10 @@ func TestCreateWizardEnterCreatesUnmatchedQualifiedWorktree(t *testing.T) {
 	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(*createWizardModel)
 
-	assert.Equal(t, createWizardSelection{
-		action:       wizardActionCreate,
-		repoName:     testRepoName,
-		worktreeName: "feature/new",
+	assert.Equal(t, WizardSelection{
+		Action:       WizardActionCreate,
+		RepoName:     testRepoName,
+		WorktreeName: "feature/new",
 	}, model.selection)
 	require.NotNil(t, command)
 	assert.Equal(t, tea.Quit(), command())
@@ -233,7 +233,7 @@ func TestCreateWizardRejectsUnregisteredRepository(t *testing.T) {
 
 func TestCreateWizardEscCancels(t *testing.T) {
 	t.Parallel()
-	model := newCreateWizardModel([]registeredRepo{{Name: testRepoName}}, make([]managedWorktree, 0), true)
+	model := newCreateWizardModel([]RepoRef{{Name: testRepoName}}, make([]WorktreeRef, 0), true)
 	_ = model.Init()
 
 	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -246,24 +246,24 @@ func TestCreateWizardEscCancels(t *testing.T) {
 
 func TestCreateWizardDownAndUpNavigateMatches(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
+	worktrees := []WorktreeRef{
 		{Repo: testRepoName, Name: "feature/one"},
 		{Repo: testRepoName, Name: "feature/two"},
 	}
-	model := driveCreateWizardWith(t, []registeredRepo{{Name: testRepoName}}, worktrees)
+	model := driveCreateWizardWith(t, []RepoRef{{Name: testRepoName}}, worktrees)
 
 	assert.Equal(t, "feature/one@"+testRepoName, selectedWizardWorktree(model))
 
-	model = driveCreateWizardWith(t, []registeredRepo{{Name: testRepoName}}, worktrees, tea.KeyMsg{Type: tea.KeyDown})
+	model = driveCreateWizardWith(t, []RepoRef{{Name: testRepoName}}, worktrees, tea.KeyMsg{Type: tea.KeyDown})
 	assert.Equal(t, "feature/two@"+testRepoName, selectedWizardWorktree(model))
 
-	model = driveCreateWizardWith(t, []registeredRepo{{Name: testRepoName}}, worktrees, tea.KeyMsg{Type: tea.KeyTab})
+	model = driveCreateWizardWith(t, []RepoRef{{Name: testRepoName}}, worktrees, tea.KeyMsg{Type: tea.KeyTab})
 	assert.Equal(t, "feature/two@"+testRepoName, selectedWizardWorktree(model))
 
-	model = driveCreateWizardWith(t, []registeredRepo{{Name: testRepoName}}, worktrees, tea.KeyMsg{Type: tea.KeyTab}, tea.KeyMsg{Type: tea.KeyShiftTab})
+	model = driveCreateWizardWith(t, []RepoRef{{Name: testRepoName}}, worktrees, tea.KeyMsg{Type: tea.KeyTab}, tea.KeyMsg{Type: tea.KeyShiftTab})
 	assert.Equal(t, "feature/one@"+testRepoName, selectedWizardWorktree(model))
 
-	model = driveCreateWizardWith(t, []registeredRepo{{Name: testRepoName}}, worktrees, tea.KeyMsg{Type: tea.KeyDown}, tea.KeyMsg{Type: tea.KeyUp})
+	model = driveCreateWizardWith(t, []RepoRef{{Name: testRepoName}}, worktrees, tea.KeyMsg{Type: tea.KeyDown}, tea.KeyMsg{Type: tea.KeyUp})
 	assert.Equal(t, "feature/one@"+testRepoName, selectedWizardWorktree(model))
 }
 
@@ -285,13 +285,13 @@ func TestSplitWizardWorktreeValue(t *testing.T) {
 
 func driveCreateWizard(t *testing.T, messages ...tea.Msg) *createWizardModel {
 	t.Helper()
-	return driveCreateWizardWith(t, []registeredRepo{{Name: testRepoName}}, make([]managedWorktree, 0), messages...)
+	return driveCreateWizardWith(t, []RepoRef{{Name: testRepoName}}, make([]WorktreeRef, 0), messages...)
 }
 
 func driveCreateWizardWith(
 	t *testing.T,
-	repos []registeredRepo,
-	worktrees []managedWorktree,
+	repos []RepoRef,
+	worktrees []WorktreeRef,
 	messages ...tea.Msg,
 ) *createWizardModel {
 	t.Helper()

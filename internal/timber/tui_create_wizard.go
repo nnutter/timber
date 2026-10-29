@@ -12,18 +12,18 @@ import (
 )
 
 type createWizardModel struct {
-	repos     []registeredRepo
-	worktrees []managedWorktree
+	repos     []RepoRef
+	worktrees []WorktreeRef
 	showTitle bool
 	input     textinput.Model
 	list      list.Model
-	selection createWizardSelection
+	selection WizardSelection
 	err       error
 	cancelled bool
 }
 
 type wizardWorktreeItem struct {
-	worktree managedWorktree
+	worktree WorktreeRef
 }
 
 func (x wizardWorktreeItem) FilterValue() string {
@@ -55,7 +55,7 @@ func (x wizardCreateWorktreeItem) Description() string {
 	return "create new worktree"
 }
 
-func newCreateWizardModel(repos []registeredRepo, worktrees []managedWorktree, showTitle bool) *createWizardModel {
+func newCreateWizardModel(repos []RepoRef, worktrees []WorktreeRef, showTitle bool) *createWizardModel {
 	input := textinput.New()
 	input.Prompt = ""
 	input.Placeholder = "type worktree@repo"
@@ -152,40 +152,40 @@ func (m *createWizardModel) View() string {
 	return tuiWorktreeViewStyle.Render(view + "\n" + tuiWorktreeLegendStyle.Render(tuiWorktreeLegend))
 }
 
-func (m *createWizardModel) selectionForEnter() (createWizardSelection, error) {
+func (m *createWizardModel) selectionForEnter() (WizardSelection, error) {
 	switch item := m.list.SelectedItem().(type) {
 	case wizardWorktreeItem:
-		return createWizardSelection{
-			action:       wizardActionOpen,
-			repoName:     item.worktree.Repo,
-			worktreeName: item.worktree.Name,
+		return WizardSelection{
+			Action:       WizardActionOpen,
+			RepoName:     item.worktree.Repo,
+			WorktreeName: item.worktree.Name,
 		}, nil
 	case wizardCreateWorktreeItem:
-		return createWizardSelection{
-			action:       wizardActionCreate,
-			repoName:     item.repoName,
-			worktreeName: item.worktreeName,
+		return WizardSelection{
+			Action:       WizardActionCreate,
+			RepoName:     item.repoName,
+			WorktreeName: item.worktreeName,
 		}, nil
 	}
 
 	worktreeName, repoName, err := splitWizardWorktreeValue(m.input.Value())
 	if err != nil {
-		return createWizardSelection{}, err
+		return WizardSelection{}, err
 	}
 	if err := rejectAtInWorktreeName(worktreeName); err != nil {
-		return createWizardSelection{}, err
+		return WizardSelection{}, err
 	}
 	if !wizardHasRepository(m.repos, repoName) {
-		return createWizardSelection{}, fmt.Errorf("unknown repository %q", repoName)
+		return WizardSelection{}, fmt.Errorf("unknown repository %q", repoName)
 	}
-	return createWizardSelection{
-		action:       wizardActionCreate,
-		repoName:     repoName,
-		worktreeName: worktreeName,
+	return WizardSelection{
+		Action:       WizardActionCreate,
+		RepoName:     repoName,
+		WorktreeName: worktreeName,
 	}, nil
 }
 
-func wizardItemsForTerm(repos []registeredRepo, worktrees []managedWorktree, term string) []list.Item {
+func wizardItemsForTerm(repos []RepoRef, worktrees []WorktreeRef, term string) []list.Item {
 	worktreeValues := make([]string, len(worktrees))
 	for index, worktree := range worktrees {
 		worktreeValues[index] = wizardWorktreeValue(worktree)
@@ -219,7 +219,7 @@ func wizardItemsForTerm(repos []registeredRepo, worktrees []managedWorktree, ter
 	return items
 }
 
-func wizardHasWorktree(worktrees []managedWorktree, worktreeName string, repoName string) bool {
+func wizardHasWorktree(worktrees []WorktreeRef, worktreeName string, repoName string) bool {
 	for _, worktree := range worktrees {
 		if worktree.Name == worktreeName && worktree.Repo == repoName {
 			return true
@@ -228,7 +228,7 @@ func wizardHasWorktree(worktrees []managedWorktree, worktreeName string, repoNam
 	return false
 }
 
-func wizardHasRepository(repos []registeredRepo, name string) bool {
+func wizardHasRepository(repos []RepoRef, name string) bool {
 	for _, repo := range repos {
 		if repo.Name == name {
 			return true
@@ -284,7 +284,7 @@ func filterWizardTerm(term string, targets []string) []list.Rank {
 	return list.DefaultFilter(term, targets)
 }
 
-func wizardWorktreeValue(worktree managedWorktree) string {
+func wizardWorktreeValue(worktree WorktreeRef) string {
 	return worktree.Name + "@" + worktree.Repo
 }
 

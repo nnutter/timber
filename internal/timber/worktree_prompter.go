@@ -9,22 +9,51 @@ import (
 	"github.com/samber/lo"
 )
 
-type worktreePrompter interface {
-	Prompt(io.Reader, io.Writer, []managedWorktree) ([]managedWorktree, error)
+// WorktreeRef identifies a managed worktree for selection UI. It carries
+// the display fields prompts need without exposing worktree internals.
+type WorktreeRef struct {
+	Repo        string
+	Name        string
+	Path        string
+	DisplayPath string
+	Status      string
+	Clean       bool
+	Merged      bool
+}
+
+// WorktreePrompter selects worktrees interactively.
+type WorktreePrompter interface {
+	Prompt(io.Reader, io.Writer, []WorktreeRef) ([]WorktreeRef, error)
+}
+
+func (x managedWorktree) ref() WorktreeRef {
+	return WorktreeRef{
+		Repo:        x.Repo,
+		Name:        x.Name,
+		Path:        x.Path,
+		DisplayPath: x.DisplayPath,
+		Status:      x.Status,
+		Clean:       x.Clean,
+		Merged:      x.Merged,
+	}
+}
+
+func worktreeRefKey(ref WorktreeRef) string {
+	return ref.Repo + "\x00" + ref.Name
 }
 
 type huhWorktreePrompter struct{}
 
-func (huhWorktreePrompter) Prompt(input io.Reader, output io.Writer, worktrees []managedWorktree) ([]managedWorktree, error) {
+func (huhWorktreePrompter) Prompt(input io.Reader, output io.Writer, worktrees []WorktreeRef) ([]WorktreeRef, error) {
 	selectedKeys := make([]string, 0)
-	options := lo.Map(worktrees, func(worktree managedWorktree, _ int) huh.Option[string] {
+	options := lo.Map(worktrees, func(worktree WorktreeRef, _ int) huh.Option[string] {
 		label := fmt.Sprintf("%s %s (%s) %s", worktree.Repo, worktree.Name, worktree.DisplayPath, worktree.Status)
 		if worktree.Clean {
 			label += " (clean)"
 		} else {
 			label += " (dirty)"
 		}
-		option := huh.NewOption(label, pruneWorktreeKey(worktree))
+		option := huh.NewOption(label, worktreeRefKey(worktree))
 		if worktree.Clean && worktree.Merged {
 			option = option.Selected(true)
 		}
@@ -44,9 +73,9 @@ func (huhWorktreePrompter) Prompt(input io.Reader, output io.Writer, worktrees [
 		return nil, err
 	}
 
-	selectedWorktrees := make([]managedWorktree, 0, len(selectedKeys))
+	selectedWorktrees := make([]WorktreeRef, 0, len(selectedKeys))
 	for _, selectedKey := range selectedKeys {
-		worktree, err := managedWorktreeByKey(worktrees, selectedKey)
+		worktree, err := worktreeRefByKey(worktrees, selectedKey)
 		if err != nil {
 			return nil, err
 		}
@@ -54,6 +83,16 @@ func (huhWorktreePrompter) Prompt(input io.Reader, output io.Writer, worktrees [
 	}
 
 	return selectedWorktrees, nil
+}
+
+func worktreeRefByKey(worktrees []WorktreeRef, key string) (WorktreeRef, error) {
+	index := slices.IndexFunc(worktrees, func(worktree WorktreeRef) bool {
+		return worktreeRefKey(worktree) == key
+	})
+	if index >= 0 {
+		return worktrees[index], nil
+	}
+	return WorktreeRef{}, fmt.Errorf("unknown worktree %q", key)
 }
 
 func pruneWorktreeKey(worktree managedWorktree) string {

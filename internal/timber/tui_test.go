@@ -12,7 +12,7 @@ import (
 func TestTUICreateNoTitlePassesShowTitleFalse(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
-	prompter := &stubCreateWizardPrompter{selection: createWizardSelection{cancelled: true}}
+	prompter := &stubCreateWizardPrompter{selection: WizardSelection{Cancelled: true}}
 	options := &tuiTestOptions{runtime: testRepository.runtime, noTitle: true}
 	result := runTUICreate(t, options, prompter)
 
@@ -23,7 +23,7 @@ func TestTUICreateNoTitlePassesShowTitleFalse(t *testing.T) {
 func TestCreateWizardRequiresInteractiveTerminal(t *testing.T) {
 	t.Parallel()
 	prompter := bubbleteaCreateWizardPrompter{interactive: func() bool { return false }}
-	_, err := prompter.Prompt(bytes.NewBuffer(nil), io.Discard, []registeredRepo{{Name: testRepoName}}, make([]managedWorktree, 0), true)
+	_, err := prompter.Prompt(bytes.NewBuffer(nil), io.Discard, []RepoRef{{Name: testRepoName}}, make([]WorktreeRef, 0), true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "interactive terminal")
 }

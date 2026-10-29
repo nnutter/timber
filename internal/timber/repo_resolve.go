@@ -10,7 +10,7 @@ import (
 type repoSelection struct {
 	runtime      Runtime
 	RepoName     string
-	repoPrompter repoPrompter
+	repoPrompter RepoPrompter
 }
 
 func (x *repoSelection) resolve(input io.Reader) (registeredRepo, *Repository, error) {
@@ -142,16 +142,24 @@ func (x *repoSelection) resolvePrompt(input io.Reader) (registeredRepo, *Reposit
 		}
 	}
 
-	selected, err := prompter.Prompt(repos)
+	refs := make([]RepoRef, 0, len(repos))
+	for _, repo := range repos {
+		refs = append(refs, repo.ref())
+	}
+	selected, err := prompter.Prompt(refs)
 	if err != nil {
 		return registeredRepo{}, nil, err
 	}
 
-	repository, err := openBareRepository(x.runtime, selected.BarePath)
+	repo, err := x.runtime.registeredRepoByName(selected.Name)
 	if err != nil {
 		return registeredRepo{}, nil, err
 	}
-	return selected, repository, nil
+	repository, err := openBareRepository(x.runtime, repo.BarePath)
+	if err != nil {
+		return registeredRepo{}, nil, err
+	}
+	return repo, repository, nil
 }
 
 func isInteractiveTerminal(input io.Reader) bool {

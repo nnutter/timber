@@ -10,7 +10,7 @@ import (
 
 func TestFunctionalRepositoryPickerSelectsHighlightedRepository(t *testing.T) {
 	t.Parallel()
-	repos := []registeredRepo{{Name: "alpha", BarePath: "/repos/alpha.git"}, {Name: "beta", BarePath: "/repos/beta.git"}}
+	repos := []RepoRef{{Name: "alpha", BarePath: "/repos/alpha.git"}, {Name: "beta", BarePath: "/repos/beta.git"}}
 	model := newRepoPickerModel(repos)
 	for _, message := range []tea.Msg{
 		tea.WindowSizeMsg{Width: 80, Height: 24},
