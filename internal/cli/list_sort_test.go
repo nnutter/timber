@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"encoding/json/v2"
@@ -67,8 +67,10 @@ func TestListDefaultsToCommitterRecency(t *testing.T) {
 			"GIT_AUTHOR_DATE="+tc.author, "GIT_COMMITTER_DATE="+tc.committer,
 			"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
 			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
-		_, err := gitOutput(runtime, runtime.managedWorktreePath(tc.repo, tc.name), "commit", "--allow-empty", "-m", tc.name)
-		require.NoError(t, err)
+		command := gitCommand(t, repoTestWorktreePath(runtime, tc.repo, tc.name), "commit", "--allow-empty", "-m", tc.name)
+		command.Env = runtime.Environment
+		output, err := command.CombinedOutput()
+		require.NoError(t, err, string(output))
 	}
 	// A missing checkout must not prevent timestamp lookup or listing.
 	require.NoError(t, os.RemoveAll(fixture.worktreePath("newer")))

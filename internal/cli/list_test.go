@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"encoding/json/v2"
@@ -212,7 +212,8 @@ func TestListOutsideManagedWorktreeListsAllRepos(t *testing.T) {
 	t.Parallel()
 	primary := newTestRepository(t)
 	secondaryName := "other"
-	secondaryBare := registerAdditionalRepo(t, primary, secondaryName)
+	registerAdditionalRepo(t, primary, secondaryName)
+	secondaryBare := repoTestBarePath(primary.runtime, secondaryName)
 
 	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/primary")).err)
 	require.NoError(t, primary.runTimber(t, "create", at(secondaryName, "feature/secondary")).err)
