@@ -60,7 +60,9 @@ func TestTUICreateListsEveryRepositoryFromAManagedWorktree(t *testing.T) {
 
 	testRepository := newTestRepository(t)
 	registerAdditionalRepo(t, testRepository, secondaryName)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, currentBranch)).err)
+	currentPath := testRepository.worktreePath(currentBranch)
+	require.NoError(t, os.MkdirAll(filepath.Dir(currentPath), 0o755))
+	runGitCommand(t, testRepository.barePath, "worktree", "add", "-b", currentBranch, currentPath, "origin/main")
 
 	prompter := &stubCreateWizardPrompter{
 		selection: WizardSelection{RepoName: secondaryName, WorktreeName: createdBranch},
@@ -118,7 +120,8 @@ func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
 				path = filepath.Join(resolvedTempDir(t), name)
 				runGitCommand(t, testRepository.barePath, "worktree", "add", "-b", branchName, path, "origin/main")
 			} else {
-				require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+				runGitCommand(t, testRepository.barePath, "worktree", "add", "-b", branchName, path, "origin/main")
 			}
 			logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 			testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
