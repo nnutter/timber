@@ -41,10 +41,21 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 	runtime.RepoPrompter = bubbleteaRepoPrompter{}
 	renderStatus := func(message string) string { return display.StatusStyle.Render(message) }
 	renderWarning := func(message string) string { return display.WarningStyle.Render(message) }
+	createReporters := timber.CreateReporters{
+		Created: func(output io.Writer, path string) error {
+			return worktreeoutput.ReportCreated(output, renderStatus, path)
+		},
+		HerdrOpened: func(output io.Writer, name string) error {
+			return worktreeoutput.ReportHerdrOpened(output, renderStatus, name)
+		},
+	}
+	create := func(ctx context.Context, input io.Reader, output io.Writer, repoName, raw, explicitPath string, hasExplicitPath bool, upstream string, herdr, noHerdr bool) (string, bool, error) {
+		return runtime.CreateManagedWorktree(ctx, input, output, repoName, raw, explicitPath, hasExplicitPath, upstream, herdr, noHerdr, createReporters)
+	}
 	return []*cobra.Command{
 		cliconfig.New(runtime),
 		clicreate.New(clicreate.Dependencies{
-			Create:     runtime.CreateManagedWorktree,
+			Create:     create,
 			ReportPath: runtime.ReportCreatedWorktreePath,
 			Complete:   cliComplete.CreateArgs(runtime),
 		}),
@@ -100,7 +111,7 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 		herdrCommand(runtime),
 		cliswitch.New(cliswitch.Dependencies{
 			Resolve:    runtime.ResolveSwitchWorktree,
-			Create:     runtime.CreateManagedWorktree,
+			Create:     create,
 			ReportPath: runtime.ReportSwitchWorktreePath,
 			Complete:   cliComplete.QualifiedWorktreeNames(runtime),
 		}),
@@ -115,7 +126,7 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 		}),
 		clitui.New(clitui.Dependencies{
 			Run: func(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool) error {
-				return runtime.RunTUI(ctx, input, output, stdout, herdr, noHerdr, noTitle, bubbleteaCreateWizardPrompter{})
+				return runtime.RunTUI(ctx, input, output, stdout, herdr, noHerdr, noTitle, bubbleteaCreateWizardPrompter{}, createReporters)
 			},
 		}),
 		generate.New(runtime.DataHome),

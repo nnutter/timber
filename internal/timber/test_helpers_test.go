@@ -463,6 +463,19 @@ func (x testRepository) worktreePath(branchName string) string {
 	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
 }
 
+func testCreateReporters() CreateReporters {
+	return CreateReporters{
+		Created: func(output io.Writer, path string) error {
+			_, err := fmt.Fprintln(output, "created "+path)
+			return err
+		},
+		HerdrOpened: func(output io.Writer, name string) error {
+			_, err := fmt.Fprintln(output, "opened herdr space for "+name)
+			return err
+		},
+	}
+}
+
 type tuiTestOptions struct {
 	runtime Runtime
 	herdr   bool
@@ -483,7 +496,7 @@ func runTUICreate(
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	err := options.runtime.RunTUI(t.Context(), &bytes.Buffer{}, &stderr, &stdout, options.herdr, options.noHerdr, options.noTitle, prompter)
+	err := options.runtime.RunTUI(t.Context(), &bytes.Buffer{}, &stderr, &stdout, options.herdr, options.noHerdr, options.noTitle, prompter, testCreateReporters())
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 

@@ -27,7 +27,7 @@ type WizardPrompter interface {
 
 // RunTUI runs the interactive worktree wizard using the supplied prompter.
 // A cancelled wizard returns nil without creating or opening anything.
-func (runtime Runtime) RunTUI(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool, prompter WizardPrompter) error {
+func (runtime Runtime) RunTUI(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool, prompter WizardPrompter, reporters CreateReporters) error {
 	if prompter == nil {
 		return errors.New("tui requires a wizard prompter")
 	}
@@ -55,9 +55,9 @@ func (runtime Runtime) RunTUI(ctx context.Context, input io.Reader, output, stdo
 	}
 
 	if selection.Action == WizardActionOpen {
-		return runtime.openSelectedWorktree(ctx, output, selection)
+		return runtime.openSelectedWorktree(ctx, output, selection, reporters)
 	}
-	return runtime.createSelectedWorktree(ctx, input, output, stdout, selection, herdr, noHerdr)
+	return runtime.createSelectedWorktree(ctx, input, output, stdout, selection, herdr, noHerdr, reporters)
 }
 
 func (runtime Runtime) createSelectedWorktree(
@@ -66,6 +66,7 @@ func (runtime Runtime) createSelectedWorktree(
 	output, stdout io.Writer,
 	selection WizardSelection,
 	herdr, noHerdr bool,
+	reporters CreateReporters,
 ) error {
 	worktreePath, _, err := runtime.CreateManagedWorktree(
 		ctx,
@@ -78,6 +79,7 @@ func (runtime Runtime) createSelectedWorktree(
 		"",
 		herdr,
 		noHerdr,
+		reporters,
 	)
 	if err != nil {
 		return err
@@ -89,7 +91,11 @@ func (runtime Runtime) openSelectedWorktree(
 	ctx context.Context,
 	output io.Writer,
 	selection WizardSelection,
+	reporters CreateReporters,
 ) error {
+	if reporters.HerdrOpened == nil {
+		return errors.New("tui requires a Herdr opening reporter")
+	}
 	repository, _, err := runtime.openRegisteredRepository(selection.RepoName)
 	if err != nil {
 		return err
@@ -105,5 +111,5 @@ func (runtime Runtime) openSelectedWorktree(
 	if err := runtime.openHerdrSpace(ctx, worktree); err != nil {
 		return err
 	}
-	return reportOpenedHerdrSpace(output, worktree.Name)
+	return reporters.HerdrOpened(output, worktree.Name)
 }

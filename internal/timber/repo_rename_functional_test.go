@@ -15,7 +15,7 @@ func TestRepoRenameRollsBackCompletedWorktreeMoves(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
 	for _, branchName := range []string{"feature/first", "feature/second"} {
-		_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false)
+		_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false, testCreateReporters())
 		require.NoError(t, err)
 	}
 
@@ -50,7 +50,7 @@ func TestRepoRenameRollsBackAfterRepairFailure(t *testing.T) {
 	const branchName = "feature/repair-failure"
 
 	testRepository := newTestRepository(t)
-	_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false)
+	_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false, testCreateReporters())
 	require.NoError(t, err)
 
 	repairCalls := 0

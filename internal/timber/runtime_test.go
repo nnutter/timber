@@ -105,7 +105,7 @@ func TestRuntimeWorktreeGitDirHoldsWorktreeTodoFile(t *testing.T) {
 	const branchName = "feature/git-dir"
 
 	testRepository := newTestRepository(t)
-	_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false)
+	_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false, testCreateReporters())
 	require.NoError(t, err)
 
 	gitDir, err := testRepository.runtime.worktreeGitDir(testRepository.worktreePath(branchName))

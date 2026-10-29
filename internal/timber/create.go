@@ -7,15 +7,25 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/nnutter/timber/internal/display"
 )
+
+// CreateReporters reports worktree creation and Herdr workspace opening.
+type CreateReporters struct {
+	Created     func(io.Writer, string) error
+	HerdrOpened func(io.Writer, string) error
+}
 
 // CreateManagedWorktree creates a managed worktree and runs automatic setup.
 // It returns the worktree path and whether a Herdr workspace was opened.
 // hasExplicitPath selects a custom location; otherwise the managed layout
 // is used. An empty explicit path is an error, matching CLI validation.
-func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reader, output io.Writer, repoName, raw, explicitPath string, hasExplicitPath bool, upstream string, herdr, noHerdr bool) (string, bool, error) {
+func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reader, output io.Writer, repoName, raw, explicitPath string, hasExplicitPath bool, upstream string, herdr, noHerdr bool, reporters CreateReporters) (string, bool, error) {
+	if reporters.Created == nil {
+		return "", false, errors.New("create requires a worktree creation reporter")
+	}
+	if (herdr || (!noHerdr && runtime.HerdrEnvironment)) && reporters.HerdrOpened == nil {
+		return "", false, errors.New("create requires a Herdr opening reporter")
+	}
 	qualified, err := runtime.parseQualifiedName(raw)
 	if err != nil {
 		return "", false, err
@@ -102,7 +112,7 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 		}
 	}
 
-	if _, err := fmt.Fprintf(output, "%s\n", display.StatusStyle.Render("created "+worktreePath)); err != nil {
+	if err := reporters.Created(output, worktreePath); err != nil {
 		return "", false, err
 	}
 
@@ -121,7 +131,7 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 	if err := runtime.openHerdrSpace(ctx, worktree); err != nil {
 		return "", false, err
 	}
-	if err := reportOpenedHerdrSpace(output, branchName); err != nil {
+	if err := reporters.HerdrOpened(output, branchName); err != nil {
 		return "", false, err
 	}
 	return worktreePath, true, nil
