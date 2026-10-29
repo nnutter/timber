@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"path/filepath"
@@ -41,7 +41,7 @@ func TestManualWorktreeWithoutUpstreamRequiresForceRemoval(t *testing.T) {
 	repo := newTestRepository(t)
 	path := filepath.Join(repo.home, "projects", "checkout")
 	runGitCommand(t, repo.barePath, "worktree", "add", "-b", "manual-no-upstream", path, "main")
-	runGitCommandAllowError(t, repo.barePath, "branch", "--unset-upstream", "manual-no-upstream")
+	_, _ = gitCommand(t, repo.barePath, "branch", "--unset-upstream", "manual-no-upstream").CombinedOutput()
 	pruned := repo.runTimber(t, "prune")
 	require.NoError(t, pruned.err, pruned.stderr)
 	assert.DirExists(t, path)

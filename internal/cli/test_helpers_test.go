@@ -124,6 +124,28 @@ func (x testRepository) runTimber(t *testing.T, args ...string) commandResult {
 	return runTimberCommandWithRuntime(t, x.runtime, args...)
 }
 
+func (x testRepository) runTimberFrom(t *testing.T, directory string, args ...string) commandResult {
+	t.Helper()
+	runtime := x.runtime
+	runtime.CurrentDirectory = directory
+	return runTimberCommandWithRuntime(t, runtime, args...)
+}
+
+func (x testRepository) commitFileInWorktree(t *testing.T, branch, name, contents string) {
+	t.Helper()
+	x.writeFileInWorktree(t, branch, name, contents)
+	path := x.worktreePath(branch)
+	runGitCommand(t, path, "add", name)
+	runGitCommand(t, path, "commit", "-m", "change")
+}
+
+func (x testRepository) writeFileInWorktree(t *testing.T, branch, name, contents string) {
+	t.Helper()
+	path := filepath.Join(x.worktreePath(branch), name)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
+}
+
 func (x testRepository) worktreePath(branch string) string {
 	return filepath.Join(x.worktreeRoot, testRepoName, branch, testRepoName)
 }
