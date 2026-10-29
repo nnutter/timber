@@ -3,7 +3,12 @@ amends "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Config.pk
 import "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Builtins.pkl"
 
 local checks = new Mapping<String, Step> {
-  ["go-mod-tidy"] = (Builtins.gomod_tidy)
+  ["go-mod-tidy"] = (Builtins.gomod_tidy) {
+    check = "go mod tidy -diff"
+    check_diff = null
+    fix = null
+    stage = null
+  }
   ["go-fumpt"] {
     glob = "**/*.go"
     check =
@@ -30,14 +35,19 @@ local checks = new Mapping<String, Step> {
       """
     fix = "go tool goimports -w -local $(go list -m) {{files}}"
   }
-  ["go-fix"] = (Builtins.go_fix)
+  ["go-fix"] = (Builtins.go_fix) {
+    check = "go fix -diff ./..."
+    check_diff = null
+    fix = null
+  }
   ["constable"] {
     check = "go tool constable ./..."
   }
   ["errcheck"] {
     check = "go tool errcheck ./..."
   }
-  ["staticcheck"] {
+  ["staticcheck"] = (Builtins.staticcheck) {
+    glob = null
     check = "go tool staticcheck ./..."
   }
   ["testifylint"] {
@@ -47,13 +57,15 @@ local checks = new Mapping<String, Step> {
     check =
       "go tool go-check-sumtype -default-signifies-exhaustive=false -include-shared-interfaces ./..."
   }
-  ["go-vet"] {
-    check = "go vet ./..."
+  ["go-vet"] = (Builtins.go_vet) {
+    glob = null
   }
-  ["gosec"] {
+  ["gosec"] = (Builtins.go_sec) {
+    glob = null
     check = "go tool gosec -severity high -quiet ./..."
   }
-  ["govulncheck"] {
+  ["govulncheck"] = (Builtins.go_vuln_check) {
+    glob = null
     check = "go tool govulncheck ./..."
   }
   ["nilaway"] {
