@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"os"
@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/timber"
 )
 
 // Check every runnable example against Cobra's real command/flag definitions.
@@ -36,7 +38,7 @@ func TestTimberSkillExamplesMatchCLI(t *testing.T) {
 		examples++
 		t.Run(line, func(t *testing.T) {
 			args := strings.Fields(line)[1:]
-			root := newRootCommand(Runtime{})
+			root := newRootCommand(timber.Runtime{})
 			command, remaining, err := root.Find(args)
 			require.NoError(t, err)
 			require.NotSame(t, root, command, "example must resolve to a subcommand")

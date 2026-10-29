@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"path/filepath"
