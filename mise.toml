@@ -2,6 +2,9 @@
 go = "1.27.3"
 hk = "2.8.0"
 pkl = "0.32.1"
+tombi = "1.9.7"
+yamlfmt = "0.21.0"
+"github:nnutter/mdlint" = "0.4.2"
 
 #####################
 # Development Tasks #
