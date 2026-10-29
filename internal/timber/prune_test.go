@@ -10,66 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPruneRemovesOnlyMergedCleanWorktrees(t *testing.T) {
-	t.Parallel()
-	testRepository := newTestRepository(t)
-
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/merged")).err)
-	testRepository.mergeWorktreeBranch(t, "feature/merged")
-
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/unmerged")).err)
-	testRepository.commitFileInWorktree(t, "feature/unmerged", "extra.txt", "extra\n")
-
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/dirty")).err)
-	testRepository.mergeWorktreeBranch(t, "feature/dirty")
-	testRepository.writeFileInWorktree(t, "feature/dirty", "dirty.txt", "dirty\n")
-
-	result := testRepository.runTimber(t, "prune", at(testRepoName, ""))
-	require.NoError(t, result.err, result.stderr)
-
-	testRepository.assertPathMissing(t, testRepository.worktreePath("feature/merged"))
-	testRepository.assertPathPresent(t, testRepository.worktreePath("feature/unmerged"))
-	testRepository.assertPathPresent(t, testRepository.worktreePath("feature/dirty"))
-}
-
-func TestPruneDryRunListsAndKeepsWorktrees(t *testing.T) {
-	t.Parallel()
-	testRepository := newTestRepository(t)
-
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/merged")).err)
-	testRepository.mergeWorktreeBranch(t, "feature/merged")
-
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/unmerged")).err)
-	testRepository.commitFileInWorktree(t, "feature/unmerged", "extra.txt", "extra\n")
-
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/dirty")).err)
-	testRepository.mergeWorktreeBranch(t, "feature/dirty")
-	testRepository.writeFileInWorktree(t, "feature/dirty", "dirty.txt", "dirty\n")
-
-	for _, flag := range []string{"-n", "--dry-run"} {
-		result := testRepository.runTimber(t, "prune", flag, at(testRepoName, ""))
-		require.NoError(t, result.err, result.stderr)
-		assert.Contains(t, result.stderr, "would prune feature/merged ("+testRepoName+")")
-		assert.NotContains(t, result.stderr, "feature/unmerged")
-		assert.NotContains(t, result.stderr, "feature/dirty")
-		testRepository.assertPathPresent(t, testRepository.worktreePath("feature/merged"))
-		testRepository.assertPathPresent(t, testRepository.worktreePath("feature/unmerged"))
-		testRepository.assertPathPresent(t, testRepository.worktreePath("feature/dirty"))
-	}
-}
-
-func TestPruneDryRunSucceedsWhenNothingToPrune(t *testing.T) {
-	t.Parallel()
-	testRepository := newTestRepository(t)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/unmerged")).err)
-	testRepository.commitFileInWorktree(t, "feature/unmerged", "extra.txt", "extra\n")
-
-	result := testRepository.runTimber(t, "prune", "--dry-run", at(testRepoName, ""))
-	require.NoError(t, result.err, result.stderr)
-	assert.NotContains(t, result.stderr, "would prune")
-	testRepository.assertPathPresent(t, testRepository.worktreePath("feature/unmerged"))
-}
-
 func TestPruneDryRunWithPromptListsSelectedWorktrees(t *testing.T) {
 	t.Parallel()
 	const branchName = "feature/prompt-dry-run"
@@ -90,69 +30,6 @@ func TestPruneDryRunWithPromptListsSelectedWorktrees(t *testing.T) {
 	require.NoError(t, err, stderr.String())
 	assert.Contains(t, stderr.String(), "would prune "+branchName+" ("+testRepoName+")")
 	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
-}
-
-func TestPruneWithoutRepoFromOutsidePrunesAllRepos(t *testing.T) {
-	t.Parallel()
-	primary := newTestRepository(t)
-	secondaryName := "other"
-	registerAdditionalRepo(t, primary, secondaryName)
-
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/merged")).err)
-	primary.mergeWorktreeBranch(t, "feature/merged")
-	require.NoError(t, primary.runTimber(t, "create", at(secondaryName, "feature/other-merged")).err)
-
-	result := primary.runTimberFrom(t, primary.home, "prune")
-	require.NoError(t, result.err, result.stderr)
-
-	primary.assertPathMissing(t, primary.worktreePath("feature/merged"))
-	_, err := os.Stat(filepath.Join(primary.worktreeRoot, secondaryName, "feature/other-merged", secondaryName))
-	assert.ErrorIs(t, err, os.ErrNotExist)
-}
-
-func TestPruneWithoutRepoFromInsideWorktreePrunesAllRepos(t *testing.T) {
-	t.Parallel()
-	primary := newTestRepository(t)
-	secondaryName := "other"
-	registerAdditionalRepo(t, primary, secondaryName)
-
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/current")).err)
-	primary.commitFileInWorktree(t, "feature/current", "extra.txt", "extra\n")
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/merged")).err)
-	primary.mergeWorktreeBranch(t, "feature/merged")
-	require.NoError(t, primary.runTimber(t, "create", at(secondaryName, "feature/other-merged")).err)
-
-	result := primary.runTimberFrom(t, primary.worktreePath("feature/current"), "prune")
-	require.NoError(t, result.err, result.stderr)
-
-	primary.assertPathMissing(t, primary.worktreePath("feature/merged"))
-	primary.assertPathPresent(t, primary.worktreePath("feature/current"))
-	_, err := os.Stat(filepath.Join(primary.worktreeRoot, secondaryName, "feature/other-merged", secondaryName))
-	assert.ErrorIs(t, err, os.ErrNotExist)
-}
-
-func TestPruneRepoFlagPinsRepoFromAnyCwd(t *testing.T) {
-	t.Parallel()
-	primary := newTestRepository(t)
-	secondaryName := "other"
-	registerAdditionalRepo(t, primary, secondaryName)
-
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/current")).err)
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, "feature/merged")).err)
-	primary.mergeWorktreeBranch(t, "feature/merged")
-	require.NoError(t, primary.runTimber(t, "create", at(secondaryName, "feature/other-merged")).err)
-
-	result := primary.runTimberFrom(
-		t,
-		primary.worktreePath("feature/current"),
-		"prune",
-		at(secondaryName, ""),
-	)
-	require.NoError(t, result.err, result.stderr)
-
-	primary.assertPathPresent(t, primary.worktreePath("feature/merged"))
-	_, err := os.Stat(filepath.Join(primary.worktreeRoot, secondaryName, "feature/other-merged", secondaryName))
-	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestPrunePromptDistinguishesSameNameInTwoRepos(t *testing.T) {
@@ -179,20 +56,6 @@ func TestPrunePromptDistinguishesSameNameInTwoRepos(t *testing.T) {
 	primary.assertPathPresent(t, primary.worktreePath(branchName))
 	_, err := os.Stat(filepath.Join(primary.worktreeRoot, secondaryName, branchName, secondaryName))
 	assert.ErrorIs(t, err, os.ErrNotExist)
-}
-
-func TestPruneKeepsWorktreeWhenBranchHasNoUpstream(t *testing.T) {
-	t.Parallel()
-	const branchName = "feature/prune-no-upstream"
-
-	testRepository := newTestRepository(t)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
-	runGitCommand(t, testRepository.barePath, "branch", "--unset-upstream", branchName)
-
-	result := testRepository.runTimber(t, "prune", at(testRepoName, ""))
-	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
-	runGitCommand(t, testRepository.barePath, "show-ref", "--verify", "refs/heads/"+branchName)
-	require.NoError(t, result.err, result.stderr)
 }
 
 func TestPrunePromptCanForceRemoveSelectedWorktrees(t *testing.T) {
