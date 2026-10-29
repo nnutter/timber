@@ -93,7 +93,10 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 				RenderStatus: renderStatus,
 			}),
 			repoimport.New(repoimport.Dependencies{
-				Import: runtime.ImportRepo,
+				Import:        runtime.ImportRepo,
+				HomeDirectory: runtime.HomeDirectory,
+				RenderStatus:  renderStatus,
+				RenderWarning: renderWarning,
 			}),
 			repofix.New(repofix.Dependencies{
 				Fix:          runtime.FixRepos,

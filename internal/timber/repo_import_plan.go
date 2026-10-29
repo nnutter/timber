@@ -3,11 +3,8 @@ package timber
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/nnutter/timber/internal/display"
 )
 
 type importPlan struct {
@@ -96,7 +93,7 @@ func (x *importPlan) validateTargets() error {
 //
 // A failure in step 2 rolls back the freshly created worktrees and the bare
 // clone, leaving the source repository untouched.
-func (x *importPlan) run(stderr io.Writer) error {
+func (x *importPlan) run(reporter ImportReporter) error {
 	if err := ensureDirectory(filepath.Dir(x.barePath)); err != nil {
 		return err
 	}
@@ -107,12 +104,7 @@ func (x *importPlan) run(stderr io.Writer) error {
 		return errors.Join(err, x.runtime.trashPaths(x.barePath))
 	}
 
-	registeredMessage := fmt.Sprintf(
-		"registered repository %s at %s",
-		x.repoName,
-		x.runtime.displayHomePath(x.barePath),
-	)
-	if _, err := fmt.Fprintf(stderr, "%s\n", display.StatusStyle.Render(registeredMessage)); err != nil {
+	if err := reporter.Registered(x.repoName, x.barePath); err != nil {
 		return err
 	}
 
@@ -144,7 +136,19 @@ func (x *importPlan) run(stderr io.Writer) error {
 		}
 	}
 
-	return x.reportSummary(stderr)
+	summary := ImportSummary{
+		Skipped:   make([]ImportSkipped, 0, len(x.skips)),
+		Worktrees: make([]ImportMove, 0, len(x.worktrees)),
+	}
+	for _, skip := range x.skips {
+		summary.Skipped = append(summary.Skipped, ImportSkipped{Path: skip.Path, Reason: skip.Reason})
+	}
+	for _, worktree := range x.worktrees {
+		summary.Worktrees = append(summary.Worktrees, ImportMove{
+			Name: worktree.Name, SourcePath: worktree.CurrentPath, TargetPath: worktree.TargetPath,
+		})
+	}
+	return reporter.Summary(summary)
 }
 
 func (x *importPlan) createWorktree(bareRepository *Repository, worktree *importWorktree) error {
@@ -189,41 +193,4 @@ func (x *importPlan) rollbackCreated(bareRepository *Repository, created []*impo
 		}
 	}
 	return errors.Join(rollbackErrors...)
-}
-
-func (x *importPlan) reportSummary(stderr io.Writer) error {
-	for _, skip := range x.skips {
-		message := fmt.Sprintf(
-			"skipped worktree %s: %s",
-			x.runtime.displayHomePath(skip.Path),
-			skip.Reason,
-		)
-		if _, err := fmt.Fprintf(stderr, "%s\n", display.WarningStyle.Render(message)); err != nil {
-			return err
-		}
-	}
-
-	message := fmt.Sprintf("imported %d worktrees:", len(x.worktrees))
-	if _, err := fmt.Fprintf(stderr, "%s\n", display.StatusStyle.Render(message)); err != nil {
-		return err
-	}
-	for _, worktree := range x.worktrees {
-		message := fmt.Sprintf(
-			"  %s: %s -> %s",
-			worktree.Name,
-			x.runtime.displayHomePath(worktree.CurrentPath),
-			x.runtime.displayHomePath(worktree.TargetPath),
-		)
-		if _, err := fmt.Fprintf(stderr, "%s\n", display.StatusStyle.Render(message)); err != nil {
-			return err
-		}
-	}
-
-	if len(x.worktrees) > 0 {
-		note := "old worktrees were moved to the system trash; restore them from there if needed"
-		if _, err := fmt.Fprintf(stderr, "%s\n", display.StatusStyle.Render(note)); err != nil {
-			return err
-		}
-	}
-	return nil
 }

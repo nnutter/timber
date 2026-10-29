@@ -49,6 +49,13 @@ func TestRepoImportSummaryShowsEachMove(t *testing.T) {
 	assert.Contains(t, result.stderr, "feature/login: "+featurePath+
 		" -> "+filepath.Join("~", "worktrees", "project", "feature/login", "project"))
 	assert.Contains(t, result.stderr, "moved to the system trash")
+	lines := strings.Split(strings.TrimSpace(result.stderr), "\n")
+	require.Len(t, lines, 5)
+	assert.Contains(t, lines[0], "registered repository project")
+	assert.Contains(t, lines[1], "imported 2 worktrees:")
+	assert.Contains(t, lines[2], "main: ")
+	assert.Contains(t, lines[3], "feature/login: ")
+	assert.Contains(t, lines[4], "moved to the system trash")
 }
 
 func TestRepoImportTrashesOldWorktrees(t *testing.T) {

@@ -1,8 +1,8 @@
 package timber
 
 import (
+	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
 	"strings"
 )
@@ -29,10 +29,37 @@ type importSkip struct {
 	Reason string
 }
 
+// ImportReporter receives progress synchronously as an import proceeds.
+type ImportReporter struct {
+	Registered func(repoName, barePath string) error
+	Summary    func(ImportSummary) error
+}
+
+// ImportSummary describes skipped and moved source worktrees.
+type ImportSummary struct {
+	Skipped   []ImportSkipped
+	Worktrees []ImportMove
+}
+
+// ImportSkipped identifies a worktree that could not be moved.
+type ImportSkipped struct {
+	Path   string
+	Reason string
+}
+
+// ImportMove identifies the old and new paths of an imported worktree.
+type ImportMove struct {
+	Name       string
+	SourcePath string
+	TargetPath string
+}
+
 // ImportRepo converts an existing clone into a managed Timber repository.
-// Progress and the final summary are written to output as the import
-// proceeds, preserving the order of the original command output.
-func (runtime Runtime) ImportRepo(source, name string, output io.Writer) error {
+// Both reporter callbacks are required.
+func (runtime Runtime) ImportRepo(source, name string, reporter ImportReporter) error {
+	if reporter.Registered == nil || reporter.Summary == nil {
+		return errors.New("repository import requires registration and summary reporters")
+	}
 	sourcePath, err := runtime.absolutePath(source)
 	if err != nil {
 		return err
@@ -42,7 +69,7 @@ func (runtime Runtime) ImportRepo(source, name string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return plan.run(output)
+	return plan.run(reporter)
 }
 
 // rejectRegisteredSource refuses to import a repository that is already
