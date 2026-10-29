@@ -75,6 +75,18 @@ go install github.com/nnutter/timber@latest
 
 `timber` requires Git on `PATH`.
 
+Install the Pi review extension and `timber-review` skill:
+
+```bash
+pi install https://github.com/nnutter/timber
+```
+
+Select and install the Timber skills for your agents with the skills CLI:
+
+```bash
+npx skills add https://github.com/nnutter/timber
+```
+
 ## Configuration
 
 Run `timber config` to show settings and create the config file if absent.
