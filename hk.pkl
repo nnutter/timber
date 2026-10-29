@@ -9,9 +9,8 @@ local checks = new Mapping<String, Step> {
     fix = null
     stage = null
   }
-  ["go-fumpt"] {
-    glob = "**/*.go"
-    check =
+  ["go-fumpt"] = (Builtins.go_fumpt) {
+    check_list_files =
       """
       set -e
       FILES=$(go tool gofumpt -l {{files}})
@@ -20,11 +19,12 @@ local checks = new Mapping<String, Step> {
       exit 1
       fi
       """
+    check_diff = "go tool gofumpt -d {{files}}"
+    apply_check_diff = false
     fix = "go tool gofumpt -w {{files}}"
   }
-  ["go-imports"] {
-    glob = "**/*.go"
-    check =
+  ["go-imports"] = (Builtins.go_imports) {
+    check_list_files =
       """
       set -e
       FILES=$(go tool goimports -l -local $(go list -m) {{files}})
@@ -33,6 +33,8 @@ local checks = new Mapping<String, Step> {
       exit 1
       fi
       """
+    check_diff = "go tool goimports -d -local $(go list -m) {{files}}"
+    apply_check_diff = false
     fix = "go tool goimports -w -local $(go list -m) {{files}}"
   }
   ["go-fix"] = (Builtins.go_fix) {
