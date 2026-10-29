@@ -49,7 +49,10 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 	if jsonOutput {
 		return reportListJSON(stdout, worktrees)
 	}
+	return runtime.reportListTable(stdout, worktrees, pullRequests, location)
+}
 
+func (runtime Runtime) reportListTable(stdout io.Writer, worktrees []managedWorktree, pullRequests, location bool) error {
 	headers := []string{"Name", "Repo", "Status", "Todo", "Review", "Commit", "Dirty"}
 	if pullRequests {
 		headers = append(headers, "PR")
@@ -64,7 +67,7 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 	tableView := display.NewOutputTable(headers...).BorderRow(true)
 	tableView.Rows(groupListTableRows(worktrees, statusFormatter, pullRequests, location)...)
 
-	_, err = fmt.Fprintln(stdout, dottedListRowRules(tableView.String()))
+	_, err := fmt.Fprintln(stdout, dottedListRowRules(tableView.String()))
 	return err
 }
 
