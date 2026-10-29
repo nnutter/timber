@@ -34,20 +34,9 @@ description = "Run tests and generate coverage report"
 run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
 
 [tasks.install-hooks]
-description = "Replace Lefthook hooks and install hk Git hooks"
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-hooks_dir=$(git rev-parse --git-path hooks)
-for hook in "$hooks_dir"/*; do
-  [ -f "$hook" ] || continue
-  if grep -q 'LEFTHOOK' "$hook"; then
-    go run github.com/evilmartians/lefthook/v2@v2.1.12 uninstall
-    break
-  fi
-done
-hk install --mise
-'''
+alias = "setup"
+description = "Install hk Git hooks without removing other hook managers"
+run = "hk install --mise"
 
 [tasks.refresh-template]
 description = "Refresh from template"
