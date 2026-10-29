@@ -13,6 +13,7 @@ import (
 type CreateReporters struct {
 	Created     func(io.Writer, string) error
 	HerdrOpened func(io.Writer, string) error
+	SetupPrompt SetupPrompter
 }
 
 // CreateManagedWorktree creates a managed worktree and runs automatic setup.
@@ -116,8 +117,8 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 		return "", false, err
 	}
 
-	runtime.autoTrustMise(ctx, input, output, repository, upstreamBranch, worktreePath)
-	runtime.autoInstallHKHooks(ctx, input, output, repository, upstreamBranch, worktreePath)
+	runtime.autoTrustMise(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt)
+	runtime.autoInstallHKHooks(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt)
 
 	if !(herdr || (!noHerdr && runtime.HerdrEnvironment)) {
 		return worktreePath, false, nil

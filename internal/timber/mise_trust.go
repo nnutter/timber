@@ -1,7 +1,6 @@
 package timber
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -14,7 +13,7 @@ import (
 	"github.com/nnutter/timber/internal/terminal"
 )
 
-func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string) {
+func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string, prompter SetupPrompter) {
 	warn := func(err error) {
 		// Warnings are best effort and must not block worktree creation.
 		_, _ = fmt.Fprintf(output, "warning: automatic mise trust skipped: %v\n", err)
@@ -46,12 +45,25 @@ func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.W
 		return
 	}
 	if !settings.AutoMiseTrust {
-		enabled, err := x.promptAutoMiseTrust(input, output, settings, identity)
+		if prompter == nil {
+			warn(errors.New("automatic setup prompt is not configured"))
+			return
+		}
+		enabled, err := prompter.Choose(input, output, SetupMiseTrust, SetupIdentity{Username: identity.Username, Organizations: identity.Organizations})
 		if err != nil {
 			warn(err)
 			return
 		}
+		settings.AutoMiseTrust = enabled
+		settings.AutoMiseTrustDecided = true
+		if err := writeConfig(x.configPath(), settings); err != nil {
+			warn(fmt.Errorf("save mise trust choice: %w", err))
+			return
+		}
 		if !enabled {
+			if err := prompter.ReportDisabled(output, SetupMiseTrust); err != nil {
+				warn(err)
+			}
 			return
 		}
 	}
@@ -76,15 +88,6 @@ func regularRootFile(path string) (bool, error) {
 	return info.Mode().IsRegular(), nil
 }
 
-func writeGitHubIdentity(output io.Writer, identity githubIdentity) error {
-	organizations := strings.Join(identity.Organizations, ", ")
-	if organizations == "" {
-		organizations = "none"
-	}
-	_, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations)
-	return err
-}
-
 // githubOwnedWorktree reports whether the selected upstream resolves to a
 // GitHub repository owned by the cached user or one of their organizations.
 func (x Runtime) githubOwnedWorktree(ctx context.Context, repository *Repository, upstream string) (githubIdentity, bool, error) {
@@ -104,45 +107,6 @@ func (x Runtime) githubOwnedWorktree(ctx context.Context, repository *Repository
 		return githubIdentity{}, false, nil
 	}
 	return identity, true, nil
-}
-
-func (x Runtime) promptAutoMiseTrust(input io.Reader, output io.Writer, settings config, identity githubIdentity) (bool, error) {
-	if _, err := fmt.Fprintln(output, "This worktree qualifies for automatic mise trust. Trusting mise configuration permits code execution."); err != nil {
-		return false, err
-	}
-	if err := writeGitHubIdentity(output, identity); err != nil {
-		return false, err
-	}
-	reader := bufio.NewReader(input)
-	for {
-		if _, err := fmt.Fprint(output, "Enable automatic mise trust for repositories owned by you or your GitHub organizations? [y/N] "); err != nil {
-			return false, err
-		}
-		answer, err := reader.ReadString('\n')
-		if err != nil {
-			return false, fmt.Errorf("read mise trust choice: %w", err)
-		}
-		switch strings.ToLower(strings.TrimSpace(answer)) {
-		case "y", "yes":
-			settings.AutoMiseTrust = true
-		case "", "n", "no":
-			settings.AutoMiseTrust = false
-		default:
-			if _, err := fmt.Fprintln(output, "Enter yes or no."); err != nil {
-				return false, err
-			}
-			continue
-		}
-		settings.AutoMiseTrustDecided = true
-		if err := writeConfig(x.configPath(), settings); err != nil {
-			return false, fmt.Errorf("save mise trust choice: %w", err)
-		}
-		if !settings.AutoMiseTrust {
-			_, err := fmt.Fprintln(output, "Automatic mise trust remains disabled. Enable it later with: timber config --auto-mise-trust")
-			return false, err
-		}
-		return true, nil
-	}
 }
 
 // Resolve the selected start point, including local branches that track a remote.

@@ -1,8 +1,8 @@
 package timber
 
 import (
-	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -11,7 +11,7 @@ import (
 	"github.com/nnutter/timber/internal/terminal"
 )
 
-func (x Runtime) autoInstallHKHooks(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string) {
+func (x Runtime) autoInstallHKHooks(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string, prompter SetupPrompter) {
 	warn := func(err error) {
 		// Warnings are best effort and must not block worktree creation.
 		_, _ = fmt.Fprintf(output, "warning: automatic hk install skipped: %v\n", err)
@@ -41,12 +41,25 @@ func (x Runtime) autoInstallHKHooks(ctx context.Context, input io.Reader, output
 		return
 	}
 	if !settings.AutoHKInstall {
-		enabled, err := x.promptAutoHKInstall(input, output, settings, identity)
+		if prompter == nil {
+			warn(errors.New("automatic setup prompt is not configured"))
+			return
+		}
+		enabled, err := prompter.Choose(input, output, SetupHKInstall, SetupIdentity{Username: identity.Username, Organizations: identity.Organizations})
 		if err != nil {
 			warn(err)
 			return
 		}
+		settings.AutoHKInstall = enabled
+		settings.AutoHKInstallDecided = true
+		if err := writeConfig(x.configPath(), settings); err != nil {
+			warn(fmt.Errorf("save hk install choice: %w", err))
+			return
+		}
 		if !enabled {
+			if err := prompter.ReportDisabled(output, SetupHKInstall); err != nil {
+				warn(err)
+			}
 			return
 		}
 	}
@@ -64,44 +77,5 @@ func (x Runtime) autoInstallHKHooks(ctx context.Context, input io.Reader, output
 	combined, err := install.CombinedOutput()
 	if err != nil {
 		warn(fmt.Errorf("hk install failed: %w: %s", err, strings.TrimSpace(string(combined))))
-	}
-}
-
-func (x Runtime) promptAutoHKInstall(input io.Reader, output io.Writer, settings config, identity githubIdentity) (bool, error) {
-	if _, err := fmt.Fprintln(output, "This worktree qualifies for automatic hk hook installation. Installing hk hooks permits code execution."); err != nil {
-		return false, err
-	}
-	if err := writeGitHubIdentity(output, identity); err != nil {
-		return false, err
-	}
-	reader := bufio.NewReader(input)
-	for {
-		if _, err := fmt.Fprint(output, "Enable automatic hk hook installation for repositories owned by you or your GitHub organizations? [y/N] "); err != nil {
-			return false, err
-		}
-		answer, err := reader.ReadString('\n')
-		if err != nil {
-			return false, fmt.Errorf("read hk install choice: %w", err)
-		}
-		switch strings.ToLower(strings.TrimSpace(answer)) {
-		case "y", "yes":
-			settings.AutoHKInstall = true
-		case "", "n", "no":
-			settings.AutoHKInstall = false
-		default:
-			if _, err := fmt.Fprintln(output, "Enter yes or no."); err != nil {
-				return false, err
-			}
-			continue
-		}
-		settings.AutoHKInstallDecided = true
-		if err := writeConfig(x.configPath(), settings); err != nil {
-			return false, fmt.Errorf("save hk install choice: %w", err)
-		}
-		if !settings.AutoHKInstall {
-			_, err := fmt.Fprintln(output, "Automatic hk hook installation remains disabled. Enable it later with: timber config --auto-hk-install")
-			return false, err
-		}
-		return true, nil
 	}
 }
