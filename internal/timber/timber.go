@@ -6,6 +6,7 @@ import (
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
 	"github.com/nnutter/timber/internal/cli/generate"
 	cligit "github.com/nnutter/timber/internal/cli/git"
+	cliremove "github.com/nnutter/timber/internal/cli/remove"
 	clirepo "github.com/nnutter/timber/internal/cli/repo"
 	repolist "github.com/nnutter/timber/internal/cli/repo/list"
 	reporemove "github.com/nnutter/timber/internal/cli/repo/remove"
@@ -19,7 +20,14 @@ func Commands(runtime Runtime) []*cobra.Command {
 		NewCreateCommand(runtime),
 		NewListCommand(runtime),
 		NewPruneCommand(runtime),
-		NewRemoveCommand(runtime),
+		cliremove.New(cliremove.Dependencies{
+			Remove:       runtime.RemoveWorktree,
+			Complete:     runtime.completeQualifiedWorktreeNames,
+			RenderStatus: func(message string) string { return statusStyle.Render(message) },
+			RenderWarning: func(message string) string {
+				return warningStyle.Render(message)
+			},
+		}),
 		clirepo.New(
 			NewRepoAddCommand(runtime),
 			NewRepoImportCommand(runtime),

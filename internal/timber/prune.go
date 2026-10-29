@@ -68,7 +68,6 @@ func (x *pruneCommandOptions) Execute(command *cobra.Command, args []string) err
 		return x.runtime.reportPruneDryRun(command, selectedWorktrees)
 	}
 
-	removeOptions := &removeCommandOptions{repoSelection: x.repoSelection}
 	for _, worktree := range selectedWorktrees {
 		if !x.prompt && (!worktree.Clean || !worktree.Merged) {
 			continue
@@ -79,7 +78,11 @@ func (x *pruneCommandOptions) Execute(command *cobra.Command, args []string) err
 		if err != nil {
 			return err
 		}
-		if err := removeOptions.removeResolvedWorktree(command, repository, worktree, true); err != nil {
+		result, err := x.runtime.removeResolvedWorktree(repository, worktree, true)
+		if err != nil {
+			return err
+		}
+		if err := reportWorktreeRemoval(command.ErrOrStderr(), result.worktree, result.removingCurrentDirectory); err != nil {
 			return err
 		}
 	}

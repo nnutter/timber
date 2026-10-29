@@ -6,54 +6,21 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/spf13/cobra"
 )
 
-type removeCommandOptions struct {
-	repoSelection
-	force bool
-}
-
-func NewRemoveCommand(runtime Runtime) *cobra.Command {
-	options := &removeCommandOptions{runtime: runtime}
-
-	command := &cobra.Command{
-		Use:               "remove [-f|--force] [name[@repo]]",
-		Aliases:           []string{"rm"},
-		Short:             "Remove a managed Git worktree",
-		Args:              cobra.MaximumNArgs(1),
-		RunE:              options.Execute,
-		ValidArgsFunction: runtime.completeQualifiedWorktreeNames,
-	}
-
-	command.Flags().BoolVarP(&options.force, "force", "f", false, "Force removal")
-
-	return command
-}
-
-func (x *removeCommandOptions) Execute(command *cobra.Command, args []string) error {
-	var raw string
-	if len(args) == 1 {
-		raw = args[0]
-	}
-	return x.removeWorktree(command, raw, x.force)
-}
-
-func (x *removeCommandOptions) removeWorktree(command *cobra.Command, raw string, force bool) error {
-	_, repository, worktree, err := x.resolveQualifiedWorktree(command.InOrStdin(), raw)
+// RemoveWorktree resolves a worktree selector and removes it. It returns the
+// data the CLI reports and avoids Timber command types in its signature.
+func (runtime Runtime) RemoveWorktree(input io.Reader, raw string, force bool) (string, string, string, bool, error) {
+	selection := repoSelection{runtime: runtime}
+	_, repository, worktree, err := selection.resolveQualifiedWorktree(input, raw)
 	if err != nil {
-		return err
+		return "", "", "", false, err
 	}
-	return x.removeResolvedWorktree(command, repository, worktree, force)
-}
-
-func (x *removeCommandOptions) removeResolvedWorktree(command *cobra.Command, repository *Repository, worktree managedWorktree, force bool) error {
-	result, err := x.runtime.removeResolvedWorktree(repository, worktree, force)
+	result, err := runtime.removeResolvedWorktree(repository, worktree, force)
 	if err != nil {
-		return err
+		return "", "", "", false, err
 	}
-	return reportWorktreeRemoval(command.ErrOrStderr(), result.worktree, result.removingCurrentDirectory)
+	return result.worktree.Name, result.worktree.shortCommitHash(), result.worktree.Path, result.removingCurrentDirectory, nil
 }
 
 type worktreeRemovalResult struct {
