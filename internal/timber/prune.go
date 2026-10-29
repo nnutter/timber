@@ -7,13 +7,25 @@ import (
 	"github.com/samber/lo"
 )
 
+// PruneReporters reports dry-run candidates and completed removals.
+type PruneReporters struct {
+	DryRun  func(io.Writer, string, string, string) error
+	Removal func(io.Writer, string, string, string, bool) error
+}
+
 // PruneWorktrees removes merged and clean managed worktrees. With prompt it
 // asks which worktrees to remove; with dryRun it only reports candidates.
 // A non-nil prompter is required when prompt is true.
 // All progress is written to output, preserving CLI reporting order.
-func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool, prompter WorktreePrompter) error {
+func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool, prompter WorktreePrompter, reporters PruneReporters) error {
 	if prompt && prompter == nil {
 		return errors.New("prune prompt requires a worktree prompter")
+	}
+	if dryRun && reporters.DryRun == nil {
+		return errors.New("prune dry run requires a reporter")
+	}
+	if !dryRun && reporters.Removal == nil {
+		return errors.New("prune removal requires a reporter")
 	}
 
 	selection := repoSelection{runtime: runtime}
@@ -59,7 +71,12 @@ func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg
 	}
 
 	if dryRun {
-		return runtime.reportPruneDryRun(output, selectedWorktrees)
+		for _, worktree := range selectedWorktrees {
+			if err := reporters.DryRun(output, worktree.Name, worktree.Repo, runtime.displayHomePath(worktree.Path)); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	for _, worktree := range selectedWorktrees {
@@ -76,7 +93,7 @@ func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg
 		if err != nil {
 			return err
 		}
-		if err := reportWorktreeRemoval(output, result.worktree, result.removingCurrentDirectory); err != nil {
+		if err := reporters.Removal(output, result.worktree.Name, result.worktree.shortCommitHash(), result.worktree.Path, result.removingCurrentDirectory); err != nil {
 			return err
 		}
 	}

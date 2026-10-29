@@ -31,6 +31,7 @@ import (
 	cliswitch "github.com/nnutter/timber/internal/cli/switch"
 	clitodo "github.com/nnutter/timber/internal/cli/todo"
 	clitui "github.com/nnutter/timber/internal/cli/tui"
+	"github.com/nnutter/timber/internal/cli/worktreeoutput"
 	"github.com/nnutter/timber/internal/display"
 	"github.com/nnutter/timber/internal/timber"
 )
@@ -39,6 +40,7 @@ import (
 func Commands(runtime timber.Runtime) []*cobra.Command {
 	runtime.RepoPrompter = bubbleteaRepoPrompter{}
 	renderStatus := func(message string) string { return display.StatusStyle.Render(message) }
+	renderWarning := func(message string) string { return display.WarningStyle.Render(message) }
 	return []*cobra.Command{
 		cliconfig.New(runtime),
 		clicreate.New(clicreate.Dependencies{
@@ -57,17 +59,22 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 		}),
 		cliprune.New(cliprune.Dependencies{
 			Prune: func(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool) error {
-				return runtime.PruneWorktrees(input, output, repoArg, prompt, dryRun, huhWorktreePrompter{})
+				return runtime.PruneWorktrees(input, output, repoArg, prompt, dryRun, huhWorktreePrompter{}, timber.PruneReporters{
+					DryRun: func(output io.Writer, name, repo, path string) error {
+						return worktreeoutput.ReportPruneDryRun(output, renderStatus, name, repo, path)
+					},
+					Removal: func(output io.Writer, name, shortHash, path string, current bool) error {
+						return worktreeoutput.ReportRemoval(output, renderStatus, renderWarning, name, shortHash, path, current)
+					},
+				})
 			},
 			Complete: cliComplete.RepoQualifiers(runtime),
 		}),
 		cliremove.New(cliremove.Dependencies{
-			Remove:       runtime.RemoveWorktree,
-			Complete:     cliComplete.QualifiedWorktreeNames(runtime),
-			RenderStatus: renderStatus,
-			RenderWarning: func(message string) string {
-				return display.WarningStyle.Render(message)
-			},
+			Remove:        runtime.RemoveWorktree,
+			Complete:      cliComplete.QualifiedWorktreeNames(runtime),
+			RenderStatus:  renderStatus,
+			RenderWarning: renderWarning,
 		}),
 		clirepo.New(
 			repoadd.New(repoadd.Dependencies{

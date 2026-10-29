@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/nnutter/timber/internal/display"
 )
 
 // RemoveWorktree resolves a worktree selector and removes it. It returns the
@@ -87,24 +85,6 @@ func (runtime Runtime) removeResolvedWorktree(repository *Repository, worktree m
 	}
 
 	return worktreeRemovalResult{worktree: worktree, removingCurrentDirectory: removingCurrentDirectory}, nil
-}
-
-func reportWorktreeRemoval(output io.Writer, worktree managedWorktree, removingCurrentDirectory bool) error {
-	if _, err := os.Stat(worktree.Path); err == nil {
-		if _, writeErr := fmt.Fprintf(output, "%s\n", display.WarningStyle.Render("warning: worktree directory still exists: "+worktree.Path)); writeErr != nil {
-			return writeErr
-		}
-	}
-
-	message := fmt.Sprintf("removed %s at %s", worktree.Name, worktree.shortCommitHash())
-	if _, err := fmt.Fprintf(output, "%s\n", display.StatusStyle.Render(message)); err != nil {
-		return err
-	}
-	if removingCurrentDirectory {
-		_, err := fmt.Fprintf(output, "%s\n", display.WarningStyle.Render("current directory was removed"))
-		return err
-	}
-	return nil
 }
 
 // removeEmptyParents removes path and empty ancestor directories up to (but not
