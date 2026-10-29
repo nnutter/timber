@@ -60,7 +60,7 @@ func TestCommandsShareStructuredResults(t *testing.T) {
 		{binary: "git", args: []string{"review", "status", "--needs-review", "--json"}},
 	} {
 		out, terminal, err := executeBinary(t, tc.binary, dir, tc.args...)
-		require.NoError(t, err)
+		require.NoError(t, err, "command: %s %v\nstdout: %s\nstderr: %s", tc.binary, tc.args, out, terminal)
 		require.Empty(t, terminal)
 		require.Equal(t, 1, strings.Count(out, "\n"))
 		var result review.Result

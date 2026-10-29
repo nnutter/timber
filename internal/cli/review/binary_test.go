@@ -11,7 +11,7 @@ import (
 
 func buildGitReview(t *testing.T) string {
 	t.Helper()
-	binary := filepath.Join(t.TempDir(), "review-test")
+	binary := filepath.Join(t.TempDir(), "git-review")
 	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "./testdata/standalone")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "%s", out)
