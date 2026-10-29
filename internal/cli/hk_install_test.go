@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"fmt"
@@ -59,7 +59,7 @@ func TestCreateAutomaticallyInstallsHKHooksOnlyForEligibleRepositories(t *testin
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if test.interactive {
-				skipIfNoPty(t)
+				shellSkipIfNoPty(t)
 				if timberBin == "" {
 					timberBin = buildTestTimberBinary(parent)
 				}
@@ -99,7 +99,7 @@ func TestCreateAutomaticallyInstallsHKHooksOnlyForEligibleRepositories(t *testin
 					organizations = `[]`
 				}
 				cache := fmt.Sprintf(`{"username":"alice","organizations":%s,"fetched_at":%q}`, organizations, fetchedAt.Format(time.RFC3339Nano))
-				require.NoError(t, writePrivateFile(filepath.Join(runtime.DataHome, "timber", "github-identity.json"), []byte(cache)))
+				writeIdentityCache(t, runtime, cache)
 			}
 			bin := resolvedTempDir(t)
 			logPath := filepath.Join(bin, "hk.log")
@@ -151,7 +151,7 @@ func TestCreateAutomaticallyInstallsHKHooksOnlyForEligibleRepositories(t *testin
 				}
 				assert.Contains(t, result.stderr, organizations)
 				assert.Less(t, strings.Index(result.stderr, organizations), strings.Index(result.stderr, "[y/N]"))
-				settings, err := runtime.loadConfig()
+				settings, err := runtime.LoadConfig()
 				require.NoError(t, err)
 				assert.True(t, settings.AutoHKInstallDecided)
 				assert.Equal(t, test.wantInstall, settings.AutoHKInstall)
@@ -184,7 +184,7 @@ func TestCreateTrustsMiseBeforeInstallingHKHooks(t *testing.T) {
 
 	runtime := repository.runtime
 	cache := fmt.Sprintf(`{"username":"alice","organizations":[],"fetched_at":%q}`, time.Now().UTC().Format(time.RFC3339Nano))
-	require.NoError(t, writePrivateFile(filepath.Join(runtime.DataHome, "timber", "github-identity.json"), []byte(cache)))
+	writeIdentityCache(t, runtime, cache)
 	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust").err)
 	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-hk-install").err)
 
@@ -213,7 +213,8 @@ func seedRepositoryFiles(t *testing.T, repository testRepository, hkFile, hkSyml
 	t.Helper()
 	seed := filepath.Join(resolvedTempDir(t), "seed")
 	runGitCommand(t, repository.home, "clone", repository.remotePath, seed)
-	configureGitUser(t, seed)
+	runGitCommand(t, seed, "config", "user.name", "Test User")
+	runGitCommand(t, seed, "config", "user.email", "test@example.com")
 	if hkFile {
 		if hkSymlink {
 			require.NoError(t, os.Symlink("README.md", filepath.Join(seed, "hk.pkl")))

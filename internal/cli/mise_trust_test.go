@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"fmt"
@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/timber"
 )
 
 func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
@@ -61,7 +63,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if test.interactive {
-				skipIfNoPty(t)
+				shellSkipIfNoPty(t)
 				if timberBin == "" {
 					timberBin = buildTestTimberBinary(parent)
 				}
@@ -70,7 +72,8 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 			if test.miseFile {
 				seed := filepath.Join(resolvedTempDir(t), "seed")
 				runGitCommand(t, repository.home, "clone", repository.remotePath, seed)
-				configureGitUser(t, seed)
+				runGitCommand(t, seed, "config", "user.name", "Test User")
+				runGitCommand(t, seed, "config", "user.email", "test@example.com")
 				if test.symlink {
 					require.NoError(t, os.Symlink("README.md", filepath.Join(seed, "mise.toml")))
 				} else {
@@ -111,7 +114,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 				if test.cache == "corrupt" {
 					cache = "{"
 				}
-				require.NoError(t, writePrivateFile(filepath.Join(runtime.DataHome, "timber", "github-identity.json"), []byte(cache)))
+				writeIdentityCache(t, runtime, cache)
 			}
 			bin := resolvedTempDir(t)
 			logPath := filepath.Join(bin, "mise.log")
@@ -162,7 +165,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 				}
 				assert.Contains(t, result.stderr, organizations)
 				assert.Less(t, strings.Index(result.stderr, organizations), strings.Index(result.stderr, "[y/N]"))
-				settings, err := runtime.loadConfig()
+				settings, err := runtime.LoadConfig()
 				require.NoError(t, err)
 				assert.True(t, settings.AutoMiseTrustDecided)
 				assert.Equal(t, test.wantTrust, settings.AutoMiseTrust)
@@ -187,7 +190,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 }
 
 // Exercise terminal detection and the persisted choice through the real CLI.
-func interactiveCreate(t *testing.T, runtime Runtime, bin, answer, branch string) commandResult {
+func interactiveCreate(t *testing.T, runtime timber.Runtime, bin, answer, branch string) commandResult {
 	t.Helper()
 	script := `import os, pty, select, signal, sys, time
 pid, fd = pty.fork()
@@ -224,7 +227,7 @@ finally:
     except ProcessLookupError:
         pass
 `
-	command := testCommand(t, "python3", "-c", script, filepath.Join(bin, "timber"), runtime.HomeDirectory, answer, branch)
+	command := shellTestCommand(t, "python3", "-c", script, filepath.Join(bin, "timber"), runtime.HomeDirectory, answer, branch)
 	command.Env = runtime.Environment
 	output, err := command.CombinedOutput()
 	return commandResult{stderr: string(output), err: err}
