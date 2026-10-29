@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"encoding/json"
@@ -100,7 +100,7 @@ func TestCreateCustomPathChecksExistingDestination(t *testing.T) {
 				return
 			}
 			require.Error(t, result.err)
-			_, err := runGitCommandResult(repo.barePath, "show-ref", "--verify", "refs/heads/custom")
+			_, err := gitCommand(t, repo.barePath, "show-ref", "--verify", "refs/heads/custom").CombinedOutput()
 			assert.Error(t, err)
 		})
 	}

@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"encoding/json"
@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type manualWorktreeJSONRecord struct {
+	Name   string `json:"name"`
+	Path   string `json:"path"`
+	Merged bool   `json:"merged"`
+}
+
 func TestManualWorktreeLifecycle(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepository(t)
@@ -18,7 +24,7 @@ func TestManualWorktreeLifecycle(t *testing.T) {
 
 	listed := repo.runTimber(t, "list", "--json")
 	require.NoError(t, listed.err, listed.stderr)
-	var records []listJSONRecord
+	var records []manualWorktreeJSONRecord
 	require.NoError(t, json.Unmarshal([]byte(listed.stdout), &records))
 	require.Len(t, records, 1)
 	assert.Equal(t, "checkout", records[0].Name)
@@ -45,7 +51,7 @@ func TestManualWorktreeLifecycle(t *testing.T) {
 	removed := repo.runTimber(t, "remove", "checkout")
 	require.NoError(t, removed.err, removed.stderr)
 	assert.NoDirExists(t, path)
-	_, err := runGitCommandResult(repo.barePath, "show-ref", "--verify", "refs/heads/feature/manual")
+	_, err := gitCommand(t, repo.barePath, "show-ref", "--verify", "refs/heads/feature/manual").CombinedOutput()
 	assert.Error(t, err)
 }
 
@@ -60,7 +66,7 @@ func TestManualWorktreeNamesExpandPastConflicts(t *testing.T) {
 	}
 	listed := repo.runTimber(t, "list", "--json")
 	require.NoError(t, listed.err, listed.stderr)
-	var records []listJSONRecord
+	var records []manualWorktreeJSONRecord
 	require.NoError(t, json.Unmarshal([]byte(listed.stdout), &records))
 	var names []string
 	for _, record := range records {
