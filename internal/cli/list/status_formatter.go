@@ -1,4 +1,4 @@
-package timber
+package list
 
 import (
 	"fmt"
@@ -18,48 +18,46 @@ type listStatusFormatter struct {
 	behindCountWidth int
 }
 
-func newListStatusFormatter(worktrees []managedWorktree) listStatusFormatter {
+func newListStatusFormatter(worktrees []WorktreeView) listStatusFormatter {
 	var formatter listStatusFormatter
 	for _, worktree := range worktrees {
-		status := worktree.ListStatus
-		if status.Ahead > 0 {
-			formatter.aheadCountWidth = max(formatter.aheadCountWidth, len(strconv.Itoa(status.Ahead)))
+		if worktree.Ahead > 0 {
+			formatter.aheadCountWidth = max(formatter.aheadCountWidth, len(strconv.Itoa(worktree.Ahead)))
 		}
-		if status.Behind > 0 {
-			formatter.behindCountWidth = max(formatter.behindCountWidth, len(strconv.Itoa(status.Behind)))
+		if worktree.Behind > 0 {
+			formatter.behindCountWidth = max(formatter.behindCountWidth, len(strconv.Itoa(worktree.Behind)))
 		}
 	}
 	return formatter
 }
 
-func (x listStatusFormatter) format(worktree managedWorktree) string {
-	status := worktree.ListStatus
+func (x listStatusFormatter) format(worktree WorktreeView) string {
 	// Merged work needs no divergence detail; name the state instead.
 	if worktree.Merged {
-		if status.Upstream != "" && status.Upstream != worktree.DefaultUpstream {
-			return "merged [" + status.Upstream + "]"
+		if worktree.Upstream != "" && worktree.Upstream != worktree.DefaultUpstream {
+			return "merged [" + worktree.Upstream + "]"
 		}
 		return "merged"
 	}
 	parts := make([]string, 0, 3)
 	if x.aheadCountWidth > 0 {
-		indicator := formatListStatusIndicator("↑", status.Ahead, x.aheadCountWidth)
-		if status.Ahead > 0 {
+		indicator := formatListStatusIndicator("↑", worktree.Ahead, x.aheadCountWidth)
+		if worktree.Ahead > 0 {
 			indicator = aheadStatusStyle.Render(indicator)
 		}
 		parts = append(parts, indicator)
 	}
 	if x.behindCountWidth > 0 {
-		indicator := formatListStatusIndicator("↓", status.Behind, x.behindCountWidth)
-		if status.Behind > 0 {
+		indicator := formatListStatusIndicator("↓", worktree.Behind, x.behindCountWidth)
+		if worktree.Behind > 0 {
 			indicator = behindStatusStyle.Render(indicator)
 		}
 		parts = append(parts, indicator)
 	}
 	// The default upstream (repo HEAD) is noise; only call out an
 	// upstream when the worktree tracks something else.
-	if status.Upstream != "" && status.Upstream != worktree.DefaultUpstream {
-		parts = append(parts, "["+status.Upstream+"]")
+	if worktree.Upstream != "" && worktree.Upstream != worktree.DefaultUpstream {
+		parts = append(parts, "["+worktree.Upstream+"]")
 	}
 	return strings.TrimRight(strings.Join(parts, " "), " ")
 }

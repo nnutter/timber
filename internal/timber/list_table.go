@@ -1,82 +1,33 @@
 package timber
 
 import (
-	"fmt"
 	"io"
-	"strings"
 
-	"github.com/nnutter/timber/internal/display"
+	clilist "github.com/nnutter/timber/internal/cli/list"
 )
 
 func (runtime Runtime) reportListTable(stdout io.Writer, worktrees []managedWorktree, pullRequests, location bool) error {
-	headers := []string{"Name", "Repo", "Status", "Todo", "Review", "Commit", "Dirty"}
-	if pullRequests {
-		headers = append(headers, "PR")
+	views := make([]clilist.WorktreeView, 0, len(worktrees))
+	for _, worktree := range worktrees {
+		view := clilist.WorktreeView{
+			Name:            worktree.Name,
+			Repo:            worktree.Repo,
+			Ahead:           worktree.ListStatus.Ahead,
+			Behind:          worktree.ListStatus.Behind,
+			Upstream:        worktree.ListStatus.Upstream,
+			DefaultUpstream: worktree.DefaultUpstream,
+			Merged:          worktree.Merged,
+			StatusError:     worktree.ListError,
+			Todo:            worktree.Todo.String(),
+			Review:          worktree.Review.String(),
+			Commit:          worktree.shortCommitHash(),
+			Clean:           worktree.Clean,
+			PullRequest:     worktree.PullRequest,
+		}
+		if location {
+			view.DisplayPath = runtime.displayHomePath(worktree.Path)
+		}
+		views = append(views, view)
 	}
-	if location {
-		headers = append(headers, "Location")
-		for index := range worktrees {
-			worktrees[index].DisplayPath = runtime.displayHomePath(worktrees[index].Path)
-		}
-	}
-	statusFormatter := newListStatusFormatter(worktrees)
-	tableView := display.NewOutputTable(headers...).BorderRow(true)
-	tableView.Rows(groupListTableRows(worktrees, statusFormatter, pullRequests, location)...)
-
-	_, err := fmt.Fprintln(stdout, dottedListRowRules(tableView.String()))
-	return err
-}
-
-func dottedListRowRules(tableOutput string) string {
-	lines := strings.Split(tableOutput, "\n")
-	headerRuleFound := false
-	for index, line := range lines {
-		if !strings.HasPrefix(line, "├") {
-			continue
-		}
-		if !headerRuleFound {
-			headerRuleFound = true
-			continue
-		}
-		lines[index] = strings.ReplaceAll(line, "─", "┈")
-	}
-	return strings.Join(lines, "\n")
-}
-
-func groupListTableRows(worktrees []managedWorktree, statusFormatter listStatusFormatter, showPullRequests, showLocation bool) [][]string {
-	rows := make([][]string, 0, (len(worktrees)+1)/2)
-	for index, worktree := range worktrees {
-		status := statusFormatter.format(worktree)
-		if worktree.ListError {
-			status = "error"
-		}
-		row := []string{
-			worktree.Name,
-			worktree.Repo,
-			status,
-			worktree.Todo.String(),
-		}
-		row = append(row, worktree.Review.String(), worktree.shortCommitHash(), formatDirtyStatus(worktree.Clean))
-		if showPullRequests {
-			row = append(row, worktree.PullRequest)
-		}
-		if showLocation {
-			row = append(row, worktree.DisplayPath)
-		}
-		if index%2 == 0 {
-			rows = append(rows, row)
-			continue
-		}
-		for column := range row {
-			rows[len(rows)-1][column] += "\n" + row[column]
-		}
-	}
-	return rows
-}
-
-func formatDirtyStatus(clean bool) string {
-	if !clean {
-		return display.WarningStyle.Render("dirty")
-	}
-	return "clean"
+	return clilist.ReportTable(stdout, views, pullRequests, location)
 }

@@ -1,4 +1,4 @@
-package timber
+package list
 
 import (
 	"testing"
@@ -8,11 +8,11 @@ import (
 
 func TestListStatusFormatterAlignsAndColorsIndicators(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
-		{ListStatus: listStatus{Upstream: "origin/dev", Ahead: 18, Behind: 62}},
-		{ListStatus: listStatus{Upstream: "origin/dev", Ahead: 1, Behind: 391}},
-		{ListStatus: listStatus{Upstream: "origin/dev", Behind: 161}},
-		{ListStatus: listStatus{Upstream: "origin/dev"}},
+	worktrees := []WorktreeView{
+		{Upstream: "origin/dev", Ahead: 18, Behind: 62},
+		{Upstream: "origin/dev", Ahead: 1, Behind: 391},
+		{Upstream: "origin/dev", Behind: 161},
+		{Upstream: "origin/dev"},
 		{},
 	}
 
@@ -39,15 +39,18 @@ func TestListStatusFormatterAlignsAndColorsIndicators(t *testing.T) {
 
 func TestListStatusFormatterShowsMergedInsteadOfDivergence(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
+	worktrees := []WorktreeView{
 		{
 			Merged:          true,
-			ListStatus:      listStatus{Upstream: "origin/main", Ahead: 3, Behind: 1},
+			Upstream:        "origin/main",
+			Ahead:           3,
+			Behind:          1,
 			DefaultUpstream: "origin/main",
 		},
 		{
 			Merged:          true,
-			ListStatus:      listStatus{Upstream: "origin/dev", Ahead: 3},
+			Upstream:        "origin/dev",
+			Ahead:           3,
 			DefaultUpstream: "origin/main",
 		},
 	}
@@ -60,9 +63,9 @@ func TestListStatusFormatterShowsMergedInsteadOfDivergence(t *testing.T) {
 
 func TestListStatusFormatterHidesDefaultUpstream(t *testing.T) {
 	t.Parallel()
-	worktrees := []managedWorktree{
-		{ListStatus: listStatus{Upstream: "origin/main", Ahead: 2}, DefaultUpstream: "origin/main"},
-		{ListStatus: listStatus{Upstream: "origin/dev", Ahead: 2}, DefaultUpstream: "origin/main"},
+	worktrees := []WorktreeView{
+		{Upstream: "origin/main", Ahead: 2, DefaultUpstream: "origin/main"},
+		{Upstream: "origin/dev", Ahead: 2, DefaultUpstream: "origin/main"},
 	}
 
 	formatter := newListStatusFormatter(worktrees)
