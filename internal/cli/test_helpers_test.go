@@ -64,11 +64,18 @@ func runCompleteWithRuntime(t *testing.T, runtime timber.Runtime, args ...string
 func testRuntime(t *testing.T) timber.Runtime {
 	t.Helper()
 	home := resolvedTempDir(t)
+	return testRuntimeForHome(home, home)
+}
+
+func testRuntimeForHome(home, directory string) timber.Runtime {
+	if directory == "" {
+		directory = home
+	}
 	dataHome := filepath.Join(home, ".local", "share")
 	configHome := filepath.Join(home, ".config")
 	worktreeRoot := filepath.Join(home, "worktrees")
 	return timber.Runtime{
-		CurrentDirectory:   home,
+		CurrentDirectory:   directory,
 		HomeDirectory:      home,
 		DataHome:           dataHome,
 		ConfigHome:         configHome,
@@ -84,6 +91,11 @@ func testRuntime(t *testing.T) timber.Runtime {
 			"GIT_CEILING_DIRECTORIES="+filepath.Dir(home),
 		),
 	}
+}
+
+func withTestEnvironment(runtime timber.Runtime, replacements ...string) timber.Runtime {
+	runtime.Environment = shellTestEnvironment(runtime.Environment, replacements...)
+	return runtime
 }
 
 const testRepoName = "repo"

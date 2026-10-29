@@ -1,13 +1,19 @@
-package timber
+package cli
 
 import (
 	json "encoding/json/v2"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func writeTodoFile(t *testing.T, path, contents string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
+}
 
 type todoJSONSummary struct {
 	Incomplete int `json:"incomplete"`
