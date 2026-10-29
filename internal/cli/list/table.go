@@ -6,28 +6,11 @@ import (
 	"strings"
 
 	"github.com/nnutter/timber/internal/display"
+	"github.com/nnutter/timber/internal/timber"
 )
 
-// WorktreeView contains the data needed to present a worktree in the list table.
-type WorktreeView struct {
-	Name            string
-	Repo            string
-	Ahead           int
-	Behind          int
-	Upstream        string
-	DefaultUpstream string
-	Merged          bool
-	StatusError     bool
-	Todo            string
-	Review          string
-	Commit          string
-	Clean           bool
-	PullRequest     string
-	DisplayPath     string
-}
-
 // ReportTable writes the list table to stdout.
-func ReportTable(stdout io.Writer, worktrees []WorktreeView, pullRequests, location bool) error {
+func ReportTable(stdout io.Writer, worktrees []timber.ListWorktreeView, pullRequests, location bool) error {
 	headers := []string{"Name", "Repo", "Status", "Todo", "Review", "Commit", "Dirty"}
 	if pullRequests {
 		headers = append(headers, "PR")
@@ -59,7 +42,7 @@ func dottedListRowRules(tableOutput string) string {
 	return strings.Join(lines, "\n")
 }
 
-func groupListTableRows(worktrees []WorktreeView, statusFormatter listStatusFormatter, showPullRequests, showLocation bool) [][]string {
+func groupListTableRows(worktrees []timber.ListWorktreeView, statusFormatter listStatusFormatter, showPullRequests, showLocation bool) [][]string {
 	rows := make([][]string, 0, (len(worktrees)+1)/2)
 	for index, worktree := range worktrees {
 		status := statusFormatter.format(worktree)

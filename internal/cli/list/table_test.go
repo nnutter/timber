@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nnutter/timber/internal/timber"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,13 +16,13 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name               string
-		worktrees          []WorktreeView
+		worktrees          []timber.ListWorktreeView
 		groupedNames       []string
 		horizontalRuleRows int
 	}{
 		{
 			name: "odd number of worktrees",
-			worktrees: []WorktreeView{
+			worktrees: []timber.ListWorktreeView{
 				{Name: "one", Clean: true},
 				{Name: "two", Clean: true},
 				{Name: "three", Clean: true},
@@ -32,7 +34,7 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 		},
 		{
 			name: "even number of worktrees",
-			worktrees: []WorktreeView{
+			worktrees: []timber.ListWorktreeView{
 				{Name: "one", Clean: true},
 				{Name: "two", Clean: true},
 				{Name: "three", Clean: true},
@@ -63,7 +65,7 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 
 func TestGroupListTableRowsIncludesPullRequestColumnWhenEnabled(t *testing.T) {
 	t.Parallel()
-	worktrees := []WorktreeView{
+	worktrees := []timber.ListWorktreeView{
 		{Name: "one", Clean: true, PullRequest: "#42 ✓"},
 		{Name: "two", Clean: true},
 	}

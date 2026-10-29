@@ -46,7 +46,12 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 			Complete:   cliComplete.CreateArgs(runtime),
 		}),
 		clilist.New(clilist.Dependencies{
-			List:     runtime.ListWorktrees,
+			List: func(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, location, jsonOutput bool, sortMode string) error {
+				return runtime.ListWorktrees(ctx, stdout, repoArg, pullRequests, location, jsonOutput, sortMode, timber.ListRenderers{
+					Table: clilist.ReportTable,
+					JSON:  clilist.ReportJSON,
+				})
+			},
 			Complete: cliComplete.RepoQualifiers(runtime),
 		}),
 		cliprune.New(cliprune.Dependencies{

@@ -1,15 +1,33 @@
 package timber
 
-import (
-	"io"
+// ListJSONWorktree is one worktree in the list JSON output.
+type ListJSONWorktree struct {
+	Name        string                  `json:"name"`
+	Repo        string                  `json:"repo"`
+	Path        string                  `json:"path"`
+	Upstream    string                  `json:"upstream"`
+	Ahead       int                     `json:"ahead"`
+	Behind      int                     `json:"behind"`
+	Commit      string                  `json:"commit"`
+	Clean       bool                    `json:"clean"`
+	Merged      bool                    `json:"merged"`
+	StatusError bool                    `json:"statusError"`
+	TodoDone    int                     `json:"todoDone"`
+	TodoTotal   int                     `json:"todoTotal"`
+	PullRequest string                  `json:"pullRequest"`
+	Review      *ListJSONReviewProgress `json:"review,omitzero"`
+}
 
-	clilist "github.com/nnutter/timber/internal/cli/list"
-)
+// ListJSONReviewProgress counts reviewed commits.
+type ListJSONReviewProgress struct {
+	Approved int `json:"approved"`
+	Total    int `json:"total"`
+}
 
-func reportListJSON(stdout io.Writer, worktrees []managedWorktree) error {
-	records := make([]clilist.JSONWorktree, 0, len(worktrees))
+func worktreesToListJSON(worktrees []managedWorktree) []ListJSONWorktree {
+	records := make([]ListJSONWorktree, 0, len(worktrees))
 	for _, worktree := range worktrees {
-		record := clilist.JSONWorktree{
+		record := ListJSONWorktree{
 			Name:        worktree.Name,
 			Repo:        worktree.Repo,
 			Path:        worktree.Path,
@@ -25,12 +43,12 @@ func reportListJSON(stdout io.Writer, worktrees []managedWorktree) error {
 			PullRequest: worktree.PullRequest,
 		}
 		if worktree.Review != nil {
-			record.Review = &clilist.JSONReviewProgress{
+			record.Review = &ListJSONReviewProgress{
 				Approved: worktree.Review.Approved,
 				Total:    worktree.Review.Total,
 			}
 		}
 		records = append(records, record)
 	}
-	return clilist.ReportJSON(stdout, records)
+	return records
 }

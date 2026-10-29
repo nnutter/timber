@@ -1,15 +1,27 @@
 package timber
 
-import (
-	"io"
+// ListWorktreeView contains the data needed to present a worktree in a table.
+type ListWorktreeView struct {
+	Name            string
+	Repo            string
+	Ahead           int
+	Behind          int
+	Upstream        string
+	DefaultUpstream string
+	Merged          bool
+	StatusError     bool
+	Todo            string
+	Review          string
+	Commit          string
+	Clean           bool
+	PullRequest     string
+	DisplayPath     string
+}
 
-	clilist "github.com/nnutter/timber/internal/cli/list"
-)
-
-func (runtime Runtime) reportListTable(stdout io.Writer, worktrees []managedWorktree, pullRequests, location bool) error {
-	views := make([]clilist.WorktreeView, 0, len(worktrees))
+func (runtime Runtime) worktreesToListTable(worktrees []managedWorktree, location bool) []ListWorktreeView {
+	views := make([]ListWorktreeView, 0, len(worktrees))
 	for _, worktree := range worktrees {
-		view := clilist.WorktreeView{
+		view := ListWorktreeView{
 			Name:            worktree.Name,
 			Repo:            worktree.Repo,
 			Ahead:           worktree.ListStatus.Ahead,
@@ -29,5 +41,5 @@ func (runtime Runtime) reportListTable(stdout io.Writer, worktrees []managedWork
 		}
 		views = append(views, view)
 	}
-	return clilist.ReportTable(stdout, views, pullRequests, location)
+	return views
 }

@@ -3,12 +3,14 @@ package list
 import (
 	"testing"
 
+	"github.com/nnutter/timber/internal/timber"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestListStatusFormatterAlignsAndColorsIndicators(t *testing.T) {
 	t.Parallel()
-	worktrees := []WorktreeView{
+	worktrees := []timber.ListWorktreeView{
 		{Upstream: "origin/dev", Ahead: 18, Behind: 62},
 		{Upstream: "origin/dev", Ahead: 1, Behind: 391},
 		{Upstream: "origin/dev", Behind: 161},
@@ -39,7 +41,7 @@ func TestListStatusFormatterAlignsAndColorsIndicators(t *testing.T) {
 
 func TestListStatusFormatterShowsMergedInsteadOfDivergence(t *testing.T) {
 	t.Parallel()
-	worktrees := []WorktreeView{
+	worktrees := []timber.ListWorktreeView{
 		{
 			Merged:          true,
 			Upstream:        "origin/main",
@@ -63,7 +65,7 @@ func TestListStatusFormatterShowsMergedInsteadOfDivergence(t *testing.T) {
 
 func TestListStatusFormatterHidesDefaultUpstream(t *testing.T) {
 	t.Parallel()
-	worktrees := []WorktreeView{
+	worktrees := []timber.ListWorktreeView{
 		{Upstream: "origin/main", Ahead: 2, DefaultUpstream: "origin/main"},
 		{Upstream: "origin/dev", Ahead: 2, DefaultUpstream: "origin/main"},
 	}

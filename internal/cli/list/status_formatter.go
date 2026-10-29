@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/nnutter/timber/internal/timber"
 )
 
 var (
@@ -18,7 +20,7 @@ type listStatusFormatter struct {
 	behindCountWidth int
 }
 
-func newListStatusFormatter(worktrees []WorktreeView) listStatusFormatter {
+func newListStatusFormatter(worktrees []timber.ListWorktreeView) listStatusFormatter {
 	var formatter listStatusFormatter
 	for _, worktree := range worktrees {
 		if worktree.Ahead > 0 {
@@ -31,7 +33,7 @@ func newListStatusFormatter(worktrees []WorktreeView) listStatusFormatter {
 	return formatter
 }
 
-func (x listStatusFormatter) format(worktree WorktreeView) string {
+func (x listStatusFormatter) format(worktree timber.ListWorktreeView) string {
 	// Merged work needs no divergence detail; name the state instead.
 	if worktree.Merged {
 		if worktree.Upstream != "" && worktree.Upstream != worktree.DefaultUpstream {

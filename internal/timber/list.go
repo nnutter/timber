@@ -2,12 +2,19 @@ package timber
 
 import (
 	"context"
+	"errors"
 	"io"
 )
 
+// ListRenderers provides the output functions used by ListWorktrees.
+type ListRenderers struct {
+	Table func(io.Writer, []ListWorktreeView, bool, bool) error
+	JSON  func(io.Writer, []ListJSONWorktree) error
+}
+
 // ListWorktrees lists managed worktrees as a table or JSON document. All
 // output is written to the given writers, preserving CLI reporting order.
-func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, location, jsonOutput bool, sortMode string) error {
+func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, location, jsonOutput bool, sortMode string, renderers ListRenderers) error {
 	var sortBy listSort
 	if err := sortBy.Set(sortMode); err != nil {
 		return err
@@ -42,7 +49,13 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 	}
 
 	if jsonOutput {
-		return reportListJSON(stdout, worktrees)
+		if renderers.JSON == nil {
+			return errors.New("list JSON renderer is not configured")
+		}
+		return renderers.JSON(stdout, worktreesToListJSON(worktrees))
 	}
-	return runtime.reportListTable(stdout, worktrees, pullRequests, location)
+	if renderers.Table == nil {
+		return errors.New("list table renderer is not configured")
+	}
+	return renderers.Table(stdout, runtime.worktreesToListTable(worktrees, location), pullRequests, location)
 }
