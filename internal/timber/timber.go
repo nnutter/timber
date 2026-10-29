@@ -1,12 +1,15 @@
 package timber
 
 import (
+	"io"
+
 	"github.com/spf13/cobra"
 
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
 	clicreate "github.com/nnutter/timber/internal/cli/create"
 	"github.com/nnutter/timber/internal/cli/generate"
 	cligit "github.com/nnutter/timber/internal/cli/git"
+	cliprune "github.com/nnutter/timber/internal/cli/prune"
 	cliremove "github.com/nnutter/timber/internal/cli/remove"
 	clirepo "github.com/nnutter/timber/internal/cli/repo"
 	repoadd "github.com/nnutter/timber/internal/cli/repo/add"
@@ -29,7 +32,12 @@ func Commands(runtime Runtime) []*cobra.Command {
 			Complete:   runtime.completeCreateArgs,
 		}),
 		NewListCommand(runtime),
-		NewPruneCommand(runtime),
+		cliprune.New(cliprune.Dependencies{
+			Prune: func(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool) error {
+				return runtime.PruneWorktrees(input, output, repoArg, prompt, dryRun, huhWorktreePrompter{})
+			},
+			Complete: runtime.completeRepoQualifiers,
+		}),
 		cliremove.New(cliremove.Dependencies{
 			Remove:       runtime.RemoveWorktree,
 			Complete:     runtime.completeQualifiedWorktreeNames,

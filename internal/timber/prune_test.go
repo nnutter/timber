@@ -2,7 +2,6 @@ package timber
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -79,18 +78,15 @@ func TestPruneDryRunWithPromptListsSelectedWorktrees(t *testing.T) {
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 	testRepository.commitFileInWorktree(t, branchName, "extra.txt", "extra\n")
 
-	options := &pruneCommandOptions{
-		runtime:  testRepository.runtime,
-		RepoName: testRepoName,
-		prompt:   true,
-		dryRun:   true,
-		prompter: stubPrompter{selected: []managedWorktree{{Name: branchName, Repo: testRepoName}}},
-	}
-	command := newTestRootCommand(t)
 	var stderr bytes.Buffer
-	command.SetErr(&stderr)
-	command.SetOut(io.Discard)
-	err := options.Execute(command, nil)
+	err := testRepository.runtime.PruneWorktrees(
+		nil,
+		&stderr,
+		at(testRepoName, ""),
+		true,
+		true,
+		stubPrompter{selected: []managedWorktree{{Name: branchName, Repo: testRepoName}}},
+	)
 	require.NoError(t, err, stderr.String())
 	assert.Contains(t, stderr.String(), "would prune "+branchName+" ("+testRepoName+")")
 	testRepository.assertPathPresent(t, testRepository.worktreePath(branchName))
@@ -170,17 +166,15 @@ func TestPrunePromptDistinguishesSameNameInTwoRepos(t *testing.T) {
 	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, branchName)).err)
 	require.NoError(t, primary.runTimber(t, "create", at(secondaryName, branchName)).err)
 
-	options := &pruneCommandOptions{
-		runtime:  primary.runtime,
-		prompt:   true,
-		prompter: stubPrompter{selected: []managedWorktree{{Repo: secondaryName, Name: branchName}}},
-	}
-	command := newTestRootCommandWithRuntime(t, primary.runtime)
 	var stderr bytes.Buffer
-	command.SetErr(&stderr)
-	command.SetOut(io.Discard)
-
-	require.NoError(t, options.Execute(command, nil), stderr.String())
+	require.NoError(t, primary.runtime.PruneWorktrees(
+		nil,
+		&stderr,
+		"",
+		true,
+		false,
+		stubPrompter{selected: []managedWorktree{{Repo: secondaryName, Name: branchName}}},
+	), stderr.String())
 
 	primary.assertPathPresent(t, primary.worktreePath(branchName))
 	_, err := os.Stat(filepath.Join(primary.worktreeRoot, secondaryName, branchName, secondaryName))
@@ -209,18 +203,15 @@ func TestPrunePromptCanForceRemoveSelectedWorktrees(t *testing.T) {
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
 	testRepository.commitFileInWorktree(t, branchName, "extra.txt", "extra\n")
 
-	options := &pruneCommandOptions{
-		runtime:  testRepository.runtime,
-		RepoName: testRepoName,
-		prompt:   true,
-		prompter: stubPrompter{selected: []managedWorktree{{Name: branchName}}},
-	}
-	command := newTestRootCommand(t)
 	var stderr bytes.Buffer
-	command.SetErr(&stderr)
-	command.SetOut(io.Discard)
-	command.SetArgs([]string{})
-	err := options.Execute(command, nil)
+	err := testRepository.runtime.PruneWorktrees(
+		nil,
+		&stderr,
+		at(testRepoName, ""),
+		true,
+		false,
+		stubPrompter{selected: []managedWorktree{{Name: branchName}}},
+	)
 	require.NoError(t, err, stderr.String())
 	testRepository.assertPathMissing(t, testRepository.worktreePath(branchName))
 }

@@ -401,7 +401,7 @@ func (x Runtime) writePathFile(pathFile string, value string) (err error) {
 	return root.WriteFile(relativePath, []byte(value+"\n"), 0o600)
 }
 
-func (x Runtime) reportPruneDryRun(command *cobra.Command, worktrees []managedWorktree) error {
+func (x Runtime) reportPruneDryRun(output io.Writer, worktrees []managedWorktree) error {
 	for _, worktree := range worktrees {
 		message := fmt.Sprintf(
 			"would prune %s (%s) at %s",
@@ -409,7 +409,7 @@ func (x Runtime) reportPruneDryRun(command *cobra.Command, worktrees []managedWo
 			worktree.Repo,
 			x.displayHomePath(worktree.Path),
 		)
-		if _, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render(message)); err != nil {
+		if _, err := fmt.Fprintf(output, "%s\n", statusStyle.Render(message)); err != nil {
 			return err
 		}
 	}
