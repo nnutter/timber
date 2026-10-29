@@ -9,24 +9,12 @@ import (
 	"github.com/nnutter/timber/herdr"
 )
 
-const KeybindingTOML = `[[keys.command]]
-key = "prefix+shift+s"
-type = "plugin_action"
-command = "nnutter.timber.open"
-description = "open or create Timber Space"
-
-[[keys.command]]
-key = "prefix+shift+d"
-type = "plugin_action"
-command = "nnutter.timber.delete"
-description = "delete Timber worktree"
-`
-
 type Dependencies struct {
-	Directory    string
-	ConfigFile   string
-	Link         func(context.Context, string) error
-	RenderStatus func(string) string
+	Directory      string
+	ConfigFile     string
+	KeybindingTOML string
+	Link           func(context.Context, string) error
+	RenderStatus   func(string) string
 }
 
 func New(deps Dependencies) *cobra.Command {
@@ -47,7 +35,7 @@ func New(deps Dependencies) *cobra.Command {
 			if _, err := fmt.Fprintln(command.ErrOrStderr(), deps.RenderStatus("linked herdr plugin nnutter.timber")); err != nil {
 				return err
 			}
-			_, err := fmt.Fprintf(command.OutOrStdout(), "Add this keybinding to %s:\n\n%s", deps.ConfigFile, KeybindingTOML)
+			_, err := fmt.Fprintf(command.OutOrStdout(), "Add this keybinding to %s:\n\n%s", deps.ConfigFile, deps.KeybindingTOML)
 			return err
 		},
 	}

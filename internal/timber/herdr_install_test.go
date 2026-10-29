@@ -27,7 +27,7 @@ func TestHerdrInstallWritesPluginAndLinks(t *testing.T) {
 	assert.Contains(t, result.stderr, "installed herdr plugin to "+destination)
 	assert.Contains(t, result.stderr, "linked herdr plugin nnutter.timber")
 	assert.Contains(t, result.stdout, filepath.Join(configHome, "herdr", "config.toml"))
-	assert.Contains(t, result.stdout, herdrKeybindingTOML)
+	assert.Contains(t, result.stdout, HerdrKeybindingTOML)
 	assert.Equal(t, []string{
 		fakeHerdrLogLine("plugin", "link", destination, "--enabled"),
 	}, readFakeHerdrLog(t, logPath))
@@ -63,7 +63,7 @@ func TestHerdrInstallFailsWhenPluginLinkFails(t *testing.T) {
 	require.Error(t, result.err)
 	assert.Contains(t, result.err.Error(), "herdr plugin link")
 	assert.FileExists(t, filepath.Join(configHome, "herdr", "plugins", "timber", "herdr-plugin.toml"))
-	assert.NotContains(t, result.stdout, herdrKeybindingTOML)
+	assert.NotContains(t, result.stdout, HerdrKeybindingTOML)
 }
 
 func mustEmbeddedPluginFiles(t *testing.T) []string {

@@ -1,8 +1,17 @@
 package timber
 
-import "github.com/nnutter/timber/internal/cli/herdr/install"
+const herdrPluginDirectoryName = "timber"
 
-const (
-	herdrPluginDirectoryName = "timber"
-	herdrKeybindingTOML      = install.KeybindingTOML
-)
+// HerdrKeybindingTOML documents the Herdr keybindings for the Timber plugin.
+const HerdrKeybindingTOML = `[[keys.command]]
+key = "prefix+shift+s"
+type = "plugin_action"
+command = "nnutter.timber.open"
+description = "open or create Timber Space"
+
+[[keys.command]]
+key = "prefix+shift+d"
+type = "plugin_action"
+command = "nnutter.timber.delete"
+description = "delete Timber worktree"
+`

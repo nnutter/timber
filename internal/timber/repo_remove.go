@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func (runtime Runtime) removeRepo(repoName string) error {
+func (runtime Runtime) RemoveRepo(repoName string) error {
 	repository, repo, err := runtime.openRegisteredRepository(repoName)
 	if err != nil {
 		return err

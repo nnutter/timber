@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-func (x Runtime) resolveTodoGitDir(input io.Reader, args []string) (string, error) {
+func (x Runtime) ResolveTodoGitDir(input io.Reader, args []string) (string, error) {
 	if len(args) == 0 {
 		gitDir, err := gitOutput(x, x.CurrentDirectory, "rev-parse", "--absolute-git-dir")
 		if err != nil {

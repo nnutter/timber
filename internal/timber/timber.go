@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	cliComplete "github.com/nnutter/timber/internal/cli/complete"
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
 	clicreate "github.com/nnutter/timber/internal/cli/create"
 	"github.com/nnutter/timber/internal/cli/generate"
@@ -33,22 +34,22 @@ func Commands(runtime Runtime) []*cobra.Command {
 		cliconfig.New(runtime),
 		clicreate.New(clicreate.Dependencies{
 			Create:     runtime.CreateManagedWorktree,
-			ReportPath: runtime.reportCreatedWorktreePath,
-			Complete:   runtime.completeCreateArgs,
+			ReportPath: runtime.ReportCreatedWorktreePath,
+			Complete:   cliComplete.CreateArgs(runtime),
 		}),
 		clilist.New(clilist.Dependencies{
 			List:     runtime.ListWorktrees,
-			Complete: runtime.completeRepoQualifiers,
+			Complete: cliComplete.RepoQualifiers(runtime),
 		}),
 		cliprune.New(cliprune.Dependencies{
 			Prune: func(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool) error {
 				return runtime.PruneWorktrees(input, output, repoArg, prompt, dryRun, huhWorktreePrompter{})
 			},
-			Complete: runtime.completeRepoQualifiers,
+			Complete: cliComplete.RepoQualifiers(runtime),
 		}),
 		cliremove.New(cliremove.Dependencies{
 			Remove:       runtime.RemoveWorktree,
-			Complete:     runtime.completeQualifiedWorktreeNames,
+			Complete:     cliComplete.QualifiedWorktreeNames(runtime),
 			RenderStatus: func(message string) string { return display.StatusStyle.Render(message) },
 			RenderWarning: func(message string) string {
 				return display.WarningStyle.Render(message)
@@ -67,10 +68,10 @@ func Commands(runtime Runtime) []*cobra.Command {
 				RenderStatus: func(message string) string { return display.StatusStyle.Render(message) },
 			}),
 			repolist.New(runtime.ListRepos),
-			reporemove.New(runtime.removeRepo, runtime.completeRegisteredRepoNames, func(message string) string { return display.StatusStyle.Render(message) }),
+			reporemove.New(runtime.RemoveRepo, cliComplete.RegisteredRepoNames(runtime), func(message string) string { return display.StatusStyle.Render(message) }),
 			reporename.New(reporename.Dependencies{
 				Rename:       runtime.RenameRepo,
-				Complete:     runtime.completeRepoRenameArguments,
+				Complete:     cliComplete.RepoRenameArguments(runtime),
 				RenderStatus: func(message string) string { return display.StatusStyle.Render(message) },
 			}),
 		),
@@ -79,8 +80,8 @@ func Commands(runtime Runtime) []*cobra.Command {
 		cliswitch.New(cliswitch.Dependencies{
 			Resolve:    runtime.ResolveSwitchWorktree,
 			Create:     runtime.CreateManagedWorktree,
-			ReportPath: runtime.reportSwitchWorktreePath,
-			Complete:   runtime.completeQualifiedWorktreeNames,
+			ReportPath: runtime.ReportSwitchWorktreePath,
+			Complete:   cliComplete.QualifiedWorktreeNames(runtime),
 		}),
 		todoCommand(runtime),
 		cligit.New(cligit.Dependencies{
@@ -88,8 +89,8 @@ func Commands(runtime Runtime) []*cobra.Command {
 			Command:            runtime.command,
 			ResolveSelector:    runtime.ResolveGitSelector,
 			ResolveGitDir:      runtime.GitDirForDirectory,
-			CompleteWorktrees:  runtime.completeQualifiedWorktreeNames,
-			CompleteRepoSuffix: runtime.completeRepoSuffix,
+			CompleteWorktrees:  cliComplete.QualifiedWorktreeNames(runtime),
+			CompleteRepoSuffix: cliComplete.RepoSuffix(runtime),
 		}),
 		clitui.New(clitui.Dependencies{
 			Run: func(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool) error {
@@ -108,8 +109,8 @@ func todoCommand(runtime Runtime) *cobra.Command {
 		Environment:      runtime.Environment,
 		SkillContent:     runtime.TodoSkillContent,
 		Command:          runtime.command,
-		Complete:         runtime.completeQualifiedWorktreeNames,
+		Complete:         cliComplete.QualifiedWorktreeNames(runtime),
 		RenderStatus:     func(message string) string { return display.StatusStyle.Render(message) },
-		ResolveGitDir:    runtime.resolveTodoGitDir,
+		ResolveGitDir:    runtime.ResolveTodoGitDir,
 	})
 }

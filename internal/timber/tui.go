@@ -43,6 +43,9 @@ type bubbleteaCreateWizardPrompter struct {
 // RunTUI runs the interactive worktree wizard. A cancelled wizard returns
 // nil without creating or opening anything.
 func (runtime Runtime) RunTUI(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool, prompter createWizardPrompter) error {
+	if prompter == nil {
+		prompter = bubbleteaCreateWizardPrompter{}
+	}
 	repos, err := runtime.listRegisteredReposForWizard()
 	if err != nil {
 		return err
@@ -86,7 +89,7 @@ func (runtime Runtime) createSelectedWorktree(
 	if err != nil {
 		return err
 	}
-	return runtime.reportCreatedWorktreePath(stdout, worktreePath)
+	return runtime.ReportCreatedWorktreePath(stdout, worktreePath)
 }
 
 func (runtime Runtime) openSelectedWorktree(

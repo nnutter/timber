@@ -16,8 +16,6 @@ import (
 
 	"github.com/nnutter/timber/internal/display"
 
-	"github.com/spf13/cobra"
-
 	"github.com/nnutter/timber/internal/timber/todo"
 )
 
@@ -102,6 +100,12 @@ func RuntimeFromProcess() (Runtime, error) {
 	}, nil
 }
 
+// NewCommand builds an external command with the runtime environment and
+// executable overrides applied. It exposes process creation for CLI wiring.
+func (x Runtime) NewCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return x.command(ctx, name, args...)
+}
+
 func (x Runtime) command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	if name == "herdr" && x.HerdrExecutable != "" {
 		name = x.HerdrExecutable
@@ -160,7 +164,7 @@ func (x Runtime) resolveCreateWorktreeName(repoName string, name string) (string
 	return x.unusedWorktreeName(repoName)
 }
 
-func (x Runtime) reportCreatedWorktreePath(output io.Writer, worktreePath string) error {
+func (x Runtime) ReportCreatedWorktreePath(output io.Writer, worktreePath string) error {
 	if pathFile := x.CreatePathFile; pathFile != "" {
 		if err := x.writePathFile(pathFile, worktreePath); err != nil {
 			return fmt.Errorf("write created worktree path file: %w", err)
@@ -189,6 +193,28 @@ func (x Runtime) displayHomePath(path string) string {
 		return "~" + string(filepath.Separator) + relative
 	}
 	return path
+}
+
+// OpenHerdrSpace opens a Herdr workspace for the identified worktree.
+func (x Runtime) OpenHerdrSpace(ctx context.Context, repo, name, path string) error {
+	return x.openHerdrSpace(ctx, managedWorktree{Repo: repo, Name: name, Path: path})
+}
+
+// DefineHerdrSpace defines Herdr tabs in the current space for the
+// identified worktree.
+func (x Runtime) DefineHerdrSpace(ctx context.Context, repo, name, path string) error {
+	return x.defineCurrentHerdrSpace(ctx, managedWorktree{Repo: repo, Name: name, Path: path})
+}
+
+// ResolveHerdrWorktree resolves a worktree selector to its repository,
+// name, and path for Herdr operations.
+func (x Runtime) ResolveHerdrWorktree(input io.Reader, raw string) (repo, name, path string, err error) {
+	selection := repoSelection{runtime: x}
+	_, _, worktree, err := selection.resolveQualifiedWorktree(input, raw)
+	if err != nil {
+		return "", "", "", err
+	}
+	return worktree.Repo, worktree.Name, worktree.Path, nil
 }
 
 func (x Runtime) openHerdrSpace(ctx context.Context, worktree managedWorktree) (returnErr error) {
@@ -344,6 +370,22 @@ func (x Runtime) runHerdr(ctx context.Context, args ...string) ([]byte, error) {
 	return nil, fmt.Errorf("herdr %s: %w: %s", operation, err, message)
 }
 
+// HerdrPluginDirectory is the directory the Herdr plugin is installed to.
+func (x Runtime) HerdrPluginDirectory() string {
+	return x.herdrPluginInstallDirectory()
+}
+
+// HerdrConfigFile is the Herdr configuration file that lists keybindings.
+func (x Runtime) HerdrConfigFile() string {
+	return x.herdrConfigFilePath()
+}
+
+// LinkHerdrPlugin links the installed Herdr plugin.
+func (x Runtime) LinkHerdrPlugin(ctx context.Context, destination string) error {
+	_, err := x.runHerdr(ctx, "plugin", "link", destination, "--enabled")
+	return err
+}
+
 func (x Runtime) herdrPluginInstallDirectory() string {
 	return filepath.Join(x.xdgConfigHome(), "herdr", "plugins", herdrPluginDirectoryName)
 }
@@ -475,48 +517,11 @@ func (x Runtime) inferUniqueRepoForWorktree(worktreeName string) (string, error)
 	}
 }
 
-func (x Runtime) completeQualifiedWorktreeNames(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if len(args) > 0 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-
-	if name, repoPrefix, found := strings.CutLast(toComplete, "@"); found {
-		if name == "" {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		return x.completeRepoSuffix(name, repoPrefix, true)
-	}
-
-	return x.completeWorktreeNamesAcrossRepos(toComplete)
-}
-
-func (x Runtime) completeCreateArgs(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if len(args) == 1 {
-		return nil, cobra.ShellCompDirectiveFilterDirs
-	}
-	if len(args) > 1 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	if name, repoPrefix, found := strings.CutLast(toComplete, "@"); found {
-		return x.completeRepoSuffix(name, repoPrefix, false)
-	}
-	return x.completeRepoQualifiers(nil, args, toComplete)
-}
-
-func (x Runtime) completeRepoQualifiers(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if len(args) > 0 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	if toComplete != "" && !strings.HasPrefix(toComplete, "@") {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	return x.completeRepoSuffix("", strings.TrimPrefix(toComplete, "@"), false)
-}
-
-func (x Runtime) completeRepoSuffix(worktreeName string, repoPrefix string, requireWorktree bool) ([]string, cobra.ShellCompDirective) {
+// QueryRepoSuffixes lists worktree@repo candidates for shell completion.
+func (x Runtime) QueryRepoSuffixes(worktreeName string, repoPrefix string, requireWorktree bool) ([]string, error) {
 	repos, err := x.listRegisteredRepos()
 	if err != nil {
-		return nil, cobra.ShellCompDirectiveError
+		return nil, err
 	}
 
 	names := make([]string, 0)
@@ -527,7 +532,7 @@ func (x Runtime) completeRepoSuffix(worktreeName string, repoPrefix string, requ
 		if requireWorktree {
 			worktrees, err := x.worktreesForRepo(repo)
 			if err != nil {
-				return nil, cobra.ShellCompDirectiveError
+				return nil, err
 			}
 			if _, err := managedWorktreeByName(worktrees, worktreeName); err != nil {
 				continue
@@ -536,13 +541,15 @@ func (x Runtime) completeRepoSuffix(worktreeName string, repoPrefix string, requ
 		names = append(names, worktreeName+"@"+repo.Name)
 	}
 	slices.Sort(names)
-	return names, cobra.ShellCompDirectiveNoFileComp
+	return names, nil
 }
 
-func (x Runtime) completeWorktreeNamesAcrossRepos(toComplete string) ([]string, cobra.ShellCompDirective) {
+// QueryWorktreeNamesAcrossRepos lists worktree names for shell completion,
+// qualifying ambiguous names with their repository.
+func (x Runtime) QueryWorktreeNamesAcrossRepos(toComplete string) ([]string, error) {
 	repos, err := x.listRegisteredRepos()
 	if err != nil {
-		return nil, cobra.ShellCompDirectiveError
+		return nil, err
 	}
 
 	reposForName := make(map[string][]string)
@@ -550,7 +557,7 @@ func (x Runtime) completeWorktreeNamesAcrossRepos(toComplete string) ([]string, 
 	for _, repo := range repos {
 		worktrees, err := x.worktreesForRepo(repo)
 		if err != nil {
-			return nil, cobra.ShellCompDirectiveError
+			return nil, err
 		}
 		for _, worktree := range worktrees {
 			name := worktree.Name
@@ -576,7 +583,7 @@ func (x Runtime) completeWorktreeNamesAcrossRepos(toComplete string) ([]string, 
 		}
 	}
 	slices.Sort(completions)
-	return completions, cobra.ShellCompDirectiveNoFileComp
+	return completions, nil
 }
 
 func (x Runtime) listRegisteredRepos() ([]registeredRepo, error) {
@@ -678,17 +685,12 @@ func (x Runtime) worktreesForRepo(repo registeredRepo) ([]managedWorktree, error
 	return x.managedWorktreesFromRepository(repository, repo.Name)
 }
 
-func (x Runtime) completeRegisteredRepoNames(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if len(args) > 0 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	return x.completeRegisteredRepoFlagValues(nil, nil, toComplete)
-}
-
-func (x Runtime) completeRegisteredRepoFlagValues(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+// QueryRegisteredRepoNames lists registered repository names with the
+// given prefix for shell completion.
+func (x Runtime) QueryRegisteredRepoNames(toComplete string) ([]string, error) {
 	repos, err := x.listRegisteredRepos()
 	if err != nil {
-		return nil, cobra.ShellCompDirectiveError
+		return nil, err
 	}
 	names := make([]string, 0, len(repos))
 	for _, repo := range repos {
@@ -696,7 +698,7 @@ func (x Runtime) completeRegisteredRepoFlagValues(_ *cobra.Command, _ []string, 
 			names = append(names, repo.Name)
 		}
 	}
-	return names, cobra.ShellCompDirectiveNoFileComp
+	return names, nil
 }
 
 func (x Runtime) buildImportPlan(sourcePath string, requestedName string) (importPlan, error) {
@@ -829,17 +831,6 @@ func (x Runtime) trashPaths(paths ...string) error {
 	return nil
 }
 
-func (x Runtime) completeRepoRenameArguments(
-	command *cobra.Command,
-	args []string,
-	toComplete string,
-) ([]string, cobra.ShellCompDirective) {
-	if len(args) == 0 {
-		return x.completeRegisteredRepoNames(command, args, toComplete)
-	}
-	return nil, cobra.ShellCompDirectiveNoFileComp
-}
-
 func (x Runtime) buildRepositoryRenamePlan(oldName string, requestedNewName string) (repositoryRenamePlan, error) {
 	sourceRepo, err := x.registeredRepoByName(oldName)
 	if err != nil {
@@ -888,7 +879,7 @@ func (x Runtime) reportRenamedCurrentPath(path string) error {
 	return nil
 }
 
-func (x Runtime) reportSwitchWorktreePath(output io.Writer, worktreePath string) error {
+func (x Runtime) ReportSwitchWorktreePath(output io.Writer, worktreePath string) error {
 	if pathFile := x.SwitchPathFile; pathFile != "" {
 		if err := x.writePathFile(pathFile, worktreePath); err != nil {
 			return fmt.Errorf("write switch worktree path file: %w", err)
