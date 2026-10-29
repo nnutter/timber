@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"path/filepath"
@@ -11,18 +11,18 @@ import (
 
 func TestRepoAddListRemove(t *testing.T) {
 	t.Parallel()
-	home := resolvedTempDir(t)
-	runtime := testRuntimeForHome(home, home)
+	runtime := testRuntime(t)
+	home := runtime.HomeDirectory
 
 	remotePath := filepath.Join(resolvedTempDir(t), "remote.git")
 	runGitCommand(t, resolvedTempDir(t), "init", "--bare", remotePath)
-	seedBareRemote(t, remotePath)
+	seedImportRemote(t, remotePath)
 
 	addResult := runTimberCommandWithRuntime(t, runtime, "repo", "add", "--name", "demo", remotePath)
 	require.NoError(t, addResult.err, addResult.stderr)
 	assert.Contains(t, addResult.stderr, "added repository demo")
 
-	barePath := runtime.bareRepoPath("demo")
+	barePath := filepath.Join(runtime.WorktreeRoot, "demo", ".git")
 	fetch := strings.TrimSpace(runGitCommand(t, barePath, "config", "--get", "remote.origin.fetch"))
 	assert.Equal(t, "+refs/heads/*:refs/remotes/origin/*", fetch)
 	originHead := strings.TrimSpace(runGitCommand(t, barePath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"))
@@ -34,7 +34,7 @@ func TestRepoAddListRemove(t *testing.T) {
 	assert.NotContains(t, listResult.stdout, "Path")
 	assert.Contains(t, listResult.stdout, "Origin")
 	assert.Contains(t, listResult.stdout, "demo")
-	assert.NotContains(t, listResult.stdout, runtime.displayHomePath(barePath))
+	assert.NotContains(t, listResult.stdout, filepath.Join("~", "worktrees", "demo", ".git"))
 	assert.Contains(t, listResult.stdout, remotePath)
 	assert.NotContains(t, listResult.stdout, home)
 

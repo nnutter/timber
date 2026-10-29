@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"path/filepath"
@@ -25,11 +25,11 @@ func TestRepoAddRemoteURL(t *testing.T) {
 		t.Run(fixture.input, func(t *testing.T) {
 			t.Parallel()
 
-			home := resolvedTempDir(t)
-			runtime := testRuntimeForHome(home, home)
+			runtime := testRuntime(t)
+			home := runtime.HomeDirectory
 			remote := filepath.Join(resolvedTempDir(t), "remote.git")
 			runGitCommand(t, home, "init", "--bare", remote)
-			seedBareRemote(t, remote)
+			seedImportRemote(t, remote)
 			// Redirect only the expected URL to a local remote. A different URL
 			// must fail instead of attempting a network connection.
 			runtime.Environment = append(runtime.Environment,
@@ -51,11 +51,11 @@ func TestRepoAddAlias(t *testing.T) {
 	t.Parallel()
 	for _, alias := range []string{"", "custom-alias"} {
 		t.Run("alias="+alias, func(t *testing.T) {
-			home := resolvedTempDir(t)
-			runtime := testRuntimeForHome(home, home)
+			runtime := testRuntime(t)
+			home := runtime.HomeDirectory
 			remote := filepath.Join(resolvedTempDir(t), "remote.git")
 			runGitCommand(t, home, "init", "--bare", remote)
-			seedBareRemote(t, remote)
+			seedImportRemote(t, remote)
 			args := []string{"repo", "add", "--name", "demo"}
 			if alias != "" {
 				args = append(args, "--alias", alias)
