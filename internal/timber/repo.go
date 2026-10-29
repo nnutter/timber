@@ -3,23 +3,7 @@ package timber
 import (
 	"fmt"
 	"strings"
-
-	"github.com/spf13/cobra"
 )
-
-func NewRepoCommand(runtime Runtime) *cobra.Command {
-	command := &cobra.Command{
-		Use:   "repo",
-		Short: "Manage registered bare repositories",
-	}
-	command.AddCommand(NewRepoAddCommand(runtime))
-	command.AddCommand(NewRepoImportCommand(runtime))
-	command.AddCommand(NewRepoFixCommand(runtime))
-	command.AddCommand(NewRepoListCommand(runtime))
-	command.AddCommand(NewRepoRemoveCommand(runtime))
-	command.AddCommand(NewRepoRenameCommand(runtime))
-	return command
-}
 
 // configureBareOriginTracking makes a bare clone usable like a normal remote-tracking
 // repository. `git clone --bare` omits remote.origin.fetch, so refs/remotes/origin/*
