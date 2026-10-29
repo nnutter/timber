@@ -46,6 +46,9 @@ hooks {
     fix = true
     stash = "git"
     steps {
+      ["gitleaks"] = (Builtins.gitleaks) {
+        check = "go tool gitleaks git --redact --pre-commit --staged && tmp=$(mktemp -d) || exit $?; trap 'rm -rf \"$tmp\"' EXIT INT TERM; git diff --cached --name-only -z --diff-filter=ACMRT > \"$tmp/list\" || exit $?; git checkout-index -z --stdin --prefix=\"$tmp/tree/\" < \"$tmp/list\" || exit $?; mkdir -p \"$tmp/tree\" || exit $?; go tool gitleaks dir --redact --verbose --no-banner \"$tmp/tree\" || exit $?"
+      }
       ["format"] {
         glob = "*.go"
         fix = "mise run pre-commit {{files}}"
