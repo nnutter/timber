@@ -212,6 +212,10 @@ func TestTodoQualifiedNameFromOutsideWorktree(t *testing.T) {
 
 	expectedTodoPath := todoPathForWorktree(t, testRepository.worktreePath(branchName))
 
+	pathResult := testRepository.runTimber(t, "todo", at(testRepoName, branchName), "--path")
+	require.NoError(t, pathResult.err, pathResult.stderr)
+	assert.Equal(t, expectedTodoPath, strings.TrimSpace(pathResult.stdout))
+
 	logPath := filepath.Join(resolvedTempDir(t), "editor.log")
 	editor := installFakeEditor(t, logPath)
 	runtime := withTestEnvironment(testRepository.runtime, "EDITOR="+editor)

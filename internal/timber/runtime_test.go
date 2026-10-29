@@ -1,15 +1,14 @@
 package timber
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/nnutter/timber/internal/timber/todo"
 )
 
 func TestRuntimeFromProcessCapturesProcessState(t *testing.T) {
@@ -106,14 +105,14 @@ func TestRuntimeWorktreeGitDirHoldsWorktreeTodoFile(t *testing.T) {
 	const branchName = "feature/git-dir"
 
 	testRepository := newTestRepository(t)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	_, _, err := testRepository.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branchName), "", false, "", false, false)
+	require.NoError(t, err)
 
 	gitDir, err := testRepository.runtime.worktreeGitDir(testRepository.worktreePath(branchName))
 	require.NoError(t, err)
 	assert.True(t, filepath.IsAbs(gitDir))
 
-	// The Git directory is where `timber todo` keeps the worktree's file.
-	todoResult := testRepository.runTimber(t, "todo", at(testRepoName, branchName), "--path")
-	require.NoError(t, todoResult.err, todoResult.stderr)
-	assert.Equal(t, todo.Path(gitDir), strings.TrimSpace(todoResult.stdout))
+	resolvedGitDir, err := testRepository.runtime.ResolveTodoGitDir(&bytes.Buffer{}, []string{at(testRepoName, branchName)})
+	require.NoError(t, err)
+	assert.Equal(t, gitDir, resolvedGitDir)
 }
