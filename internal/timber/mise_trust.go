@@ -14,7 +14,8 @@ import (
 
 func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string) {
 	warn := func(err error) {
-		fmt.Fprintf(output, "warning: automatic mise trust skipped: %v\n", err)
+		// Warnings are best effort and must not block worktree creation.
+		_, _ = fmt.Fprintf(output, "warning: automatic mise trust skipped: %v\n", err)
 	}
 	settings, err := x.loadConfig()
 	if err != nil {

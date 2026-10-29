@@ -71,7 +71,8 @@ func writePrivateFile(path string, contents []byte) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
+	// Cleanup is best effort; the temporary file is already gone after rename.
+	defer func() { _ = os.Remove(file.Name()) }()
 	_, writeErr := file.Write(contents)
 	if err := errors.Join(writeErr, file.Close()); err != nil {
 		return err
