@@ -103,7 +103,7 @@ func (x *tuiCreateCommandOptions) createSelectedWorktree(
 	createOptions.RepoName = selection.repoName
 	createOptions.herdr = x.herdr
 	createOptions.noHerdr = x.noHerdr
-	worktreePath, err := createOptions.createWorktree(command, []string{selection.worktreeName})
+	worktreePath, _, err := createOptions.createWorktree(command, []string{selection.worktreeName})
 	if err != nil {
 		return err
 	}

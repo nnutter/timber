@@ -94,11 +94,11 @@ func (x *switchCommandOptions) createAndReport(command *cobra.Command, args []st
 	createOptions.herdr = x.herdr
 	createOptions.noHerdr = x.noHerdr
 
-	worktreePath, err := createOptions.createWorktree(command, args)
+	worktreePath, herdrOpened, err := createOptions.createWorktree(command, args)
 	if err != nil {
 		return err
 	}
-	if x.noCd || createOptions.shouldCreateHerdrWorkspace() {
+	if x.noCd || herdrOpened {
 		return nil
 	}
 	return x.runtime.reportSwitchWorktreePath(command.OutOrStdout(), worktreePath)
