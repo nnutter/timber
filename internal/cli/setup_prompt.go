@@ -9,6 +9,20 @@ import (
 	"github.com/nnutter/timber/internal/timber"
 )
 
+func reportSetupWarning(output io.Writer, kind timber.SetupKind, cause error) error {
+	var operation string
+	switch kind {
+	case timber.SetupMiseTrust:
+		operation = "mise trust"
+	case timber.SetupHKInstall:
+		operation = "hk install"
+	default:
+		return fmt.Errorf("unknown automatic setup kind %q", kind)
+	}
+	_, err := fmt.Fprintf(output, "warning: automatic %s skipped: %v\n", operation, cause)
+	return err
+}
+
 type setupPrompter struct{}
 
 type setupPromptText struct {

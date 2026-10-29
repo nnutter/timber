@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 )
 
-// CreateReporters reports worktree creation and Herdr workspace opening.
+// CreateReporters reports worktree creation, Herdr opening, and setup warnings.
+// SetupWarning is optional; its errors are ignored.
 type CreateReporters struct {
-	Created     func(io.Writer, string) error
-	HerdrOpened func(io.Writer, string) error
-	SetupPrompt SetupPrompter
+	Created      func(io.Writer, string) error
+	HerdrOpened  func(io.Writer, string) error
+	SetupPrompt  SetupPrompter
+	SetupWarning func(io.Writer, SetupKind, error) error
 }
 
 // CreateManagedWorktree creates a managed worktree and runs automatic setup.
@@ -117,8 +119,8 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 		return "", false, err
 	}
 
-	runtime.autoTrustMise(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt)
-	runtime.autoInstallHKHooks(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt)
+	runtime.autoTrustMise(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt, reporters.SetupWarning)
+	runtime.autoInstallHKHooks(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt, reporters.SetupWarning)
 
 	if !(herdr || (!noHerdr && runtime.HerdrEnvironment)) {
 		return worktreePath, false, nil

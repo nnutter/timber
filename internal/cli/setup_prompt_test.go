@@ -42,6 +42,25 @@ type setupFailWriter struct{ err error }
 
 func (x setupFailWriter) Write([]byte) (int, error) { return 0, x.err }
 
+func TestSetupWarningFormattingAndWriterErrors(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		kind timber.SetupKind
+		want string
+	}{
+		{kind: timber.SetupMiseTrust, want: "warning: automatic mise trust skipped: unavailable\n"},
+		{kind: timber.SetupHKInstall, want: "warning: automatic hk install skipped: unavailable\n"},
+	} {
+		t.Run(string(testCase.kind), func(t *testing.T) {
+			var output bytes.Buffer
+			require.NoError(t, reportSetupWarning(&output, testCase.kind, errors.New("unavailable")))
+			assert.Equal(t, testCase.want, output.String())
+			writeErr := errors.New("write failed")
+			require.ErrorIs(t, reportSetupWarning(setupFailWriter{writeErr}, testCase.kind, errors.New("unavailable")), writeErr)
+		})
+	}
+}
+
 func TestSetupPromptReturnsInputAndOutputErrors(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []timber.SetupKind{timber.SetupMiseTrust, timber.SetupHKInstall} {

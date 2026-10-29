@@ -42,7 +42,8 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 	renderStatus := func(message string) string { return display.StatusStyle.Render(message) }
 	renderWarning := func(message string) string { return display.WarningStyle.Render(message) }
 	createReporters := timber.CreateReporters{
-		SetupPrompt: setupPrompter{},
+		SetupPrompt:  setupPrompter{},
+		SetupWarning: reportSetupWarning,
 		Created: func(output io.Writer, path string) error {
 			return worktreeoutput.ReportCreated(output, renderStatus, path)
 		},

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -84,6 +85,26 @@ func TestWizardOpenReturnsHerdrStatusError(t *testing.T) {
 	require.ErrorIs(t, err, writeErr)
 	assert.NotEmpty(t, readFakeHerdrLog(t, logPath))
 	assert.Empty(t, stdout.String())
+}
+
+func TestCreateIgnoresSetupWarningErrorsAndContinues(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepository(t)
+	configFile := filepath.Join(resolvedTempDir(t), "not-a-directory")
+	require.NoError(t, os.WriteFile(configFile, []byte("file"), 0o600))
+	repo.runtime.ConfigHome = configFile
+	reporters := testCreateReporters()
+	var warnings []SetupKind
+	reporters.SetupWarning = func(_ io.Writer, kind SetupKind, _ error) error {
+		warnings = append(warnings, kind)
+		return errors.New("warning write failed")
+	}
+	const branch = "feature/warning-error"
+	path, _, err := repo.runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(testRepoName, branch), "", false, "", false, false, reporters)
+	require.NoError(t, err)
+	assert.Equal(t, repo.worktreePath(branch), path)
+	assert.Equal(t, []SetupKind{SetupMiseTrust, SetupHKInstall}, warnings)
+	repo.assertPathPresent(t, path)
 }
 
 func TestCreateRequiresReportersBeforeCreatingWorktree(t *testing.T) {

@@ -13,10 +13,11 @@ import (
 	"github.com/nnutter/timber/internal/terminal"
 )
 
-func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string, prompter SetupPrompter) {
+func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string, prompter SetupPrompter, reportWarning func(io.Writer, SetupKind, error) error) {
 	warn := func(err error) {
-		// Warnings are best effort and must not block worktree creation.
-		_, _ = fmt.Fprintf(output, "warning: automatic mise trust skipped: %v\n", err)
+		if reportWarning != nil {
+			_ = reportWarning(output, SetupMiseTrust, err)
+		}
 	}
 	settings, err := x.loadConfig()
 	if err != nil {
