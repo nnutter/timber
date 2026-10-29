@@ -5,6 +5,7 @@ import (
 
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
 	"github.com/nnutter/timber/internal/cli/generate"
+	cligit "github.com/nnutter/timber/internal/cli/git"
 	clirepo "github.com/nnutter/timber/internal/cli/repo"
 	repolist "github.com/nnutter/timber/internal/cli/repo/list"
 	reporemove "github.com/nnutter/timber/internal/cli/repo/remove"
@@ -31,7 +32,14 @@ func Commands(runtime Runtime) []*cobra.Command {
 		herdrCommand(runtime),
 		NewSwitchCommand(runtime),
 		todoCommand(runtime),
-		NewGitCommand(runtime),
+		cligit.New(cligit.Dependencies{
+			CurrentDirectory:   runtime.CurrentDirectory,
+			Command:            runtime.command,
+			ResolveSelector:    runtime.ResolveGitSelector,
+			ResolveGitDir:      runtime.GitDirForDirectory,
+			CompleteWorktrees:  runtime.completeQualifiedWorktreeNames,
+			CompleteRepoSuffix: runtime.completeRepoSuffix,
+		}),
 		NewTUICommand(runtime),
 		generate.New(runtime.xdgDataHome()),
 	}

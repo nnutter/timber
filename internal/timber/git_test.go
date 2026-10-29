@@ -8,6 +8,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGitSelectorCompletion(t *testing.T) {
+	t.Parallel()
+
+	repository := newTestRepository(t)
+	registerAdditionalRepo(t, repository, "other")
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, "feature/shared")).err)
+	require.NoError(t, repository.runTimber(t, "create", at("other", "feature/shared")).err)
+
+	for _, test := range []struct {
+		name   string
+		args   []string
+		want   []string
+		absent []string
+	}{
+		{"all targets", []string{"git", ""}, []string{"@" + testRepoName, "@other", "feature/shared@" + testRepoName, "feature/shared@other"}, nil},
+		{"repo prefix", []string{"git", "@oth"}, []string{"@other"}, []string{"@" + testRepoName}},
+		{"worktree prefix", []string{"git", "feature/sh"}, []string{"feature/shared@" + testRepoName, "feature/shared@other"}, nil},
+		{"qualified prefix", []string{"git", "feature/shared@oth"}, []string{"feature/shared@other"}, []string{"feature/shared@" + testRepoName}},
+		{"git arguments", []string{"git", "status", ""}, nil, []string{"@other", "feature/shared"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			output := runCompleteWithRuntime(t, repository.runtime, test.args...)
+			for _, candidate := range test.want {
+				assert.Contains(t, output, candidate+"\n")
+			}
+			for _, candidate := range test.absent {
+				assert.NotContains(t, output, candidate)
+			}
+			assert.Contains(t, output, ":4\n")
+		})
+	}
+}
+
 func TestGitPassesThroughToWorktreeGitDir(t *testing.T) {
 	t.Parallel()
 
