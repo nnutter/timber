@@ -48,11 +48,12 @@ run = "git tpl update && git tpl merge"
 
 [tasks.pre-commit]
 description = "Format staged files"
-usage = 'arg "[staged_files]" var=#true'
-run = [
-  "go tool gitleaks git --redact --pre-commit --staged",
-  "mise run fixers ${usage_staged_files}",
-]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+go tool gitleaks git --redact --pre-commit --staged
+mise run fixers "$@"
+'''
 
 [tasks.test]
 alias = "tests"
@@ -66,17 +67,15 @@ run = "go test -cover ./..."
 [tasks.fix]
 alias = "fixers"
 description = "Fix selected files safely, or run all-files writers"
-usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-set -f
-if [ -n "${usage_staged_files:-}" ]; then
-  hk check --fix --no-stage --step go-imports ${usage_staged_files}
-  hk check --fix --no-stage --step go-fumpt ${usage_staged_files}
-  hk check --fix --no-stage --step mdlint --step pkl_format --step tombi_format --step yamlfmt ${usage_staged_files}
-  mise run fix-go-fix ${usage_staged_files}
-  mise run fix-go-mod-tidy ${usage_staged_files}
+if [ "$#" -gt 0 ]; then
+  hk check --fix --no-stage --step go-imports "$@"
+  hk check --fix --no-stage --step go-fumpt "$@"
+  hk check --fix --no-stage --step mdlint --step pkl_format --step tombi_format --step yamlfmt "$@"
+  mise run fix-go-fix "$@"
+  mise run fix-go-mod-tidy "$@"
 else
   hk check --fix --no-stage --all --step go-imports
   hk check --fix --no-stage --all --step go-fumpt
@@ -92,49 +91,54 @@ run = ["hk check --all", "mise run lint-gitleaks"]
 
 [tasks.fix-gofumpt]
 description = "Run code formatting tools"
-usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
 set -eo pipefail
-if [ -z "${usage_staged_files:-}" ]; then
+if [ "$#" -eq 0 ]; then
   go tool gofumpt -l -w .
   exit 0
 fi
-go_files=""
-for f in ${usage_staged_files}; do
-  case "$f" in *.go) go_files="$go_files $f" ;; esac
+go_files=()
+for f in "$@"; do
+  case "$f" in
+    *.go)
+      case "$f" in -*) f="./$f" ;; esac
+      go_files+=("$f")
+      ;;
+  esac
 done
-[ -z "$go_files" ] && exit 0
-# shellcheck disable=SC2086
-go tool gofumpt -l -w $go_files
+[[ -v go_files[0] ]] || exit 0
+go tool gofumpt -l -w "${go_files[@]}"
 '''
 
 [tasks.fix-goimports]
 description = "Run code formatting tools"
-usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
 set -eo pipefail
-if [ -z "${usage_staged_files:-}" ]; then
+if [ "$#" -eq 0 ]; then
   go tool goimports -l -w -local $(go list -m) .
   exit 0
 fi
-go_files=""
-for f in ${usage_staged_files}; do
-  case "$f" in *.go) go_files="$go_files $f" ;; esac
+go_files=()
+for f in "$@"; do
+  case "$f" in
+    *.go)
+      case "$f" in -*) f="./$f" ;; esac
+      go_files+=("$f")
+      ;;
+  esac
 done
-[ -z "$go_files" ] && exit 0
-# shellcheck disable=SC2086
-go tool goimports -l -w -local $(go list -m) $go_files
+[[ -v go_files[0] ]] || exit 0
+go tool goimports -l -w -local "$(go list -m)" "${go_files[@]}"
 '''
 
 [tasks.fix-go-fix]
 description = "Apply go fix"
-usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
 set -eo pipefail
-if [ -n "${usage_staged_files:-}" ]; then
+if [ "$#" -gt 0 ]; then
   diff=$(go fix -diff ./...)
   printf '%s' "$diff"
   [ -z "$diff" ]
@@ -145,11 +149,10 @@ go fix ./...
 
 [tasks.fix-go-mod-tidy]
 description = "Tidy go.mod and go.sum"
-usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-if [ -n "${usage_staged_files:-}" ]; then
+if [ "$#" -gt 0 ]; then
   go mod tidy -diff
   exit $?
 fi
@@ -158,29 +161,30 @@ go mod tidy
 
 [tasks.fix-testifylint]
 description = "Run testifylint static analysis"
-usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
 set -eo pipefail
-if [ -z "${usage_staged_files:-}" ]; then
+if [ "$#" -eq 0 ]; then
   go tool testifylint -fix ./...
   exit 0
 fi
-dirs=""
-for f in ${usage_staged_files}; do
+# Package analysis can include unselected files, so do not enable -fix.
+declare -A seen=()
+dirs=()
+for f in "$@"; do
   case "$f" in
     *.go)
-      d=$(dirname "$f")
+      d=$(dirname -- "$f")
       case "$d" in ./*|/*) ;; *) d="./$d" ;; esac
-      dirs="$dirs $d"
+      if [[ ! ${seen[$d]+present} ]]; then
+        seen[$d]=1
+        dirs+=("$d")
+      fi
       ;;
   esac
 done
-[ -z "$dirs" ] && exit 0
-# shellcheck disable=SC2086
-pkgs=$(printf '%s\n' $dirs | sort -u)
-# shellcheck disable=SC2086
-go tool testifylint -fix $pkgs
+[[ -v dirs[0] ]] || exit 0
+go tool testifylint "${dirs[@]}"
 '''
 
 ##############
@@ -255,9 +259,10 @@ run = [{ task = "all" }]
 
 [tasks.on-stop]
 description = "Pi mise-hooks: fix edited files, then test and lint"
-usage = 'arg "[staged_files]" var=#true'
-run = [
-  "mise run fix ${usage_staged_files}",
-  "mise run test",
-  "mise run check",
-]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+mise run fix "$@"
+mise run test
+mise run check
+'''
