@@ -49,35 +49,48 @@ func (x *removeCommandOptions) removeWorktree(command *cobra.Command, raw string
 }
 
 func (x *removeCommandOptions) removeResolvedWorktree(command *cobra.Command, repository *Repository, worktree managedWorktree, force bool) error {
-	name := worktree.Name
-	standardLayout, err := samePath(worktree.Path, x.runtime.managedWorktreePath(worktree.Repo, worktree.branchName()))
+	result, err := x.runtime.removeResolvedWorktree(repository, worktree, force)
 	if err != nil {
 		return err
+	}
+	return reportWorktreeRemoval(command.ErrOrStderr(), result.worktree, result.removingCurrentDirectory)
+}
+
+type worktreeRemovalResult struct {
+	worktree                 managedWorktree
+	removingCurrentDirectory bool
+}
+
+func (runtime Runtime) removeResolvedWorktree(repository *Repository, worktree managedWorktree, force bool) (worktreeRemovalResult, error) {
+	name := worktree.Name
+	standardLayout, err := samePath(worktree.Path, runtime.managedWorktreePath(worktree.Repo, worktree.branchName()))
+	if err != nil {
+		return worktreeRemovalResult{}, err
 	}
 
 	if !force {
 		if _, err := repository.git("fetch", remoteName); err != nil {
-			return fmt.Errorf("fetch %s: %w", remoteName, err)
+			return worktreeRemovalResult{}, fmt.Errorf("fetch %s: %w", remoteName, err)
 		}
 	}
 
 	if !force {
-		worktree, err = x.runtime.enrichManagedWorktree(repository, worktree)
+		worktree, err = runtime.enrichManagedWorktree(repository, worktree)
 		if err != nil {
-			return err
+			return worktreeRemovalResult{}, err
 		}
 		if !worktree.Clean {
-			return fmt.Errorf("worktree %q is not clean", name)
+			return worktreeRemovalResult{}, fmt.Errorf("worktree %q is not clean", name)
 		}
 		if worktree.UpstreamRef == "" {
-			return fmt.Errorf("branch %q has no upstream branch; use --force to remove it", worktree.branchName())
+			return worktreeRemovalResult{}, fmt.Errorf("branch %q has no upstream branch; use --force to remove it", worktree.branchName())
 		}
 		if !worktree.Merged {
-			return fmt.Errorf("branch %q is not merged to %s", worktree.branchName(), shortReference(worktree.UpstreamRef))
+			return worktreeRemovalResult{}, fmt.Errorf("branch %q is not merged to %s", worktree.branchName(), shortReference(worktree.UpstreamRef))
 		}
 	}
 
-	currentDirectory := x.runtime.CurrentDirectory
+	currentDirectory := runtime.CurrentDirectory
 	removingCurrentDirectory := currentDirectory != "" && pathIsWithin(worktree.Path, currentDirectory)
 
 	removeArguments := []string{"worktree", "remove"}
@@ -86,25 +99,25 @@ func (x *removeCommandOptions) removeResolvedWorktree(command *cobra.Command, re
 	}
 	removeArguments = append(removeArguments, worktree.Path)
 	if _, err := repository.git(removeArguments...); err != nil {
-		return err
+		return worktreeRemovalResult{}, err
 	}
 	if standardLayout {
-		if err := removeEmptyParents(worktree.Path, x.runtime.HomeDirectory); err != nil {
-			return err
+		if err := removeEmptyParents(worktree.Path, runtime.HomeDirectory); err != nil {
+			return worktreeRemovalResult{}, err
 		}
 	}
 
 	branchExists, err := repository.branchStillExists(worktree.BranchReference)
 	if err != nil {
-		return err
+		return worktreeRemovalResult{}, err
 	}
 	if branchExists {
 		if _, err := repository.git("branch", branchDeleteFlag(force), worktree.branchName()); err != nil {
-			return err
+			return worktreeRemovalResult{}, err
 		}
 	}
 
-	return reportWorktreeRemoval(command.ErrOrStderr(), worktree, removingCurrentDirectory)
+	return worktreeRemovalResult{worktree: worktree, removingCurrentDirectory: removingCurrentDirectory}, nil
 }
 
 func reportWorktreeRemoval(output io.Writer, worktree managedWorktree, removingCurrentDirectory bool) error {
