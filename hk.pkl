@@ -31,6 +31,15 @@ local goChecks = new Mapping<String, Step> {
   ["constable"] {
     check = "go tool constable ./..."
   }
+  ["errcheck"] {
+    check = "go tool errcheck ./..."
+  }
+  ["staticcheck"] {
+    check = "go tool staticcheck ./..."
+  }
+  ["testifylint"] {
+    check = "go tool testifylint ./..."
+  }
   ["go-check-sumtype"] {
     check = "go tool go-check-sumtype -default-signifies-exhaustive=false -include-shared-interfaces ./..."
   }
