@@ -13,21 +13,11 @@ func TestTUICreateNoTitlePassesShowTitleFalse(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
 	prompter := &stubCreateWizardPrompter{selection: createWizardSelection{cancelled: true}}
-	options := &tuiCreateCommandOptions{runtime: testRepository.runtime, noTitle: true}
+	options := &tuiTestOptions{runtime: testRepository.runtime, noTitle: true}
 	result := runTUICreate(t, options, prompter)
 
 	require.NoError(t, result.err, result.stderr)
 	assert.False(t, prompter.showTitle)
-}
-
-func TestTUICommandRegistersNoTitleFlag(t *testing.T) {
-	t.Parallel()
-	command := NewTUICommand(testRuntime(t))
-
-	flag := command.Flags().Lookup("no-title")
-	require.NotNil(t, flag)
-	assert.Equal(t, "false", flag.DefValue)
-	assert.Equal(t, "Hide the title header", flag.Usage)
 }
 
 func TestCreateWizardRequiresInteractiveTerminal(t *testing.T) {

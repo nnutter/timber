@@ -518,25 +518,27 @@ func runTimberCommandWithRuntime(t *testing.T, runtime Runtime, args ...string) 
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 
+type tuiTestOptions struct {
+	runtime Runtime
+	herdr   bool
+	noHerdr bool
+	noTitle bool
+}
+
 func runTUICreate(
 	t *testing.T,
-	options *tuiCreateCommandOptions,
+	options *tuiTestOptions,
 	prompter createWizardPrompter,
 ) commandResult {
 	t.Helper()
 
-	options.prompter = prompter
 	if options.runtime.CurrentDirectory == "" {
 		options.runtime = testRuntime(t)
 	}
-	command := newTestRootCommandWithRuntime(t, options.runtime)
-	command.SetContext(t.Context())
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	command.SetOut(&stdout)
-	command.SetErr(&stderr)
 
-	err := options.Execute(command, nil)
+	err := options.runtime.RunTUI(t.Context(), &bytes.Buffer{}, &stderr, &stdout, options.herdr, options.noHerdr, options.noTitle, prompter)
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 

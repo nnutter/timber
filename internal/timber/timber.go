@@ -1,6 +1,7 @@
 package timber
 
 import (
+	"context"
 	"io"
 
 	"github.com/spf13/cobra"
@@ -22,6 +23,7 @@ import (
 	clireview "github.com/nnutter/timber/internal/cli/review"
 	cliswitch "github.com/nnutter/timber/internal/cli/switch"
 	clitodo "github.com/nnutter/timber/internal/cli/todo"
+	clitui "github.com/nnutter/timber/internal/cli/tui"
 )
 
 func Commands(runtime Runtime) []*cobra.Command {
@@ -87,7 +89,11 @@ func Commands(runtime Runtime) []*cobra.Command {
 			CompleteWorktrees:  runtime.completeQualifiedWorktreeNames,
 			CompleteRepoSuffix: runtime.completeRepoSuffix,
 		}),
-		NewTUICommand(runtime),
+		clitui.New(clitui.Dependencies{
+			Run: func(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool) error {
+				return runtime.RunTUI(ctx, input, output, stdout, herdr, noHerdr, noTitle, bubbleteaCreateWizardPrompter{})
+			},
+		}),
 		generate.New(runtime.xdgDataHome()),
 	}
 }

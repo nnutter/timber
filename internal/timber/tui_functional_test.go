@@ -17,7 +17,7 @@ func TestTUICreateCreatesSelectedWorktree(t *testing.T) {
 	prompter := &stubCreateWizardPrompter{
 		selection: createWizardSelection{repoName: testRepoName, worktreeName: branchName},
 	}
-	options := &tuiCreateCommandOptions{runtime: testRepository.runtime}
+	options := &tuiTestOptions{runtime: testRepository.runtime}
 	result := runTUICreate(t, options, prompter)
 
 	require.NoError(t, result.err, result.stderr)
@@ -32,7 +32,7 @@ func TestTUICreateCancelDoesNotCreateWorktree(t *testing.T) {
 	const branchName = "feature/ui-cancel"
 
 	testRepository := newTestRepository(t)
-	options := &tuiCreateCommandOptions{runtime: testRepository.runtime}
+	options := &tuiTestOptions{runtime: testRepository.runtime}
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{
 		selection: createWizardSelection{cancelled: true},
 	})
@@ -45,7 +45,7 @@ func TestTUICreateCancelDoesNotCreateWorktree(t *testing.T) {
 func TestTUICreateFailsWhenNoRepositoriesAreRegistered(t *testing.T) {
 	t.Parallel()
 	home := resolvedTempDir(t)
-	options := &tuiCreateCommandOptions{runtime: testRuntimeForHome(home, home)}
+	options := &tuiTestOptions{runtime: testRuntimeForHome(home, home)}
 
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{})
 	require.Error(t, result.err)
@@ -65,7 +65,7 @@ func TestTUICreateListsEveryRepositoryFromAManagedWorktree(t *testing.T) {
 	prompter := &stubCreateWizardPrompter{
 		selection: createWizardSelection{repoName: secondaryName, worktreeName: createdBranch},
 	}
-	options := new(tuiCreateCommandOptions)
+	options := new(tuiTestOptions)
 	options.runtime = testRepository.runtime
 	options.runtime.CurrentDirectory = testRepository.worktreePath(currentBranch)
 	result := runTUICreate(t, options, prompter)
@@ -91,7 +91,7 @@ func TestTUICreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime.GhExecutable = installFakeGh(t)
 
-	options := new(tuiCreateCommandOptions)
+	options := new(tuiTestOptions)
 	options.runtime = testRepository.runtime
 	options.herdr = true
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{
@@ -131,7 +131,7 @@ func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
 					worktreeName: name,
 				},
 			}
-			options := &tuiCreateCommandOptions{runtime: testRepository.runtime}
+			options := &tuiTestOptions{runtime: testRepository.runtime}
 			result := runTUICreate(t, options, prompter)
 
 			require.NoError(t, result.err, result.stderr)
@@ -156,7 +156,7 @@ func TestTUICreateWithNoHerdrDoesNotInvokeHerdr(t *testing.T) {
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime.GhExecutable = installFakeGh(t)
 
-	options := new(tuiCreateCommandOptions)
+	options := new(tuiTestOptions)
 	options.runtime = testRepository.runtime
 	options.noHerdr = true
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{
