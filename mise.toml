@@ -63,7 +63,7 @@ run = "go test -cover ./..."
 alias = "fix"
 usage = 'arg "[staged_files]" var=#true'
 run = [
-  "mise run fix-go-mod-tidy",
+  "mise run fix-go-mod-tidy ${usage_staged_files}",
   "mise run fix-gofumpt ${usage_staged_files}",
   "mise run fix-goimports ${usage_staged_files}",
   "mise run fix-go-fix ${usage_staged_files}",
@@ -115,30 +115,27 @@ usage = 'arg "[staged_files]" var=#true'
 run = '''
 #!/usr/bin/env bash
 set -eo pipefail
-if [ -z "${usage_staged_files:-}" ]; then
-  go fix ./...
-  exit 0
+if [ -n "${usage_staged_files:-}" ]; then
+  diff=$(go fix -diff ./...)
+  printf '%s' "$diff"
+  [ -z "$diff" ]
+  exit $?
 fi
-dirs=""
-for f in ${usage_staged_files}; do
-  case "$f" in
-    *.go)
-      d=$(dirname "$f")
-      case "$d" in ./*|/*) ;; *) d="./$d" ;; esac
-      dirs="$dirs $d"
-      ;;
-  esac
-done
-[ -z "$dirs" ] && exit 0
-# shellcheck disable=SC2086
-pkgs=$(printf '%s\n' $dirs | sort -u)
-# shellcheck disable=SC2086
-go fix $pkgs
+go fix ./...
 '''
 
 [tasks.fix-go-mod-tidy]
 description = "Tidy go.mod and go.sum"
-run = "go mod tidy"
+usage = 'arg "[staged_files]" var=#true'
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -n "${usage_staged_files:-}" ]; then
+  go mod tidy -diff
+  exit $?
+fi
+go mod tidy
+'''
 
 [tasks.fix-testifylint]
 description = "Run testifylint static analysis"
