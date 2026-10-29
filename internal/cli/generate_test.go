@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"fmt"
@@ -49,7 +49,7 @@ func TestGeneratedZshCompletionHasValidSyntax(t *testing.T) {
 	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir).err)
 
-	output, err := testCommand(t, zshPath, "-n", filepath.Join(outDir, "_t")).CombinedOutput()
+	output, err := shellTestCommand(t, zshPath, "-n", filepath.Join(outDir, "_t")).CombinedOutput()
 	require.NoError(t, err, string(output))
 }
 
@@ -148,21 +148,21 @@ func buildTestTimberBinary(t *testing.T) string {
 	repoRoot := filepath.Join(filepath.Dir(callerFile), "..", "..")
 	binDir := resolvedTempDir(t)
 
-	goEnv := testCommand(t, "go", "env", "GOMODCACHE", "GOCACHE", "GOPROXY", "GOTOOLCHAIN")
+	goEnv := shellTestCommand(t, "go", "env", "GOMODCACHE", "GOCACHE", "GOPROXY", "GOTOOLCHAIN")
 	goEnv.Dir = repoRoot
 	goEnv.Env = os.Environ()
 	envOutput, err := goEnv.Output()
 	require.NoError(t, err)
 	envKeys := []string{"GOMODCACHE", "GOCACHE", "GOPROXY", "GOTOOLCHAIN"}
 
-	build := testCommand(t, "go", "build", "-o", filepath.Join(binDir, "timber"), ".")
+	build := shellTestCommand(t, "go", "build", "-o", filepath.Join(binDir, "timber"), ".")
 	build.Dir = repoRoot
 	// testCommand isolates HOME, which would empty the module and build
 	// caches; keep the real Go toolchain directories so the build stays
 	// offline and fast.
 	for index, line := range strings.Split(strings.TrimSpace(string(envOutput)), "\n") {
 		if index < len(envKeys) && line != "" {
-			build.Env = replaceTestEnvironment(build.Env, envKeys[index]+"="+line)
+			build.Env = shellTestEnvironment(build.Env, envKeys[index]+"="+line)
 		}
 	}
 	buildOutput, err := build.CombinedOutput()
@@ -178,7 +178,7 @@ func TestGeneratedCreateCompletesUniqueRepoPrefix(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 is not installed")
 	}
-	skipIfNoPty(t)
+	shellSkipIfNoPty(t)
 
 	home := resolvedTempDir(t)
 	dataHome := filepath.Join(home, ".local", "share")
@@ -263,7 +263,7 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 
 	timberBin := buildTestTimberBinary(t)
 
-	command := testCommand(t,
+	command := shellTestCommand(t,
 		"python3",
 		scriptPath,
 		outDir,
@@ -286,7 +286,7 @@ func TestGeneratedSwitchCompletesWorktreeNamesAcrossRepos(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 is not installed")
 	}
-	skipIfNoPty(t)
+	shellSkipIfNoPty(t)
 
 	repository := newTestRepository(t)
 	home := repository.home
@@ -379,7 +379,7 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 
 	runComplete := func(line string) string {
 		t.Helper()
-		command := testCommand(t,
+		command := shellTestCommand(t,
 			"python3",
 			scriptPath,
 			outDir,
@@ -419,7 +419,7 @@ func TestGeneratedSwitchSubcommandCompletesInZsh(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 is not installed")
 	}
-	skipIfNoPty(t)
+	shellSkipIfNoPty(t)
 
 	home := resolvedTempDir(t)
 	dataHome := filepath.Join(home, ".local", "share")
@@ -512,7 +512,7 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 			timberBin,
 			line,
 		}, wants...)
-		command := testCommand(t, args[0], args[1:]...)
+		command := shellTestCommand(t, args[0], args[1:]...)
 		output, err := command.CombinedOutput()
 		require.NoError(t, err, string(output))
 		return string(output)
@@ -534,7 +534,7 @@ func TestGeneratedDelegatedCompletionEndToEnd(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 is not installed")
 	}
-	skipIfNoPty(t)
+	shellSkipIfNoPty(t)
 
 	home := resolvedTempDir(t)
 	dataHome := filepath.Join(home, ".local", "share")
@@ -627,7 +627,7 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 			timberBin,
 			line,
 		}, wants...)
-		command := testCommand(t, args[0], args[1:]...)
+		command := shellTestCommand(t, args[0], args[1:]...)
 		output, err := command.CombinedOutput()
 		require.NoError(t, err, string(output))
 		return string(output)
@@ -661,7 +661,7 @@ printf '%s\n' "$@"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := testCommand(t,
+	command := shellTestCommand(t,
 		"zsh", "-f", "-c",
 		`fpath=("$1" $fpath)
 autoload -Uz compinit
@@ -672,7 +672,7 @@ t list`,
 	// -u keeps compinit from aborting on insecure directories (as on CI),
 	// and PATH limited to the fake timber keeps an installed t from
 	// masking a broken autoload.
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir)
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir)
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
 	assert.Equal(t, "list", strings.TrimSpace(string(output)))
@@ -701,15 +701,15 @@ printf '%s\n' "$new_worktree/nested" > "$TIMBER_RENAME_PATH_FILE"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := testCommand(t,
+	command := shellTestCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t repo rename old new >/dev/null; pwd -P`,
 		"--", filepath.Join(outDir, "t"), oldSubdirectory,
 	)
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
-	assert.Equal(t, canonicalPath(filepath.Join(worktreeParent, "new", "nested")), strings.TrimSpace(string(output)))
+	assert.Equal(t, shellCanonicalPath(filepath.Join(worktreeParent, "new", "nested")), strings.TrimSpace(string(output)))
 }
 
 func TestGeneratedZshWrapperRestoresDirectoryOnFailure(t *testing.T) {
@@ -728,15 +728,15 @@ exit 17
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := testCommand(t,
+	command := shellTestCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t remove feature@repo >/dev/null; exit_status=$?; printf '%s %s\n' "$exit_status" "$PWD"`,
 		"--", filepath.Join(outDir, "t"), startDir,
 	)
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
-	assert.Equal(t, fmt.Sprintf("17 %s", canonicalPath(startDir)), strings.TrimSpace(string(output)))
+	assert.Equal(t, fmt.Sprintf("17 %s", shellCanonicalPath(startDir)), strings.TrimSpace(string(output)))
 }
 
 func TestGeneratedZshWrapperKeepsDirectoryOnRemoveOfOtherWorktree(t *testing.T) {
@@ -755,15 +755,15 @@ exit 0
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := testCommand(t,
+	command := shellTestCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t remove feature@repo >/dev/null; printf '%s' "$PWD"`,
 		"--", filepath.Join(outDir, "t"), startDir,
 	)
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
-	assert.Equal(t, canonicalPath(startDir), strings.TrimSpace(string(output)))
+	assert.Equal(t, shellCanonicalPath(startDir), strings.TrimSpace(string(output)))
 }
 
 func TestGeneratedZshWrapperLeavesRemovedCurrentDirectoryForHome(t *testing.T) {
@@ -782,15 +782,15 @@ cd / && rm -rf "$2"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := testCommand(t,
+	command := shellTestCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t remove "$2" >/dev/null; printf '%s' "$PWD"`,
 		"--", filepath.Join(outDir, "t"), removedDir,
 	)
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
-	assert.Equal(t, canonicalPath(command.Dir), strings.TrimSpace(string(output)))
+	assert.Equal(t, shellCanonicalPath(command.Dir), strings.TrimSpace(string(output)))
 }
 
 func TestGeneratedZshWrapperChangesDirectoryOnSwitch(t *testing.T) {
@@ -802,10 +802,10 @@ printf '%s\n' "$TIMBER_SWITCH_PATH_FILE_TARGET" > "$TIMBER_SWITCH_PATH_FILE"
 	command := generatedZshCommand(t, fakeTimber,
 		`source "$1"; t switch feature@repo >/dev/null; pwd -P`,
 	)
-	command.Env = replaceTestEnvironment(command.Env, "TIMBER_SWITCH_PATH_FILE_TARGET="+targetDir)
+	command.Env = shellTestEnvironment(command.Env, "TIMBER_SWITCH_PATH_FILE_TARGET="+targetDir)
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
-	assert.Equal(t, canonicalPath(targetDir), strings.TrimSpace(string(output)))
+	assert.Equal(t, shellCanonicalPath(targetDir), strings.TrimSpace(string(output)))
 }
 
 func TestGeneratedZshWrapperLeavesImportedSourceDirectory(t *testing.T) {
@@ -825,15 +825,15 @@ rm -rf "$3"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := testCommand(t,
+	command := shellTestCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t repo import "$3" >/dev/null; printf '%s' "$PWD"`,
 		"--", filepath.Join(outDir, "t"), startDir, sourceDir,
 	)
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
-	assert.Equal(t, canonicalPath(command.Dir), strings.TrimSpace(string(output)))
+	assert.Equal(t, shellCanonicalPath(command.Dir), strings.TrimSpace(string(output)))
 }
 
 func TestGeneratedZshWrapperRestoresDirectoryOnFailedImport(t *testing.T) {
@@ -853,15 +853,15 @@ exit 17
 `
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := testCommand(t,
+	command := shellTestCommand(t,
 		"zsh", "-f", "-c",
 		`source "$1"; cd "$2"; t repo import "$3" >/dev/null; exit_status=$?; printf '%s %s' "$exit_status" "$PWD"`,
 		"--", filepath.Join(outDir, "t"), startDir, sourceDir,
 	)
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, string(output))
-	assert.Equal(t, fmt.Sprintf("17 %s", canonicalPath(startDir)), strings.TrimSpace(string(output)))
+	assert.Equal(t, fmt.Sprintf("17 %s", shellCanonicalPath(startDir)), strings.TrimSpace(string(output)))
 }
 
 func TestGenerateZshRefusesOverwriteWithoutForce(t *testing.T) {
@@ -910,7 +910,7 @@ func TestGeneratedRepoCompletionInsertsSlashInSharedPrefix(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 is not installed")
 	}
-	skipIfNoPty(t)
+	shellSkipIfNoPty(t)
 
 	repository := newTestRepository(t)
 	registerAdditionalRepo(t, repository, "nnutter/alpha")
@@ -988,7 +988,7 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 
 	runComplete := func(line string, tabs string, want string) string {
 		t.Helper()
-		command := testCommand(t,
+		command := shellTestCommand(t,
 			"python3",
 			scriptPath,
 			outDir,

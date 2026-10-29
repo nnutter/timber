@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"bytes"
@@ -31,9 +31,9 @@ func TestGeneratedZshReviewAndCompletion(t *testing.T) {
 
 	run := func(program string, args ...string) commandResult {
 		t.Helper()
-		command := testCommand(t, zsh, append([]string{"-f", "-c", program, "--", outDir}, args...)...)
+		command := shellTestCommand(t, zsh, append([]string{"-f", "-c", program, "--", outDir}, args...)...)
 		command.Dir = repository.worktreePath(branch)
-		command.Env = replaceTestEnvironment(repository.runtime.Environment,
+		command.Env = shellTestEnvironment(repository.runtime.Environment,
 			"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
 			"GIT_PAGER=cat",
 		)

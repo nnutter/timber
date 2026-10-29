@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"os"
@@ -38,7 +38,7 @@ printf '%s\n' "$TARGET_DIR" > "$TIMBER_CREATE_PATH_FILE"
 			if custom {
 				customValue = "true"
 			}
-			command.Env = replaceTestEnvironment(command.Env, "TARGET_DIR="+target, "CUSTOM_PATH="+customValue)
+			command.Env = shellTestEnvironment(command.Env, "TARGET_DIR="+target, "CUSTOM_PATH="+customValue)
 
 			output, err := command.CombinedOutput()
 

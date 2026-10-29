@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"os"
@@ -23,7 +23,7 @@ func generatedZshCommand(t *testing.T, fakeTimber string, program string, args .
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
 	arguments := append([]string{"-f", "-c", program, "--", filepath.Join(outDir, "t")}, args...)
-	command := testCommand(t, zsh, arguments...)
-	command.Env = replaceTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	command := shellTestCommand(t, zsh, arguments...)
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return command
 }

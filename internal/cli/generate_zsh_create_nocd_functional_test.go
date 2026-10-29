@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"strings"
@@ -31,7 +31,7 @@ printf '%s\n' "$@"
 			if testCase.flag != "" {
 				command.Args = append(command.Args, testCase.flag)
 			}
-			command.Env = replaceTestEnvironment(command.Env, "TARGET_DIR="+target, "HERDR_ENV="+testCase.herdr)
+			command.Env = shellTestEnvironment(command.Env, "TARGET_DIR="+target, "HERDR_ENV="+testCase.herdr)
 
 			output, err := command.CombinedOutput()
 
