@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"testing"
@@ -6,6 +6,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/timber"
 )
 
 func TestFunctionalRepositoryPickerCancellationDoesNotSelectRepository(t *testing.T) {
@@ -16,7 +18,7 @@ func TestFunctionalRepositoryPickerCancellationDoesNotSelectRepository(t *testin
 		{Type: tea.KeyRunes, Runes: []rune("q")},
 	} {
 		t.Run(key.String(), func(t *testing.T) {
-			model := newRepoPickerModel([]RepoRef{{Name: "alpha"}})
+			model := newRepoPickerModel([]timber.RepoRef{{Name: "alpha"}})
 
 			updated, command := model.Update(key)
 			result := updated.(repoPickerModel)

@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"testing"
@@ -6,11 +6,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/timber"
 )
 
 func TestFunctionalRepositoryPickerSelectsHighlightedRepository(t *testing.T) {
 	t.Parallel()
-	repos := []RepoRef{{Name: "alpha", BarePath: "/repos/alpha.git"}, {Name: "beta", BarePath: "/repos/beta.git"}}
+	repos := []timber.RepoRef{{Name: "alpha", BarePath: "/repos/alpha.git"}, {Name: "beta", BarePath: "/repos/beta.git"}}
 	model := newRepoPickerModel(repos)
 	for _, message := range []tea.Msg{
 		tea.WindowSizeMsg{Width: 80, Height: 24},

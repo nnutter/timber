@@ -8,9 +8,8 @@ import (
 )
 
 type repoSelection struct {
-	runtime      Runtime
-	RepoName     string
-	repoPrompter RepoPrompter
+	runtime  Runtime
+	RepoName string
 }
 
 func (x *repoSelection) resolve(input io.Reader) (registeredRepo, *Repository, error) {
@@ -135,18 +134,16 @@ func (x *repoSelection) resolvePrompt(input io.Reader) (registeredRepo, *Reposit
 		return registeredRepo{}, nil, errors.New("repository selection requires @<repo>, a managed worktree cwd, or an interactive terminal")
 	}
 
-	prompter := x.repoPrompter
+	prompter := x.runtime.RepoPrompter
 	if prompter == nil {
-		prompter = bubbleteaRepoPrompter{
-			input: input,
-		}
+		return registeredRepo{}, nil, errors.New("repository selection requires a repository prompter")
 	}
 
 	refs := make([]RepoRef, 0, len(repos))
 	for _, repo := range repos {
 		refs = append(refs, repo.ref())
 	}
-	selected, err := prompter.Prompt(refs)
+	selected, err := prompter.Prompt(input, refs)
 	if err != nil {
 		return registeredRepo{}, nil, err
 	}

@@ -39,6 +39,9 @@ type Runtime struct {
 
 	HerdrEnvironment bool
 
+	// RepoPrompter selects a repository when interactive resolution is needed.
+	RepoPrompter RepoPrompter
+
 	CreatePathFile string
 	SwitchPathFile string
 	RenamePathFile string

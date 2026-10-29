@@ -1,14 +1,6 @@
 package timber
 
-import (
-	"errors"
-	"fmt"
-	"io"
-
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-)
+import "io"
 
 // RepoRef identifies a registered repository for selection UI.
 type RepoRef struct {
@@ -18,108 +10,9 @@ type RepoRef struct {
 
 // RepoPrompter selects a registered repository interactively.
 type RepoPrompter interface {
-	Prompt(repos []RepoRef) (RepoRef, error)
+	Prompt(io.Reader, []RepoRef) (RepoRef, error)
 }
 
 func (x registeredRepo) ref() RepoRef {
 	return RepoRef(x)
-}
-
-type bubbleteaRepoPrompter struct {
-	input  io.Reader
-	output io.Writer
-}
-
-func newRepoPickerModel(repos []RepoRef) repoPickerModel {
-	items := make([]list.Item, 0, len(repos))
-	for _, repo := range repos {
-		items = append(items, repoListItem{repo: repo})
-	}
-
-	delegate := list.NewDefaultDelegate()
-	delegate.ShowDescription = false
-
-	repoList := list.New(items, delegate, 0, 0)
-	repoList.Title = "Select repository"
-	repoList.SetShowStatusBar(false)
-	repoList.SetFilteringEnabled(true)
-	repoList.Styles.Title = lipgloss.NewStyle().Bold(true)
-
-	return repoPickerModel{list: repoList}
-}
-
-func (x bubbleteaRepoPrompter) Prompt(repos []RepoRef) (RepoRef, error) {
-	model := newRepoPickerModel(repos)
-	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
-	if x.input != nil {
-		programOptions = append(programOptions, tea.WithInput(x.input))
-	}
-	if x.output != nil {
-		programOptions = append(programOptions, tea.WithOutput(x.output))
-	}
-
-	program := tea.NewProgram(model, programOptions...)
-	finalModel, err := program.Run()
-	if err != nil {
-		return RepoRef{}, fmt.Errorf("repository picker: %w", err)
-	}
-
-	result, ok := finalModel.(repoPickerModel)
-	if !ok {
-		return RepoRef{}, errors.New("repository picker returned unexpected model")
-	}
-	if result.cancelled || result.choice.Name == "" {
-		return RepoRef{}, errors.New("repository selection cancelled")
-	}
-	return result.choice, nil
-}
-
-type repoListItem struct {
-	repo RepoRef
-}
-
-func (x repoListItem) FilterValue() string { return x.repo.Name }
-func (x repoListItem) Title() string       { return x.repo.Name }
-func (x repoListItem) Description() string { return x.repo.BarePath }
-
-type repoPickerModel struct {
-	list      list.Model
-	choice    RepoRef
-	cancelled bool
-}
-
-func (x repoPickerModel) Init() tea.Cmd {
-	return nil
-}
-
-func (x repoPickerModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
-	switch message := message.(type) {
-	case tea.WindowSizeMsg:
-		x.list.SetSize(message.Width, message.Height)
-		return x, nil
-	case tea.KeyMsg:
-		switch message.String() {
-		case "ctrl+c", "esc", "q":
-			if x.list.FilterState() != list.Filtering {
-				x.cancelled = true
-				return x, tea.Quit
-			}
-		case "enter":
-			if x.list.FilterState() != list.Filtering {
-				item, ok := x.list.SelectedItem().(repoListItem)
-				if ok {
-					x.choice = item.repo
-				}
-				return x, tea.Quit
-			}
-		}
-	}
-
-	var command tea.Cmd
-	x.list, command = x.list.Update(message)
-	return x, command
-}
-
-func (x repoPickerModel) View() string {
-	return x.list.View()
 }

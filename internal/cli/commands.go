@@ -37,6 +37,7 @@ import (
 
 // Commands assembles the Timber command tree from application operations.
 func Commands(runtime timber.Runtime) []*cobra.Command {
+	runtime.RepoPrompter = bubbleteaRepoPrompter{}
 	renderStatus := func(message string) string { return display.StatusStyle.Render(message) }
 	return []*cobra.Command{
 		cliconfig.New(runtime),
