@@ -18,7 +18,7 @@ func TestManualWorktreeLifecycle(t *testing.T) {
 
 	listed := repo.runTimber(t, "list", "--json")
 	require.NoError(t, listed.err, listed.stderr)
-	var records []listJSONWorktree
+	var records []listJSONRecord
 	require.NoError(t, json.Unmarshal([]byte(listed.stdout), &records))
 	require.Len(t, records, 1)
 	assert.Equal(t, "checkout", records[0].Name)
@@ -60,7 +60,7 @@ func TestManualWorktreeNamesExpandPastConflicts(t *testing.T) {
 	}
 	listed := repo.runTimber(t, "list", "--json")
 	require.NoError(t, listed.err, listed.stderr)
-	var records []listJSONWorktree
+	var records []listJSONRecord
 	require.NoError(t, json.Unmarshal([]byte(listed.stdout), &records))
 	var names []string
 	for _, record := range records {

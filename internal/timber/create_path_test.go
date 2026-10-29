@@ -36,7 +36,7 @@ func TestCreateCustomPathPreservesExplicitNameAcrossLifecycle(t *testing.T) {
 			// A subsequent command has no in-memory knowledge of create.
 			listed := repo.runTimber(t, "list", "--json")
 			require.NoError(t, listed.err, listed.stderr)
-			var records []listJSONWorktree
+			var records []listJSONRecord
 			require.NoError(t, json.Unmarshal([]byte(listed.stdout), &records))
 			require.Len(t, records, 1)
 			assert.Equal(t, name, records[0].Name)
