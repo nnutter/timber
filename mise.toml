@@ -1,11 +1,11 @@
 [tools]
-go = "1.27.3"
+go = "latest"
 hk = "2.8.0"
-pkl = "0.32.1"
-tombi = "1.9.7"
-yamlfmt = "0.21.0"
-"github:nnutter/mdlint" = "0.4.2"
-uv = "0.13.6"
+pkl = "latest"
+tombi = "latest"
+yamlfmt = "latest"
+"github:nnutter/mdlint" = "latest"
+uv = "latest"
 
 #####################
 # Development Tasks #
