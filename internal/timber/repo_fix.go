@@ -7,61 +7,45 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/spf13/cobra"
 )
 
 const legacyReposDirName = "timber/repos"
 
-type repoFixCommandOptions struct {
-	runtime Runtime
-}
-
-func NewRepoFixCommand(runtime Runtime) *cobra.Command {
-	options := &repoFixCommandOptions{runtime: runtime}
-	return &cobra.Command{
-		Use:   "fix",
-		Short: "Move bare repositories into the worktree root and repair worktrees",
-		Args:  cobra.NoArgs,
-		RunE:  options.Execute,
-	}
-}
-
-func (x *repoFixCommandOptions) Execute(command *cobra.Command, _ []string) error {
-	legacyRepos, err := x.runtime.listLegacyRepos()
+// FixRepos moves legacy bare repositories into the worktree root and
+// repairs stale worktrees. It returns one status message per action for CLI
+// reporting.
+func (runtime Runtime) FixRepos() ([]string, error) {
+	var messages []string
+	legacyRepos, err := runtime.listLegacyRepos()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, repo := range legacyRepos {
-		moved, err := x.runtime.moveLegacyRepo(repo)
+		moved, err := runtime.moveLegacyRepo(repo)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !moved {
 			continue
 		}
-		if _, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("moved repository "+repo.Name)); err != nil {
-			return err
-		}
+		messages = append(messages, "moved repository "+repo.Name)
 	}
 
-	repos, err := x.runtime.listRegisteredRepos()
+	repos, err := runtime.listRegisteredRepos()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, repo := range repos {
-		repaired, err := x.runtime.repairStaleWorktrees(repo)
+		repaired, err := runtime.repairStaleWorktrees(repo)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !repaired {
 			continue
 		}
-		if _, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("repaired worktrees for "+repo.Name)); err != nil {
-			return err
-		}
+		messages = append(messages, "repaired worktrees for "+repo.Name)
 	}
-	return nil
+	return messages, nil
 }
 
 func (x Runtime) legacyReposDirectory() string {
