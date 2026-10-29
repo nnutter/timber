@@ -3,125 +3,57 @@ package timber
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
-
-	"github.com/spf13/cobra"
 )
-
-type switchCommandOptions struct {
-	repoSelection
-	create   bool
-	noCd     bool
-	upstream string
-	herdr    bool
-	noHerdr  bool
-}
-
-func NewSwitchCommand(runtime Runtime) *cobra.Command {
-	options := &switchCommandOptions{runtime: runtime}
-
-	command := &cobra.Command{
-		Use:               "switch [name[@repo]]",
-		Aliases:           []string{"sw"},
-		Short:             "Resolve a managed worktree path",
-		Args:              cobra.ExactArgs(1),
-		RunE:              options.Execute,
-		Hidden:            true,
-		ValidArgsFunction: runtime.completeQualifiedWorktreeNames,
-	}
-	command.Flags().BoolVarP(&options.create, "create", "c", false, "Create the worktree if it does not exist")
-	command.Flags().BoolVar(&options.noCd, "no-cd", false, "Create without reporting a path to change to")
-	command.Flags().StringVarP(&options.upstream, "upstream", "u", "", "Upstream branch")
-	command.Flags().BoolVar(&options.herdr, "herdr", false, "Also create a Herdr workspace for the new worktree")
-	command.Flags().BoolVar(&options.noHerdr, "no-herdr", false, "Do not create a Herdr workspace")
-	command.MarkFlagsMutuallyExclusive("herdr", "no-herdr")
-	return command
-}
 
 const switchPathFileEnvVarName = "TIMBER_SWITCH_PATH_FILE"
 
-func (x *switchCommandOptions) Execute(command *cobra.Command, args []string) error {
-	qualified, err := x.runtime.parseQualifiedName(args[0])
+// ResolveSwitchWorktree resolves a worktree selector to its name and path.
+// alreadyIn reports whether the current directory is already the target.
+func (runtime Runtime) ResolveSwitchWorktree(input io.Reader, raw, repoName string) (name, path string, alreadyIn bool, err error) {
+	qualified, err := runtime.parseQualifiedName(raw)
 	if err != nil {
-		return err
+		return "", "", false, err
 	}
 	if qualified.Repo != "" {
-		x.RepoName = qualified.Repo
+		repoName = qualified.Repo
 	}
 
-	if x.create {
-		return x.createAndReport(command, nameArgs(qualified.Name))
-	}
-
-	name := qualified.Name
+	name = qualified.Name
 	if name == "" {
-		return fmt.Errorf("worktree name is required")
+		return "", "", false, fmt.Errorf("worktree name is required")
 	}
-	repoName, err := x.resolveSwitchRepoName(name)
-	if err != nil {
-		return err
+	if repoName == "" {
+		repoName, err = runtime.inferUniqueRepoForWorktree(name)
+		if err != nil {
+			return "", "", false, err
+		}
 	}
 
-	repository, _, err := x.runtime.openRegisteredRepository(repoName)
+	repository, _, err := runtime.openRegisteredRepository(repoName)
 	if err != nil {
-		return err
+		return "", "", false, err
 	}
-	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repoName)
+	worktrees, err := runtime.managedWorktreesFromRepository(repository, repoName)
 	if err != nil {
-		return err
+		return "", "", false, err
 	}
 	worktree, err := managedWorktreeByName(worktrees, name)
 	if err != nil {
-		return fmt.Errorf("worktree %s not found in repository %s", name, repoName)
+		return "", "", false, fmt.Errorf("worktree %s not found in repository %s", name, repoName)
 	}
-	worktreePath := worktree.Path
-	if _, err := os.Stat(worktreePath); err != nil {
+	path = worktree.Path
+	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("worktree %s not found at %s", name, worktreePath)
+			return "", "", false, fmt.Errorf("worktree %s not found at %s", name, path)
 		}
-		return fmt.Errorf("inspect worktree directory %q: %w", worktreePath, err)
+		return "", "", false, fmt.Errorf("inspect worktree directory %q: %w", path, err)
 	}
 
-	if err := x.runtime.reportAlreadyInWorktree(command, name, worktreePath); err != nil {
-		return err
-	}
-	return x.runtime.reportSwitchWorktreePath(command.OutOrStdout(), worktreePath)
-}
-
-func (x *switchCommandOptions) createAndReport(command *cobra.Command, args []string) error {
-	var raw, explicitPath string
-	var hasExplicitPath bool
-	if len(args) > 0 {
-		raw = args[0]
-	}
-	if len(args) == 2 {
-		explicitPath = args[1]
-		hasExplicitPath = true
-	}
-	worktreePath, herdrOpened, err := x.runtime.CreateManagedWorktree(
-		command.Context(),
-		command.InOrStdin(),
-		command.ErrOrStderr(),
-		x.RepoName,
-		raw,
-		explicitPath,
-		hasExplicitPath,
-		x.upstream,
-		x.herdr,
-		x.noHerdr,
-	)
+	same, err := samePath(runtime.CurrentDirectory, path)
 	if err != nil {
-		return err
+		return "", "", false, err
 	}
-	if x.noCd || herdrOpened {
-		return nil
-	}
-	return x.runtime.reportSwitchWorktreePath(command.OutOrStdout(), worktreePath)
-}
-
-func (x *switchCommandOptions) resolveSwitchRepoName(worktreeName string) (string, error) {
-	if x.RepoName != "" {
-		return x.RepoName, nil
-	}
-	return x.runtime.inferUniqueRepoForWorktree(worktreeName)
+	return name, path, same, nil
 }

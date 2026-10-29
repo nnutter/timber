@@ -16,6 +16,7 @@ import (
 	reporemove "github.com/nnutter/timber/internal/cli/repo/remove"
 	reporename "github.com/nnutter/timber/internal/cli/repo/rename"
 	clireview "github.com/nnutter/timber/internal/cli/review"
+	cliswitch "github.com/nnutter/timber/internal/cli/switch"
 	clitodo "github.com/nnutter/timber/internal/cli/todo"
 )
 
@@ -59,7 +60,12 @@ func Commands(runtime Runtime) []*cobra.Command {
 		),
 		clireview.New(runtime.CurrentDirectory, runtime.HomeDirectory, runtime.ReviewSkillContent),
 		herdrCommand(runtime),
-		NewSwitchCommand(runtime),
+		cliswitch.New(cliswitch.Dependencies{
+			Resolve:    runtime.ResolveSwitchWorktree,
+			Create:     runtime.CreateManagedWorktree,
+			ReportPath: runtime.reportSwitchWorktreePath,
+			Complete:   runtime.completeQualifiedWorktreeNames,
+		}),
 		todoCommand(runtime),
 		cligit.New(cligit.Dependencies{
 			CurrentDirectory:   runtime.CurrentDirectory,

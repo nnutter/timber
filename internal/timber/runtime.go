@@ -886,16 +886,6 @@ func (x Runtime) reportRenamedCurrentPath(path string) error {
 	return nil
 }
 
-func (x Runtime) reportAlreadyInWorktree(command *cobra.Command, name string, worktreePath string) error {
-	currentDirectory := x.CurrentDirectory
-	same, err := samePath(currentDirectory, worktreePath)
-	if err != nil || !same {
-		return err
-	}
-	_, err = fmt.Fprintf(command.ErrOrStderr(), "Already in %s\n", name)
-	return err
-}
-
 func (x Runtime) reportSwitchWorktreePath(output io.Writer, worktreePath string) error {
 	if pathFile := x.SwitchPathFile; pathFile != "" {
 		if err := x.writePathFile(pathFile, worktreePath); err != nil {
