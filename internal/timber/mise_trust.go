@@ -2,6 +2,7 @@ package timber
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,20 +10,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/spf13/cobra"
 )
 
-func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, upstream, worktreePath string) {
+func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string) {
 	warn := func(err error) {
-		fmt.Fprintf(command.ErrOrStderr(), "warning: automatic mise trust skipped: %v\n", err)
+		fmt.Fprintf(output, "warning: automatic mise trust skipped: %v\n", err)
 	}
 	settings, err := x.loadConfig()
 	if err != nil {
 		warn(err)
 		return
 	}
-	if !settings.AutoMiseTrust && (settings.AutoMiseTrustDecided || !isInteractiveTerminal(command.InOrStdin())) {
+	if !settings.AutoMiseTrust && (settings.AutoMiseTrustDecided || !isInteractiveTerminal(input)) {
 		return
 	}
 	configPath := filepath.Join(worktreePath, "mise.toml")
@@ -35,7 +34,7 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 	if !regular {
 		return
 	}
-	identity, owned, err := x.githubOwnedWorktree(command, repository, upstream)
+	identity, owned, err := x.githubOwnedWorktree(ctx, repository, upstream)
 	if err != nil {
 		warn(err)
 		return
@@ -44,7 +43,7 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 		return
 	}
 	if !settings.AutoMiseTrust {
-		enabled, err := x.promptAutoMiseTrust(command, settings, identity)
+		enabled, err := x.promptAutoMiseTrust(input, output, settings, identity)
 		if err != nil {
 			warn(err)
 			return
@@ -53,11 +52,11 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 			return
 		}
 	}
-	trust := x.command(command.Context(), "mise", "trust", configPath)
+	trust := x.command(ctx, "mise", "trust", configPath)
 	trust.Dir = worktreePath
-	output, err := trust.CombinedOutput()
+	combined, err := trust.CombinedOutput()
 	if err != nil {
-		warn(fmt.Errorf("mise trust failed: %w: %s", err, strings.TrimSpace(string(output))))
+		warn(fmt.Errorf("mise trust failed: %w: %s", err, strings.TrimSpace(string(combined))))
 	}
 }
 
@@ -85,7 +84,7 @@ func writeGitHubIdentity(output io.Writer, identity githubIdentity) error {
 
 // githubOwnedWorktree reports whether the selected upstream resolves to a
 // GitHub repository owned by the cached user or one of their organizations.
-func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Repository, upstream string) (githubIdentity, bool, error) {
+func (x Runtime) githubOwnedWorktree(ctx context.Context, repository *Repository, upstream string) (githubIdentity, bool, error) {
 	remoteURL, err := repository.upstreamRemoteURL(upstream)
 	if err != nil {
 		return githubIdentity{}, false, err
@@ -94,7 +93,7 @@ func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Reposit
 	if owner == "" {
 		return githubIdentity{}, false, nil
 	}
-	identity, err := x.githubIdentity(command.Context())
+	identity, err := x.githubIdentity(ctx)
 	if err != nil {
 		return githubIdentity{}, false, err
 	}
@@ -104,15 +103,14 @@ func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Reposit
 	return identity, true, nil
 }
 
-func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config, identity githubIdentity) (bool, error) {
-	output := command.ErrOrStderr()
+func (x Runtime) promptAutoMiseTrust(input io.Reader, output io.Writer, settings config, identity githubIdentity) (bool, error) {
 	if _, err := fmt.Fprintln(output, "This worktree qualifies for automatic mise trust. Trusting mise configuration permits code execution."); err != nil {
 		return false, err
 	}
 	if err := writeGitHubIdentity(output, identity); err != nil {
 		return false, err
 	}
-	reader := bufio.NewReader(command.InOrStdin())
+	reader := bufio.NewReader(input)
 	for {
 		if _, err := fmt.Fprint(output, "Enable automatic mise trust for repositories owned by you or your GitHub organizations? [y/N] "); err != nil {
 			return false, err
