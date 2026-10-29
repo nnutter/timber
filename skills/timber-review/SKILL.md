@@ -27,10 +27,10 @@ The `summary` array contains elements with a `state` string and a `count` intege
 The summary always includes these states in this order, including zero counts:
 
 1. `needs_review`
-2. `reviewing`
-3. `feedback`
-4. `incomplete`
-5. `approved`
+1. `reviewing`
+1. `feedback`
+1. `incomplete`
+1. `approved`
 
 Counts include all commits in the current feature range, including attached fixups.
 Each commit inherits its stack's current state.
@@ -130,11 +130,11 @@ Apply this rule to both comments and session notes, for commit and file reviews.
 ## Prepare the changes
 
 1. Check the feature branch and configured upstream.
-2. Check the working tree and any Git operation already in progress.
-3. Preserve unrelated user changes before changing branches or rewriting history.
-4. Summarize the selected feedback and proposed fixes.
-5. Record the original branch tip and create a uniquely named local backup branch.
-6. Identify each current target stack through timber review's `view.stacks` data.
+1. Check the working tree and any Git operation already in progress.
+1. Preserve unrelated user changes before changing branches or rewriting history.
+1. Summarize the selected feedback and proposed fixes.
+1. Record the original branch tip and create a uniquely named local backup branch.
+1. Identify each current target stack through timber review's `view.stacks` data.
 
 Use `timber review status --needs-review --json` when you need a fresh view of current stacks.
 Its `view.stacks` includes approved stacks too.
@@ -235,10 +235,10 @@ Record the new commit IDs for the report.
 ## Check and report
 
 1. Check that the checkout uses the feature branch after integration.
-2. Run the repository's required checks on the final history.
-3. Run `timber review status --needs-review --json` to check stack formation.
-4. Check that each feedback commit immediately follows its target stack tip.
-5. Report each attempt ID, addressed comment, new stack range, and validation result.
+1. Run the repository's required checks on the final history.
+1. Run `timber review status --needs-review --json` to check stack formation.
+1. Check that each feedback commit immediately follows its target stack tip.
+1. Report each attempt ID, addressed comment, new stack range, and validation result.
 
 Leave review eligibility and approval decisions to timber review.
 Do not call `timber review approve`, launch a review, or claim user approval.
