@@ -85,7 +85,7 @@ func (x *switchCommandOptions) Execute(command *cobra.Command, args []string) er
 	if err := x.runtime.reportAlreadyInWorktree(command, name, worktreePath); err != nil {
 		return err
 	}
-	return x.runtime.reportSwitchWorktreePath(command, worktreePath)
+	return x.runtime.reportSwitchWorktreePath(command.OutOrStdout(), worktreePath)
 }
 
 func (x *switchCommandOptions) createAndReport(command *cobra.Command, args []string) error {
@@ -101,7 +101,7 @@ func (x *switchCommandOptions) createAndReport(command *cobra.Command, args []st
 	if x.noCd || createOptions.shouldCreateHerdrWorkspace() {
 		return nil
 	}
-	return x.runtime.reportSwitchWorktreePath(command, worktreePath)
+	return x.runtime.reportSwitchWorktreePath(command.OutOrStdout(), worktreePath)
 }
 
 func (x *switchCommandOptions) resolveSwitchRepoName(worktreeName string) (string, error) {

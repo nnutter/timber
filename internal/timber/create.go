@@ -40,7 +40,7 @@ func (x *createCommandOptions) Execute(command *cobra.Command, args []string) er
 	if err != nil {
 		return err
 	}
-	return x.runtime.reportCreatedWorktreePath(command, worktreePath)
+	return x.runtime.reportCreatedWorktreePath(command.OutOrStdout(), worktreePath)
 }
 
 func (x *createCommandOptions) createWorktree(command *cobra.Command, args []string) (string, error) {
@@ -152,7 +152,7 @@ func (x *createCommandOptions) createWorktree(command *cobra.Command, args []str
 	if err := x.runtime.openHerdrSpace(command.Context(), worktree); err != nil {
 		return "", err
 	}
-	if err := reportOpenedHerdrSpace(command, branchName); err != nil {
+	if err := reportOpenedHerdrSpace(command.ErrOrStderr(), branchName); err != nil {
 		return "", err
 	}
 	return worktreePath, nil

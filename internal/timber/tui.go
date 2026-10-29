@@ -107,7 +107,7 @@ func (x *tuiCreateCommandOptions) createSelectedWorktree(
 	if err != nil {
 		return err
 	}
-	return x.runtime.reportCreatedWorktreePath(command, worktreePath)
+	return x.runtime.reportCreatedWorktreePath(command.OutOrStdout(), worktreePath)
 }
 
 func (x *tuiCreateCommandOptions) openSelectedWorktree(
@@ -129,7 +129,7 @@ func (x *tuiCreateCommandOptions) openSelectedWorktree(
 	if err := x.runtime.openHerdrSpace(command.Context(), worktree); err != nil {
 		return err
 	}
-	return reportOpenedHerdrSpace(command, worktree.Name)
+	return reportOpenedHerdrSpace(command.ErrOrStderr(), worktree.Name)
 }
 
 func (x bubbleteaCreateWizardPrompter) Prompt(

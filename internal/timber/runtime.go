@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -157,7 +158,7 @@ func (x Runtime) resolveCreateWorktreeName(repoName string, name string) (string
 	return x.unusedWorktreeName(repoName)
 }
 
-func (x Runtime) reportCreatedWorktreePath(command *cobra.Command, worktreePath string) error {
+func (x Runtime) reportCreatedWorktreePath(output io.Writer, worktreePath string) error {
 	if pathFile := x.CreatePathFile; pathFile != "" {
 		if err := x.writePathFile(pathFile, worktreePath); err != nil {
 			return fmt.Errorf("write created worktree path file: %w", err)
@@ -165,7 +166,7 @@ func (x Runtime) reportCreatedWorktreePath(command *cobra.Command, worktreePath 
 		return nil
 	}
 
-	_, err := fmt.Fprintln(command.OutOrStdout(), worktreePath)
+	_, err := fmt.Fprintln(output, worktreePath)
 	return err
 }
 
@@ -895,7 +896,7 @@ func (x Runtime) reportAlreadyInWorktree(command *cobra.Command, name string, wo
 	return err
 }
 
-func (x Runtime) reportSwitchWorktreePath(command *cobra.Command, worktreePath string) error {
+func (x Runtime) reportSwitchWorktreePath(output io.Writer, worktreePath string) error {
 	if pathFile := x.SwitchPathFile; pathFile != "" {
 		if err := x.writePathFile(pathFile, worktreePath); err != nil {
 			return fmt.Errorf("write switch worktree path file: %w", err)
@@ -903,7 +904,7 @@ func (x Runtime) reportSwitchWorktreePath(command *cobra.Command, worktreePath s
 		return nil
 	}
 
-	_, err := fmt.Fprintln(command.OutOrStdout(), worktreePath)
+	_, err := fmt.Fprintln(output, worktreePath)
 	return err
 }
 
