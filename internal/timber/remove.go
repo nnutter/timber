@@ -3,6 +3,7 @@ package timber
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -103,22 +104,22 @@ func (x *removeCommandOptions) removeResolvedWorktree(command *cobra.Command, re
 		}
 	}
 
+	return reportWorktreeRemoval(command.ErrOrStderr(), worktree, removingCurrentDirectory)
+}
+
+func reportWorktreeRemoval(output io.Writer, worktree managedWorktree, removingCurrentDirectory bool) error {
 	if _, err := os.Stat(worktree.Path); err == nil {
-		if _, writeErr := fmt.Fprintf(command.ErrOrStderr(), "%s\n", warningStyle.Render("warning: worktree directory still exists: "+worktree.Path)); writeErr != nil {
+		if _, writeErr := fmt.Fprintf(output, "%s\n", warningStyle.Render("warning: worktree directory still exists: "+worktree.Path)); writeErr != nil {
 			return writeErr
 		}
 	}
 
-	message := fmt.Sprintf("removed %s at %s", name, worktree.shortCommitHash())
-	if _, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render(message)); err != nil {
+	message := fmt.Sprintf("removed %s at %s", worktree.Name, worktree.shortCommitHash())
+	if _, err := fmt.Fprintf(output, "%s\n", statusStyle.Render(message)); err != nil {
 		return err
 	}
 	if removingCurrentDirectory {
-		_, err = fmt.Fprintf(
-			command.ErrOrStderr(),
-			"%s\n",
-			warningStyle.Render("current directory was removed"),
-		)
+		_, err := fmt.Fprintf(output, "%s\n", warningStyle.Render("current directory was removed"))
 		return err
 	}
 	return nil
