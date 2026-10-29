@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"os"
@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func runGitCommandAllowError(t *testing.T, directory string, args ...string) {
+	t.Helper()
+	_, _ = gitCommand(t, directory, args...).CombinedOutput()
+}
+
 func TestCreateFetchesOriginBeforeCreatingWorktree(t *testing.T) {
 	t.Parallel()
 	const branchName = "feature/fresh"
@@ -17,11 +22,12 @@ func TestCreateFetchesOriginBeforeCreatingWorktree(t *testing.T) {
 	testRepository := newTestRepository(t)
 	updaterPath := filepath.Join(resolvedTempDir(t), "updater")
 	runGitCommand(t, filepath.Dir(updaterPath), "clone", testRepository.remotePath, updaterPath)
-	configureGitUser(t, updaterPath)
+	runGitCommand(t, updaterPath, "config", "user.name", "Test User")
+	runGitCommand(t, updaterPath, "config", "user.email", "test@example.com")
 	require.NoError(t, os.WriteFile(filepath.Join(updaterPath, "fresh.txt"), []byte("fresh\n"), 0o644))
 	runGitCommand(t, updaterPath, "add", "fresh.txt")
 	runGitCommand(t, updaterPath, "commit", "-m", "advance remote")
-	runGitCommand(t, updaterPath, "push", remoteName, "main")
+	runGitCommand(t, updaterPath, "push", "origin", "main")
 	remoteCommit := strings.TrimSpace(runGitCommand(t, updaterPath, "rev-parse", "HEAD"))
 
 	result := testRepository.runTimber(t, "create", at(testRepoName, branchName))
@@ -34,7 +40,7 @@ func TestCreateUsesOriginHeadAsDefaultUpstream(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
 	runGitCommand(t, testRepository.barePath, "branch", "develop", "main")
-	runGitCommand(t, testRepository.barePath, "push", remoteName, "develop")
+	runGitCommand(t, testRepository.barePath, "push", "origin", "develop")
 	runGitCommand(t, testRepository.barePath, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/develop")
 
 	result := testRepository.runTimber(t, "create", at(testRepoName, "feature/from-develop"))
@@ -54,7 +60,7 @@ func TestCreateFallsBackToOriginMasterWhenOriginHeadIsMissing(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
 	runGitCommand(t, testRepository.barePath, "branch", "-M", "main", "master")
-	runGitCommand(t, testRepository.barePath, "push", remoteName, "master")
+	runGitCommand(t, testRepository.barePath, "push", "origin", "master")
 	runGitCommand(t, testRepository.remotePath, "symbolic-ref", "HEAD", "refs/heads/missing")
 	// Ensure origin/HEAD missing
 	runGitCommandAllowError(t, testRepository.barePath, "symbolic-ref", "-d", "refs/remotes/origin/HEAD")
@@ -89,7 +95,7 @@ func TestCreateFailsWhenOriginHeadAndCommonDefaultsAreMissing(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
 	runGitCommand(t, testRepository.barePath, "branch", "develop", "main")
-	runGitCommand(t, testRepository.barePath, "push", remoteName, "develop")
+	runGitCommand(t, testRepository.barePath, "push", "origin", "develop")
 	runGitCommand(t, testRepository.remotePath, "symbolic-ref", "HEAD", "refs/heads/missing")
 	runGitCommand(t, testRepository.remotePath, "update-ref", "-d", "refs/heads/main")
 	runGitCommandAllowError(t, testRepository.barePath, "symbolic-ref", "-d", "refs/remotes/origin/HEAD")

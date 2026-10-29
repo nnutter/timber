@@ -1,4 +1,4 @@
-package timber
+package cli
 
 import (
 	"os"
@@ -112,7 +112,7 @@ func TestSwitchInfersUniqueRepoInsideWorktree(t *testing.T) {
 
 	result := primary.runTimberFrom(t, primary.worktreePath("feature/current"), "switch", "feature/other")
 	require.NoError(t, result.err, result.stderr)
-	assert.Equal(t, primary.runtime.managedWorktreePath(secondaryName, "feature/other"), strings.TrimSpace(result.stdout))
+	assert.Equal(t, filepath.Join(primary.worktreeRoot, secondaryName, "feature/other", secondaryName), strings.TrimSpace(result.stdout))
 }
 
 func TestSwitchFailsWhenWorktreeMissing(t *testing.T) {
