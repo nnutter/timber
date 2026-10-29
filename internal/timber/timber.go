@@ -25,7 +25,7 @@ func Commands(runtime Runtime) []*cobra.Command {
 			NewRepoRenameCommand(runtime),
 		),
 		clireview.New(runtime.CurrentDirectory, runtime.HomeDirectory, runtime.ReviewSkillContent),
-		NewHerdrCommand(runtime),
+		herdrCommand(runtime),
 		NewSwitchCommand(runtime),
 		NewTodoCommand(runtime),
 		NewGitCommand(runtime),
