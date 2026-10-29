@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
+	clicreate "github.com/nnutter/timber/internal/cli/create"
 	"github.com/nnutter/timber/internal/cli/generate"
 	cligit "github.com/nnutter/timber/internal/cli/git"
 	cliremove "github.com/nnutter/timber/internal/cli/remove"
@@ -21,7 +22,11 @@ import (
 func Commands(runtime Runtime) []*cobra.Command {
 	return []*cobra.Command{
 		cliconfig.New(runtime),
-		NewCreateCommand(runtime),
+		clicreate.New(clicreate.Dependencies{
+			Create:     runtime.CreateManagedWorktree,
+			ReportPath: runtime.reportCreatedWorktreePath,
+			Complete:   runtime.completeCreateArgs,
+		}),
 		NewListCommand(runtime),
 		NewPruneCommand(runtime),
 		cliremove.New(cliremove.Dependencies{

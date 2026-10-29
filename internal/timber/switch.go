@@ -89,12 +89,27 @@ func (x *switchCommandOptions) Execute(command *cobra.Command, args []string) er
 }
 
 func (x *switchCommandOptions) createAndReport(command *cobra.Command, args []string) error {
-	createOptions := &createCommandOptions{repoSelection: x.repoSelection}
-	createOptions.upstream = x.upstream
-	createOptions.herdr = x.herdr
-	createOptions.noHerdr = x.noHerdr
-
-	worktreePath, herdrOpened, err := createOptions.createWorktree(command, args)
+	var raw, explicitPath string
+	var hasExplicitPath bool
+	if len(args) > 0 {
+		raw = args[0]
+	}
+	if len(args) == 2 {
+		explicitPath = args[1]
+		hasExplicitPath = true
+	}
+	worktreePath, herdrOpened, err := x.runtime.CreateManagedWorktree(
+		command.Context(),
+		command.InOrStdin(),
+		command.ErrOrStderr(),
+		x.RepoName,
+		raw,
+		explicitPath,
+		hasExplicitPath,
+		x.upstream,
+		x.herdr,
+		x.noHerdr,
+	)
 	if err != nil {
 		return err
 	}

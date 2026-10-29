@@ -99,11 +99,18 @@ func (x *tuiCreateCommandOptions) createSelectedWorktree(
 	command *cobra.Command,
 	selection createWizardSelection,
 ) error {
-	createOptions := &createCommandOptions{runtime: x.runtime}
-	createOptions.RepoName = selection.repoName
-	createOptions.herdr = x.herdr
-	createOptions.noHerdr = x.noHerdr
-	worktreePath, _, err := createOptions.createWorktree(command, []string{selection.worktreeName})
+	worktreePath, _, err := x.runtime.CreateManagedWorktree(
+		command.Context(),
+		command.InOrStdin(),
+		command.ErrOrStderr(),
+		selection.repoName,
+		selection.worktreeName,
+		"",
+		false,
+		"",
+		x.herdr,
+		x.noHerdr,
+	)
 	if err != nil {
 		return err
 	}

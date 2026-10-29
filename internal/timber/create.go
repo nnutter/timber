@@ -7,67 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/spf13/cobra"
 )
-
-type createCommandOptions struct {
-	repoSelection
-	upstream string
-	herdr    bool
-	noHerdr  bool
-}
-
-func NewCreateCommand(runtime Runtime) *cobra.Command {
-	options := &createCommandOptions{runtime: runtime}
-
-	command := &cobra.Command{
-		Use:               "create [name[@repo]] [path]",
-		Short:             "Create a managed Git worktree",
-		Args:              cobra.MaximumNArgs(2),
-		RunE:              options.Execute,
-		ValidArgsFunction: runtime.completeCreateArgs,
-	}
-
-	command.Flags().StringVarP(&options.upstream, "upstream", "u", "", "Upstream branch")
-	command.Flags().BoolVar(&options.herdr, "herdr", false, "Also create a Herdr workspace for the new worktree")
-	command.Flags().BoolVar(&options.noHerdr, "no-herdr", false, "Do not create a Herdr workspace")
-	command.MarkFlagsMutuallyExclusive("herdr", "no-herdr")
-
-	return command
-}
-
-func (x *createCommandOptions) Execute(command *cobra.Command, args []string) error {
-	worktreePath, _, err := x.createWorktree(command, args)
-	if err != nil {
-		return err
-	}
-	return x.runtime.reportCreatedWorktreePath(command.OutOrStdout(), worktreePath)
-}
-
-func (x *createCommandOptions) createWorktree(command *cobra.Command, args []string) (string, bool, error) {
-	var raw, explicitPath string
-	var hasExplicitPath bool
-	if len(args) > 0 {
-		raw = args[0]
-	}
-	if len(args) == 2 {
-		explicitPath = args[1]
-		hasExplicitPath = true
-	}
-	return x.runtime.CreateManagedWorktree(
-		command.Context(),
-		command.InOrStdin(),
-		command.ErrOrStderr(),
-		x.RepoName,
-		raw,
-		explicitPath,
-		hasExplicitPath,
-		x.upstream,
-		x.herdr,
-		x.noHerdr,
-	)
-}
 
 // CreateManagedWorktree creates a managed worktree and runs automatic setup.
 // It returns the worktree path and whether a Herdr workspace was opened.
