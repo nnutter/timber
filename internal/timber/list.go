@@ -1,78 +1,68 @@
 package timber
 
 import (
+	"context"
 	"encoding/json/v2"
 	"fmt"
+	"io"
 	"strings"
-
-	"github.com/spf13/cobra"
 )
 
-type listCommandOptions struct {
-	repoSelection
-	pullRequests bool
-	location     bool
-	jsonOutput   bool
-	sortBy       listSort
-}
-
-func NewListCommand(runtime Runtime) *cobra.Command {
-	options := &listCommandOptions{runtime: runtime, sortBy: listSortRecency}
-
-	command := &cobra.Command{
-		Use:               "list [@repo]",
-		Aliases:           []string{"ls"},
-		Short:             "List managed Git worktrees",
-		Args:              cobra.MaximumNArgs(1),
-		RunE:              options.Execute,
-		ValidArgsFunction: runtime.completeRepoQualifiers,
-	}
-	command.Flags().BoolVar(&options.pullRequests, "pr", false, "Include open pull request status from gh")
-	command.Flags().BoolVarP(&options.location, "location", "L", false, "Include worktree location as the last column")
-	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Output worktrees as JSON instead of a table")
-	command.Flags().Var(&options.sortBy, "sort", "Sort worktrees by recency (newest commit first), repo, or worktree")
-	if err := command.RegisterFlagCompletionFunc("sort", completeListSort); err != nil {
-		panic(err)
-	}
-	return command
-}
-
-func (x *listCommandOptions) Execute(command *cobra.Command, args []string) error {
-	if err := x.applyRepoArg(args); err != nil {
+// ListWorktrees lists managed worktrees as a table or JSON document. All
+// output is written to the given writers, preserving CLI reporting order.
+func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, location, jsonOutput bool, sortMode string) error {
+	var sortBy listSort
+	if err := sortBy.Set(sortMode); err != nil {
 		return err
 	}
 
-	worktrees, err := x.collectWorktrees()
+	selection := repoSelection{runtime: runtime}
+	if repoArg != "" {
+		repo, err := runtime.parseRepoOnlyArg(repoArg)
+		if err != nil {
+			return err
+		}
+		selection.RepoName = repo
+	}
+
+	repos, err := selection.reposToConsider()
 	if err != nil {
 		return err
 	}
-	x.sortBy.sort(worktrees)
-	x.runtime.enrichListedWorktreesWithReviews(command.Context(), worktrees)
-	if x.pullRequests {
-		if err := x.runtime.enrichListedWorktreesWithPullRequests(command.Context(), worktrees); err != nil {
+	enrich := func(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
+		return enrichWorktreeForSort(runtime, repository, worktree, sortBy)
+	}
+	worktrees, err := runtime.collectWorktrees(repos, enrich)
+	if err != nil {
+		return err
+	}
+	sortBy.sort(worktrees)
+	runtime.enrichListedWorktreesWithReviews(ctx, worktrees)
+	if pullRequests {
+		if err := runtime.enrichListedWorktreesWithPullRequests(ctx, worktrees); err != nil {
 			return err
 		}
 	}
 
-	if x.jsonOutput {
-		return x.reportJSON(command, worktrees)
+	if jsonOutput {
+		return reportListJSON(stdout, worktrees)
 	}
 
 	headers := []string{"Name", "Repo", "Status", "Todo", "Review", "Commit", "Dirty"}
-	if x.pullRequests {
+	if pullRequests {
 		headers = append(headers, "PR")
 	}
-	if x.location {
+	if location {
 		headers = append(headers, "Location")
 		for index := range worktrees {
-			worktrees[index].DisplayPath = x.runtime.displayHomePath(worktrees[index].Path)
+			worktrees[index].DisplayPath = runtime.displayHomePath(worktrees[index].Path)
 		}
 	}
 	statusFormatter := newListStatusFormatter(worktrees)
 	tableView := newOutputTable(headers...).BorderRow(true)
-	tableView.Rows(groupListTableRows(worktrees, statusFormatter, x.pullRequests, x.location)...)
+	tableView.Rows(groupListTableRows(worktrees, statusFormatter, pullRequests, location)...)
 
-	_, err = fmt.Fprintln(command.OutOrStdout(), dottedListRowRules(tableView.String()))
+	_, err = fmt.Fprintln(stdout, dottedListRowRules(tableView.String()))
 	return err
 }
 
@@ -123,12 +113,12 @@ func worktreesToListJSON(worktrees []managedWorktree) []listJSONWorktree {
 	return records
 }
 
-func (x *listCommandOptions) reportJSON(command *cobra.Command, worktrees []managedWorktree) error {
+func reportListJSON(stdout io.Writer, worktrees []managedWorktree) error {
 	output, err := json.Marshal(worktreesToListJSON(worktrees))
 	if err != nil {
 		return fmt.Errorf("encode worktrees as JSON: %w", err)
 	}
-	_, err = fmt.Fprintln(command.OutOrStdout(), string(output))
+	_, err = fmt.Fprintln(stdout, string(output))
 	return err
 }
 
@@ -184,24 +174,4 @@ func formatDirtyStatus(clean bool) string {
 		return warningStyle.Render("dirty")
 	}
 	return "clean"
-}
-
-func (x *listCommandOptions) collectWorktrees() ([]managedWorktree, error) {
-	repos, err := x.reposToConsider()
-	if err != nil {
-		return nil, err
-	}
-	return x.runtime.collectWorktrees(repos, x.enrichWorktreeForSort)
-}
-
-func (x *listCommandOptions) applyRepoArg(args []string) error {
-	if len(args) == 0 {
-		return nil
-	}
-	repo, err := x.runtime.parseRepoOnlyArg(args[0])
-	if err != nil {
-		return err
-	}
-	x.RepoName = repo
-	return nil
 }

@@ -9,6 +9,7 @@ import (
 	clicreate "github.com/nnutter/timber/internal/cli/create"
 	"github.com/nnutter/timber/internal/cli/generate"
 	cligit "github.com/nnutter/timber/internal/cli/git"
+	clilist "github.com/nnutter/timber/internal/cli/list"
 	cliprune "github.com/nnutter/timber/internal/cli/prune"
 	cliremove "github.com/nnutter/timber/internal/cli/remove"
 	clirepo "github.com/nnutter/timber/internal/cli/repo"
@@ -31,7 +32,10 @@ func Commands(runtime Runtime) []*cobra.Command {
 			ReportPath: runtime.reportCreatedWorktreePath,
 			Complete:   runtime.completeCreateArgs,
 		}),
-		NewListCommand(runtime),
+		clilist.New(clilist.Dependencies{
+			List:     runtime.ListWorktrees,
+			Complete: runtime.completeRepoQualifiers,
+		}),
 		cliprune.New(cliprune.Dependencies{
 			Prune: func(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool) error {
 				return runtime.PruneWorktrees(input, output, repoArg, prompt, dryRun, huhWorktreePrompter{})

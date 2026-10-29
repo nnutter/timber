@@ -45,8 +45,8 @@ func completeListSort(_ *cobra.Command, _ []string, prefix string) ([]string, co
 
 // Read the recorded HEAD from the bare repository, not the checkout: even a
 // missing worktree can be ordered. An unborn HEAD has no commit timestamp.
-func (x *listCommandOptions) enrichWorktreeForSort(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
-	if x.sortBy == listSortRecency && strings.Trim(worktree.CommitHash, "0") != "" {
+func enrichWorktreeForSort(runtime Runtime, repository *Repository, worktree managedWorktree, sortBy listSort) (managedWorktree, error) {
+	if sortBy == listSortRecency && strings.Trim(worktree.CommitHash, "0") != "" {
 		result, err := repository.git("show", "-s", "--format=%ct", worktree.CommitHash, "--")
 		if err != nil {
 			return managedWorktree{}, fmt.Errorf("read commit timestamp for %s@%s: %w", worktree.Name, worktree.Repo, err)
@@ -57,7 +57,7 @@ func (x *listCommandOptions) enrichWorktreeForSort(repository *Repository, workt
 		}
 		worktree.CommitTime = time.Unix(seconds, 0)
 	}
-	return x.runtime.enrichWorktreeForList(repository, worktree)
+	return runtime.enrichWorktreeForList(repository, worktree)
 }
 
 func (x listSort) sort(worktrees []managedWorktree) {
