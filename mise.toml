@@ -12,9 +12,10 @@ yamlfmt = "0.21.0"
 
 [tasks.all]
 description = "Run fixers, tests, and linters"
-run = [{ task = "fixers" }, { task = "tests" }, { task = "linters" }]
+run = [{ task = "fix" }, { task = "test" }, { task = "check" }]
 
-[tasks.ci-tests]
+[tasks.ci-test]
+alias = "ci-tests"
 description = "Require shell test dependencies and run the full suite"
 run = '''
 #!/usr/bin/env bash
@@ -36,8 +37,8 @@ alias = "cover"
 description = "Run tests and generate coverage report"
 run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
 
-[tasks.install-hooks]
-alias = "setup"
+[tasks.setup]
+alias = "install-hooks"
 description = "Install hk Git hooks without removing other hook managers"
 run = "hk install --mise"
 
@@ -53,8 +54,8 @@ run = [
   "mise run fixers ${usage_staged_files}",
 ]
 
-[tasks.tests]
-alias = "test"
+[tasks.test]
+alias = "tests"
 description = "Run tests (with the race detector)"
 run = "go test -cover ./..."
 
@@ -62,17 +63,32 @@ run = "go test -cover ./..."
 # Fix Tasks #
 #############
 
-[tasks.fixers]
-alias = "fix"
+[tasks.fix]
+alias = "fixers"
+description = "Fix selected files safely, or run all-files writers"
 usage = 'arg "[staged_files]" var=#true'
-run = [
-  "mise run fix-go-mod-tidy ${usage_staged_files}",
-  "mise run fix-gofumpt ${usage_staged_files}",
-  "mise run fix-goimports ${usage_staged_files}",
-  "mise run fix-go-fix ${usage_staged_files}",
-  # TODO: Failing after Go upgrade
-  # "mise run fix-testifylint ${usage_staged_files}",
-]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+set -f
+if [ -n "${usage_staged_files:-}" ]; then
+  hk check --fix --no-stage --step go-imports ${usage_staged_files}
+  hk check --fix --no-stage --step go-fumpt ${usage_staged_files}
+  hk check --fix --no-stage --step mdlint --step pkl_format --step tombi_format --step yamlfmt ${usage_staged_files}
+  mise run fix-go-fix ${usage_staged_files}
+  mise run fix-go-mod-tidy ${usage_staged_files}
+else
+  hk check --fix --no-stage --all --step go-imports
+  hk check --fix --no-stage --all --step go-fumpt
+  hk check --fix --no-stage --all --step mdlint --step pkl_format --step tombi_format --step yamlfmt
+  mise run fix-go-fix
+  mise run fix-go-mod-tidy
+fi
+'''
+
+[tasks.check]
+description = "Run all hk checks and scan for secrets without writing fixes"
+run = ["hk check --all", "mise run lint-gitleaks"]
 
 [tasks.fix-gofumpt]
 description = "Run code formatting tools"
@@ -241,7 +257,7 @@ run = [{ task = "all" }]
 description = "Pi mise-hooks: fix edited files, then test and lint"
 usage = 'arg "[staged_files]" var=#true'
 run = [
-  "mise run fixers ${usage_staged_files}",
-  "mise run tests",
-  "mise run linters",
+  "mise run fix ${usage_staged_files}",
+  "mise run test",
+  "mise run check",
 ]
