@@ -6,6 +6,7 @@ import (
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
 	"github.com/nnutter/timber/internal/cli/generate"
 	clirepo "github.com/nnutter/timber/internal/cli/repo"
+	repolist "github.com/nnutter/timber/internal/cli/repo/list"
 	reporemove "github.com/nnutter/timber/internal/cli/repo/remove"
 	clireview "github.com/nnutter/timber/internal/cli/review"
 	clitodo "github.com/nnutter/timber/internal/cli/todo"
@@ -22,7 +23,7 @@ func Commands(runtime Runtime) []*cobra.Command {
 			NewRepoAddCommand(runtime),
 			NewRepoImportCommand(runtime),
 			NewRepoFixCommand(runtime),
-			NewRepoListCommand(runtime),
+			repolist.New(runtime.ListRepos),
 			reporemove.New(runtime.removeRepo, runtime.completeRegisteredRepoNames, func(message string) string { return statusStyle.Render(message) }),
 			NewRepoRenameCommand(runtime),
 		),
