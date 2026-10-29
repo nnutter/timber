@@ -2,6 +2,7 @@ package timber
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,7 @@ func TestPruneDryRunWithPromptListsSelectedWorktrees(t *testing.T) {
 	const branchName = "feature/prompt-dry-run"
 
 	testRepository := newTestRepository(t)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	createPruneTestWorktree(t, testRepository.runtime, testRepoName, branchName)
 	testRepository.commitFileInWorktree(t, branchName, "extra.txt", "extra\n")
 
 	var stderr bytes.Buffer
@@ -40,8 +41,8 @@ func TestPrunePromptDistinguishesSameNameInTwoRepos(t *testing.T) {
 	secondaryName := "other"
 	registerAdditionalRepo(t, primary, secondaryName)
 
-	require.NoError(t, primary.runTimber(t, "create", at(testRepoName, branchName)).err)
-	require.NoError(t, primary.runTimber(t, "create", at(secondaryName, branchName)).err)
+	createPruneTestWorktree(t, primary.runtime, testRepoName, branchName)
+	createPruneTestWorktree(t, primary.runtime, secondaryName, branchName)
 
 	var stderr bytes.Buffer
 	require.NoError(t, primary.runtime.PruneWorktrees(
@@ -63,7 +64,7 @@ func TestPrunePromptCanForceRemoveSelectedWorktrees(t *testing.T) {
 	const branchName = "feature/prompt"
 
 	testRepository := newTestRepository(t)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	createPruneTestWorktree(t, testRepository.runtime, testRepoName, branchName)
 	testRepository.commitFileInWorktree(t, branchName, "extra.txt", "extra\n")
 
 	var stderr bytes.Buffer
@@ -77,4 +78,10 @@ func TestPrunePromptCanForceRemoveSelectedWorktrees(t *testing.T) {
 	)
 	require.NoError(t, err, stderr.String())
 	testRepository.assertPathMissing(t, testRepository.worktreePath(branchName))
+}
+
+func createPruneTestWorktree(t *testing.T, runtime Runtime, repo, branch string) {
+	t.Helper()
+	_, _, err := runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(repo, branch), "", false, "", false, false)
+	require.NoError(t, err)
 }
