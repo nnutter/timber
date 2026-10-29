@@ -2,6 +2,7 @@ package timber
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func TestRepoAddRemoteURL(t *testing.T) {
 
 			result := runTimberCommandWithRuntime(t, runtime, "repo", "add", fixture.input)
 			require.NoError(t, result.err, result.stderr)
-			assert.Equal(t, fixture.want+"\n", runGitCommand(t, runtime.bareRepoPath("nnutter/timber"),
+			assert.Equal(t, fixture.want+"\n", runGitCommand(t, filepath.Join(home, "worktrees", "nnutter", "timber", ".git"),
 				"config", "--local", "--get", "remote.origin.url"))
 		})
 	}
@@ -61,27 +62,39 @@ func TestRepoAddAlias(t *testing.T) {
 			}
 			result := runTimberCommandWithRuntime(t, runtime, append(args, remote)...)
 			require.NoError(t, result.err, result.stderr)
-			repo := registeredRepo{Name: "demo", BarePath: runtime.bareRepoPath("demo")}
+			barePath := filepath.Join(home, "worktrees", "demo", ".git")
 			if alias != "" {
-				assert.Equal(t, alias+"\n", runGitCommand(t, repo.BarePath, "config", "--local", "--get", "timber.alias"))
-			} else {
-				assert.Equal(t, remote, repo.alias(runtime, remote))
+				assert.Equal(t, alias+"\n", runGitCommand(t, barePath, "config", "--local", "--get", "timber.alias"))
 			}
-			runGitCommand(t, repo.BarePath, "remote", "set-url", "origin", "git@github.com:nnutter/agentctl.git")
+			assertList := func(wantAlias, wantOrigin string) {
+				t.Helper()
+				list := runTimberCommandWithRuntime(t, runtime, "repo", "list")
+				require.NoError(t, list.err, list.stderr)
+				lines := strings.Split(strings.TrimSpace(list.stdout), "\n")
+				require.Len(t, lines, 5)
+				cells := strings.Split(lines[3], "│")
+				require.Len(t, cells, 5)
+				assert.Equal(t, "demo", strings.TrimSpace(cells[1]))
+				assert.Equal(t, wantAlias, strings.TrimSpace(cells[2]))
+				assert.Equal(t, wantOrigin, strings.TrimSpace(cells[3]))
+			}
+			initialAlias := alias
+			if initialAlias == "" {
+				initialAlias = remote
+			}
+			assertList(initialAlias, remote)
+			origin := "git@github.com:nnutter/agentctl.git"
+			runGitCommand(t, barePath, "remote", "set-url", "origin", origin)
 			want := alias
 			if want == "" {
 				want = "nnutter/agentctl"
 			}
-			assert.Equal(t, want, repo.alias(runtime, repo.originURL(runtime)))
-			list := runTimberCommandWithRuntime(t, runtime, "repo", "list")
-			require.NoError(t, list.err)
-			assert.Contains(t, list.stdout, "Alias")
-			assert.Contains(t, list.stdout, want)
+			assertList(want, origin)
 			quiet := runTimberCommandWithRuntime(t, runtime, "repo", "list", "-q")
 			require.NoError(t, quiet.err)
 			assert.Equal(t, "demo\n", quiet.stdout)
-			runGitCommand(t, repo.BarePath, "remote", "remove", "origin")
-			assert.Equal(t, alias, repo.alias(runtime, repo.originURL(runtime)))
+			runGitCommand(t, barePath, "remote", "remove", "origin")
+			assertList(alias, "")
 		})
 	}
 }
