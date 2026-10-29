@@ -24,7 +24,8 @@ func TestReportJSONPreservesWorktreeFields(t *testing.T) {
 	}
 	var output bytes.Buffer
 	require.NoError(t, ReportJSON(&output, worktrees))
-	assert.Equal(t, "[{\"name\":\"feature\",\"repo\":\"repo\",\"path\":\"/work/feature\",\"upstream\":\"origin/main\",\"ahead\":2,\"behind\":3,\"commit\":\"abcdef012345\",\"clean\":true,\"merged\":true,\"statusError\":true,\"todoDone\":1,\"todoTotal\":4,\"pullRequest\":\"#42 ✓\",\"review\":{\"approved\":2,\"total\":5}},{\"name\":\"unreviewed\",\"repo\":\"\",\"path\":\"\",\"upstream\":\"\",\"ahead\":0,\"behind\":0,\"commit\":\"\",\"clean\":false,\"merged\":false,\"statusError\":false,\"todoDone\":0,\"todoTotal\":0,\"pullRequest\":\"\"}]\n", output.String())
+	assert.JSONEq(t, `[{"name":"feature","repo":"repo","path":"/work/feature","upstream":"origin/main","ahead":2,"behind":3,"commit":"abcdef012345","clean":true,"merged":true,"statusError":true,"todoDone":1,"todoTotal":4,"pullRequest":"#42 ✓","review":{"approved":2,"total":5}},{"name":"unreviewed","repo":"","path":"","upstream":"","ahead":0,"behind":0,"commit":"","clean":false,"merged":false,"statusError":false,"todoDone":0,"todoTotal":0,"pullRequest":""}]`, output.String())
+	assert.True(t, bytes.HasSuffix(output.Bytes(), []byte("\n")))
 }
 
 func TestReportJSONEmptyWorktrees(t *testing.T) {
