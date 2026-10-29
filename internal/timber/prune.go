@@ -1,62 +1,68 @@
 package timber
 
 import (
+	"errors"
+	"io"
+
 	"github.com/samber/lo"
-	"github.com/spf13/cobra"
 )
 
-type pruneCommandOptions struct {
-	repoSelection
-	prompt   bool
-	dryRun   bool
-	prompter worktreePrompter
+// PruneReporters reports dry-run candidates and completed removals.
+type PruneReporters struct {
+	DryRun  func(io.Writer, string, string, string) error
+	Removal func(io.Writer, string, string, string, bool) error
 }
 
-func NewPruneCommand(runtime Runtime) *cobra.Command {
-	options := &pruneCommandOptions{
-		runtime:  runtime,
-		prompter: huhWorktreePrompter{},
+// PruneWorktrees removes merged and clean managed worktrees. With prompt it
+// asks which worktrees to remove; with dryRun it only reports candidates.
+// A non-nil prompter is required when prompt is true.
+// All progress is written to output, preserving CLI reporting order.
+func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool, prompter WorktreePrompter, reporters PruneReporters) error {
+	if prompt && prompter == nil {
+		return errors.New("prune prompt requires a worktree prompter")
+	}
+	if dryRun && reporters.DryRun == nil {
+		return errors.New("prune dry run requires a reporter")
+	}
+	if !dryRun && reporters.Removal == nil {
+		return errors.New("prune removal requires a reporter")
 	}
 
-	command := &cobra.Command{
-		Use:               "prune [@repo]",
-		Aliases:           []string{"clean"},
-		Short:             "Prune managed Git worktrees",
-		Args:              cobra.MaximumNArgs(1),
-		RunE:              options.Execute,
-		ValidArgsFunction: runtime.completeRepoQualifiers,
-	}
-
-	command.Flags().BoolVarP(&options.prompt, "prompt", "p", false, "Prompt before pruning")
-	command.Flags().BoolVarP(&options.dryRun, "dry-run", "n", false, "List worktrees that would be pruned")
-
-	return command
-}
-
-func (x *pruneCommandOptions) Execute(command *cobra.Command, args []string) error {
-	if len(args) == 1 {
-		repo, err := x.runtime.parseRepoOnlyArg(args[0])
+	selection := repoSelection{runtime: runtime}
+	if repoArg != "" {
+		repo, err := runtime.parseRepoOnlyArg(repoArg)
 		if err != nil {
 			return err
 		}
-		x.RepoName = repo
+		selection.RepoName = repo
 	}
 
-	repos, err := x.reposToConsider()
+	repos, err := selection.reposToConsider()
 	if err != nil {
 		return err
 	}
 
-	enrichedWorktrees, err := x.runtime.collectManagedWorktrees(repos)
+	enrichedWorktrees, err := runtime.collectManagedWorktrees(repos)
 	if err != nil {
 		return err
 	}
 
 	var selectedWorktrees []managedWorktree
-	if x.prompt {
-		selectedWorktrees, err = x.prompter.Prompt(command.InOrStdin(), command.ErrOrStderr(), enrichedWorktrees)
+	if prompt && prompter != nil {
+		refs := make([]WorktreeRef, 0, len(enrichedWorktrees))
+		for _, worktree := range enrichedWorktrees {
+			refs = append(refs, worktree.ref())
+		}
+		selectedRefs, err := prompter.Prompt(input, output, refs)
 		if err != nil {
 			return err
+		}
+		for _, ref := range selectedRefs {
+			worktree, err := managedWorktreeByKey(enrichedWorktrees, worktreeRefKey(ref))
+			if err != nil {
+				return err
+			}
+			selectedWorktrees = append(selectedWorktrees, worktree)
 		}
 	} else {
 		selectedWorktrees = lo.Filter(enrichedWorktrees, func(worktree managedWorktree, _ int) bool {
@@ -64,22 +70,30 @@ func (x *pruneCommandOptions) Execute(command *cobra.Command, args []string) err
 		})
 	}
 
-	if x.dryRun {
-		return x.runtime.reportPruneDryRun(command, selectedWorktrees)
+	if dryRun {
+		for _, worktree := range selectedWorktrees {
+			if err := reporters.DryRun(output, worktree.Name, worktree.Repo, runtime.displayHomePath(worktree.Path)); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
-	removeOptions := &removeCommandOptions{repoSelection: x.repoSelection}
 	for _, worktree := range selectedWorktrees {
-		if !x.prompt && (!worktree.Clean || !worktree.Merged) {
+		if !prompt && (!worktree.Clean || !worktree.Merged) {
 			continue
 		}
 		// Removing a checkout can shorten other directory-derived names.
 		// Use the selected identity rather than resolving its name again.
-		repository, _, err := x.runtime.openRegisteredRepository(worktree.Repo)
+		repository, _, err := runtime.openRegisteredRepository(worktree.Repo)
 		if err != nil {
 			return err
 		}
-		if err := removeOptions.removeResolvedWorktree(command, repository, worktree, true); err != nil {
+		result, err := runtime.removeResolvedWorktree(repository, worktree, true)
+		if err != nil {
+			return err
+		}
+		if err := reporters.Removal(output, result.worktree.Name, result.worktree.shortCommitHash(), result.worktree.Path, result.removingCurrentDirectory); err != nil {
 			return err
 		}
 	}

@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+
+	"github.com/nnutter/timber/internal/terminal"
 )
 
 type repoSelection struct {
-	runtime      Runtime
-	RepoName     string
-	repoPrompter repoPrompter
+	runtime  Runtime
+	RepoName string
 }
 
 func (x *repoSelection) resolve(input io.Reader) (registeredRepo, *Repository, error) {
@@ -131,52 +131,33 @@ func (x *repoSelection) resolvePrompt(input io.Reader) (registeredRepo, *Reposit
 		return registeredRepo{}, nil, errors.New("no registered repositories; run timber repo add first")
 	}
 
-	if !isInteractiveTerminal(input) {
+	if !terminal.IsInteractive(input) {
 		return registeredRepo{}, nil, errors.New("repository selection requires @<repo>, a managed worktree cwd, or an interactive terminal")
 	}
 
-	prompter := x.repoPrompter
+	prompter := x.runtime.RepoPrompter
 	if prompter == nil {
-		prompter = bubbleteaRepoPrompter{
-			input: input,
-		}
+		return registeredRepo{}, nil, errors.New("repository selection requires a repository prompter")
 	}
 
-	selected, err := prompter.Prompt(repos)
+	refs := make([]RepoRef, 0, len(repos))
+	for _, repo := range repos {
+		refs = append(refs, repo.ref())
+	}
+	selected, err := prompter.Prompt(input, refs)
 	if err != nil {
 		return registeredRepo{}, nil, err
 	}
 
-	repository, err := openBareRepository(x.runtime, selected.BarePath)
+	repo, err := x.runtime.registeredRepoByName(selected.Name)
 	if err != nil {
 		return registeredRepo{}, nil, err
 	}
-	return selected, repository, nil
-}
-
-func isInteractiveTerminal(input io.Reader) bool {
-	file, ok := input.(*os.File)
-	if !ok {
-		return false
-	}
-
-	fileInfo, err := file.Stat()
+	repository, err := openBareRepository(x.runtime, repo.BarePath)
 	if err != nil {
-		return false
+		return registeredRepo{}, nil, err
 	}
-	if fileInfo.Mode()&os.ModeCharDevice == 0 {
-		return false
-	}
-
-	// bubbletea needs /dev/tty; treat its absence as non-interactive.
-	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
-	if err != nil {
-		return false
-	}
-	if err := tty.Close(); err != nil {
-		return false
-	}
-	return true
+	return repo, repository, nil
 }
 
 func samePath(left string, right string) (bool, error) {

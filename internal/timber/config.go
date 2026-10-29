@@ -8,59 +8,20 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
-	"github.com/spf13/cobra"
+
+	coreconfig "github.com/nnutter/timber/internal/timber/config"
 )
 
-type config struct {
-	AutoMiseTrust        bool `toml:"auto_mise_trust"`
-	AutoMiseTrustDecided bool `toml:"auto_mise_trust_decided,omitempty"`
-	AutoHKInstall        bool `toml:"auto_hk_install"`
-	AutoHKInstallDecided bool `toml:"auto_hk_install_decided,omitempty"`
+type config = coreconfig.Settings
+
+// LoadConfig loads the persistent Timber settings.
+func (x Runtime) LoadConfig() (coreconfig.Settings, error) {
+	return x.loadConfig()
 }
 
-func NewConfigCommand(runtime Runtime) *cobra.Command {
-	var enable, disable, enableHK, disableHK bool
-	command := &cobra.Command{
-		Use:   "config",
-		Short: "Show or change Timber settings",
-		Args:  cobra.NoArgs,
-		RunE: func(command *cobra.Command, _ []string) error {
-			settings, err := runtime.loadConfig()
-			if err != nil {
-				return err
-			}
-			changed := false
-			if command.Flags().Changed("auto-mise-trust") || command.Flags().Changed("no-auto-mise-trust") {
-				settings.AutoMiseTrust = enable
-				if command.Flags().Changed("no-auto-mise-trust") {
-					settings.AutoMiseTrust = !disable
-				}
-				settings.AutoMiseTrustDecided = true
-				changed = true
-			}
-			if command.Flags().Changed("auto-hk-install") || command.Flags().Changed("no-auto-hk-install") {
-				settings.AutoHKInstall = enableHK
-				if command.Flags().Changed("no-auto-hk-install") {
-					settings.AutoHKInstall = !disableHK
-				}
-				settings.AutoHKInstallDecided = true
-				changed = true
-			}
-			if changed {
-				if err := writeConfig(runtime.configPath(), settings); err != nil {
-					return err
-				}
-			}
-			return toml.NewEncoder(command.OutOrStdout()).Encode(settings)
-		},
-	}
-	command.Flags().BoolVar(&enable, "auto-mise-trust", false, "Trust mise.toml in worktrees owned by you or your GitHub organizations")
-	command.Flags().BoolVar(&disable, "no-auto-mise-trust", false, "Disable automatic mise trust")
-	command.MarkFlagsMutuallyExclusive("auto-mise-trust", "no-auto-mise-trust")
-	command.Flags().BoolVar(&enableHK, "auto-hk-install", false, "Install hk hooks in worktrees owned by you or your GitHub organizations")
-	command.Flags().BoolVar(&disableHK, "no-auto-hk-install", false, "Disable automatic hk hook installation")
-	command.MarkFlagsMutuallyExclusive("auto-hk-install", "no-auto-hk-install")
-	return command
+// SaveConfig saves the persistent Timber settings.
+func (x Runtime) SaveConfig(settings coreconfig.Settings) error {
+	return writeConfig(x.configPath(), settings)
 }
 
 func (x Runtime) configPath() string {
@@ -110,7 +71,8 @@ func writePrivateFile(path string, contents []byte) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
+	// Cleanup is best effort; the temporary file is already gone after rename.
+	defer func() { _ = os.Remove(file.Name()) }()
 	_, writeErr := file.Write(contents)
 	if err := errors.Join(writeErr, file.Close()); err != nil {
 		return err

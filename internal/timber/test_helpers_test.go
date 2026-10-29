@@ -12,7 +12,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,23 +22,23 @@ type commandResult struct {
 }
 
 type stubPrompter struct {
-	selected []managedWorktree
+	selected []WorktreeRef
 	err      error
 }
 
 type stubCreateWizardPrompter struct {
-	selection createWizardSelection
+	selection WizardSelection
 	err       error
-	repos     []registeredRepo
-	worktrees []managedWorktree
+	repos     []RepoRef
+	worktrees []WorktreeRef
 	showTitle bool
 }
 
-func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []managedWorktree) ([]managedWorktree, error) {
+func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []WorktreeRef) ([]WorktreeRef, error) {
 	if x.err != nil {
 		return nil, x.err
 	}
-	var selected []managedWorktree
+	var selected []WorktreeRef
 	for _, choice := range x.selected {
 		for _, worktree := range worktrees {
 			if worktree.Name == choice.Name && (choice.Repo == "" || worktree.Repo == choice.Repo) {
@@ -53,10 +52,10 @@ func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []mana
 func (x *stubCreateWizardPrompter) Prompt(
 	input io.Reader,
 	output io.Writer,
-	repos []registeredRepo,
-	worktrees []managedWorktree,
+	repos []RepoRef,
+	worktrees []WorktreeRef,
 	showTitle bool,
-) (createWizardSelection, error) {
+) (WizardSelection, error) {
 	x.repos = repos
 	x.worktrees = worktrees
 	x.showTitle = showTitle
@@ -188,14 +187,6 @@ func readFakeHerdrLog(t *testing.T, logPath string) []string {
 	return strings.Split(strings.TrimSpace(string(contents)), "\n")
 }
 
-func skipIfNoPty(t *testing.T) {
-	t.Helper()
-	command := testCommand(t, "python3", "-c", "import pty; pty.openpty()")
-	if err := command.Run(); err != nil {
-		t.Skip("pty devices are not available")
-	}
-}
-
 func testRuntime(t *testing.T) Runtime {
 	t.Helper()
 	return testRuntimeForHome(resolvedTempDir(t), "")
@@ -246,27 +237,6 @@ func replaceTestEnvironment(environment []string, replacements ...string) []stri
 func withTestEnvironment(runtime Runtime, replacements ...string) Runtime {
 	runtime.Environment = replaceTestEnvironment(runtime.Environment, replacements...)
 	return runtime
-}
-
-func newTestRootCommand(t *testing.T) *cobra.Command {
-	t.Helper()
-	return NewRootCommand(testRuntime(t))
-}
-
-func newTestRootCommandWithRuntime(t *testing.T, runtime Runtime) *cobra.Command {
-	t.Helper()
-	return NewRootCommand(runtime)
-}
-
-func runCompleteWithRuntime(t *testing.T, runtime Runtime, args ...string) string {
-	t.Helper()
-	command := newTestRootCommandWithRuntime(t, runtime)
-	command.SetArgs(append([]string{"__complete"}, args...))
-	var stdout bytes.Buffer
-	command.SetOut(&stdout)
-	command.SetErr(io.Discard)
-	require.NoError(t, command.Execute())
-	return stdout.String()
 }
 
 func mustResolveRemoteURL(t *testing.T, input string) string {
@@ -446,91 +416,44 @@ func replaceGitRemotePath(barePath string, oldPath string, newPath string) error
 	return os.WriteFile(configPath, updated, 0o644)
 }
 
-func seedBareRemote(t *testing.T, remotePath string) {
-	t.Helper()
-	tempClone := filepath.Join(resolvedTempDir(t), "seed")
-	runGitCommand(t, filepath.Dir(tempClone), "clone", remotePath, tempClone)
-	configureGitUser(t, tempClone)
-	require.NoError(t, os.WriteFile(filepath.Join(tempClone, "README.md"), []byte("initial\n"), 0o644))
-	runGitCommand(t, tempClone, "add", "README.md")
-	runGitCommand(t, tempClone, "commit", "-m", "initial")
-	runGitCommand(t, tempClone, "branch", "-M", "main")
-	runGitCommand(t, tempClone, "push", "-u", remoteName, "main")
-	// git init --bare leaves HEAD at init.defaultBranch (often master). Point it at
-	// the branch we actually pushed so clones and remote set-head --auto work on CI.
-	runGitCommand(t, remotePath, "symbolic-ref", "HEAD", "refs/heads/main")
-}
-
-func configureGitUser(t *testing.T, path string) {
-	t.Helper()
-	runGitCommand(t, path, "config", "user.name", "Test User")
-	runGitCommand(t, path, "config", "user.email", "test@example.com")
-}
-
 func (x testRepository) worktreePath(branchName string) string {
 	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
 }
 
-func (x testRepository) runTimber(t *testing.T, args ...string) commandResult {
-	t.Helper()
-	return x.runTimberFrom(t, x.home, args...)
+func testCreateReporters() CreateReporters {
+	return CreateReporters{
+		Created: func(output io.Writer, path string) error {
+			_, err := fmt.Fprintln(output, "created "+path)
+			return err
+		},
+		HerdrOpened: func(output io.Writer, name string) error {
+			_, err := fmt.Fprintln(output, "opened herdr space for "+name)
+			return err
+		},
+	}
 }
 
-func (x testRepository) runTimberFrom(t *testing.T, directory string, args ...string) commandResult {
-	t.Helper()
-
-	runtime := x.runtime
-	runtime.CurrentDirectory = directory
-	return runTimberCommandWithRuntime(t, runtime, args...)
-}
-
-func runTimberFromWithRuntime(t *testing.T, runtime Runtime, directory string, args ...string) commandResult {
-	t.Helper()
-
-	runtime.CurrentDirectory = directory
-	return runTimberCommandWithRuntime(t, runtime, args...)
-}
-
-func runTimberCommand(t *testing.T, args ...string) commandResult {
-	t.Helper()
-	return runTimberCommandWithRuntime(t, testRuntime(t), args...)
-}
-
-func runTimberCommandWithRuntime(t *testing.T, runtime Runtime, args ...string) commandResult {
-	t.Helper()
-
-	command := newTestRootCommandWithRuntime(t, runtime)
-	command.SetArgs(args)
-	command.SetIn(bytes.NewBuffer(nil))
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	command.SetOut(&stdout)
-	command.SetErr(&stderr)
-
-	err := command.Execute()
-	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
+type tuiTestOptions struct {
+	runtime Runtime
+	herdr   bool
+	noHerdr bool
+	noTitle bool
 }
 
 func runTUICreate(
 	t *testing.T,
-	options *tuiCreateCommandOptions,
-	prompter createWizardPrompter,
+	options *tuiTestOptions,
+	prompter WizardPrompter,
 ) commandResult {
 	t.Helper()
 
-	options.prompter = prompter
 	if options.runtime.CurrentDirectory == "" {
 		options.runtime = testRuntime(t)
 	}
-	command := newTestRootCommandWithRuntime(t, options.runtime)
-	command.SetContext(t.Context())
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	command.SetOut(&stdout)
-	command.SetErr(&stderr)
 
-	err := options.Execute(command, nil)
+	err := options.runtime.RunTUI(t.Context(), &bytes.Buffer{}, &stderr, &stdout, options.herdr, options.noHerdr, options.noTitle, prompter, testCreateReporters())
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 
@@ -542,27 +465,11 @@ func (x testRepository) commitFileInWorktree(t *testing.T, branchName string, fi
 	runGitCommand(t, path, "commit", "-m", "change")
 }
 
-func writeTodoFile(t *testing.T, path string, contents string) {
-	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
-}
-
 func (x testRepository) writeFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
 	t.Helper()
 	path := filepath.Join(x.worktreePath(branchName), fileName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
-}
-
-func (x testRepository) mergeWorktreeBranch(t *testing.T, branchName string) {
-	t.Helper()
-	// Create a temporary worktree on main to merge into, then push.
-	mergePath := filepath.Join(resolvedTempDir(t), "merge-main")
-	runGitCommand(t, x.barePath, "worktree", "add", mergePath, "main")
-	runGitCommand(t, mergePath, "merge", "--ff-only", branchName)
-	runGitCommand(t, mergePath, "push", remoteName, "main")
-	runGitCommand(t, x.barePath, "fetch", remoteName)
-	runGitCommand(t, x.barePath, "worktree", "remove", mergePath)
 }
 
 func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
@@ -638,11 +545,6 @@ func gitTestEnv() []string {
 		"GIT_CONFIG_KEY_2=init.templateDir",
 		"GIT_CONFIG_VALUE_2=",
 	}
-}
-
-func runGitCommandAllowError(t *testing.T, cwd string, args ...string) {
-	t.Helper()
-	_, _ = runGitCommandResult(cwd, args...)
 }
 
 // resolvedTempDir returns a per-test temporary directory with symlinks resolved.

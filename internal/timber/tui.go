@@ -1,176 +1,115 @@
 package timber
 
 import (
+	"context"
 	"errors"
 	"io"
-
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/cobra"
 )
 
-const (
-	wizardActionCreate = "create"
-	wizardActionOpen   = "open"
+// WizardActionCreate creates the selected worktree.
+const WizardActionCreate = "create"
 
-	tuiWorktreeInputMaxLength = 72
-	tuiWorktreeTitle          = "Open or Create Worktree"
-	tuiWorktreeLegend         = "tab/↓ next • shift+tab/↑ prev • enter accept • esc/^c quit • worktree@repo creates"
-)
+// WizardActionOpen opens the selected worktree.
+const WizardActionOpen = "open"
 
-var (
-	tuiWorktreeTitleStyle    = lipgloss.NewStyle().Bold(true)
-	tuiWorktreeLegendStyle   = lipgloss.NewStyle().Faint(true)
-	tuiWorktreeInputBoxStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-	tuiWorktreeViewStyle     = lipgloss.NewStyle().Padding(1, 2)
-)
-
-type createWizardSelection struct {
-	action       string
-	repoName     string
-	worktreeName string
-	cancelled    bool
+// WizardSelection is the wizard result.
+type WizardSelection struct {
+	Action       string
+	RepoName     string
+	WorktreeName string
+	Cancelled    bool
 }
 
-type createWizardPrompter interface {
-	Prompt(io.Reader, io.Writer, []registeredRepo, []managedWorktree, bool) (createWizardSelection, error)
+// WizardPrompter shows the interactive worktree wizard.
+type WizardPrompter interface {
+	Prompt(io.Reader, io.Writer, []RepoRef, []WorktreeRef, bool) (WizardSelection, error)
 }
 
-type bubbleteaCreateWizardPrompter struct {
-	interactive func() bool
-}
-
-type tuiCreateCommandOptions struct {
-	runtime  Runtime
-	herdr    bool
-	noHerdr  bool
-	noTitle  bool
-	prompter createWizardPrompter
-}
-
-func NewTUICommand(runtime Runtime) *cobra.Command {
-	options := &tuiCreateCommandOptions{runtime: runtime}
-	options.prompter = bubbleteaCreateWizardPrompter{}
-
-	command := &cobra.Command{
-		Use:   "tui",
-		Short: "Interactively create a worktree or open an existing one",
-		Args:  cobra.NoArgs,
-		RunE:  options.Execute,
+// RunTUI runs the interactive worktree wizard using the supplied prompter.
+// A cancelled wizard returns nil without creating or opening anything.
+func (runtime Runtime) RunTUI(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool, prompter WizardPrompter, reporters CreateReporters) error {
+	if prompter == nil {
+		return errors.New("tui requires a wizard prompter")
 	}
-	command.Flags().BoolVar(&options.herdr, "herdr", false, "Also create a Herdr workspace for a new worktree")
-	command.Flags().BoolVar(&options.noHerdr, "no-herdr", false, "Do not create a Herdr workspace")
-	command.Flags().BoolVar(&options.noTitle, "no-title", false, "Hide the title header")
-	command.MarkFlagsMutuallyExclusive("herdr", "no-herdr")
-	return command
-}
-
-func (x *tuiCreateCommandOptions) Execute(command *cobra.Command, args []string) error {
-	repos, err := x.runtime.listRegisteredReposForWizard()
+	repos, err := runtime.listRegisteredReposForWizard()
 	if err != nil {
 		return err
 	}
 
-	worktrees, err := x.runtime.listWorktreesForWizard(repos)
+	worktrees, err := runtime.listWorktreesForWizard(repos)
 	if err != nil {
 		return err
 	}
 
-	selection, err := x.promptSelection(command, repos, worktrees)
-	if err != nil || selection.cancelled {
+	repoRefs := make([]RepoRef, 0, len(repos))
+	for _, repo := range repos {
+		repoRefs = append(repoRefs, repo.ref())
+	}
+	worktreeRefs := make([]WorktreeRef, 0, len(worktrees))
+	for _, worktree := range worktrees {
+		worktreeRefs = append(worktreeRefs, worktree.ref())
+	}
+	selection, err := prompter.Prompt(input, output, repoRefs, worktreeRefs, !noTitle)
+	if err != nil || selection.Cancelled {
 		return err
 	}
 
-	if selection.action == wizardActionOpen {
-		return x.openSelectedWorktree(command, selection)
+	if selection.Action == WizardActionOpen {
+		return runtime.openSelectedWorktree(ctx, output, selection, reporters)
 	}
-	return x.createSelectedWorktree(command, selection)
+	return runtime.createSelectedWorktree(ctx, input, output, stdout, selection, herdr, noHerdr, reporters)
 }
 
-func (x *tuiCreateCommandOptions) promptSelection(
-	command *cobra.Command,
-	repos []registeredRepo,
-	worktrees []managedWorktree,
-) (createWizardSelection, error) {
-	return x.prompter.Prompt(command.InOrStdin(), command.ErrOrStderr(), repos, worktrees, !x.noTitle)
-}
-
-func (x *tuiCreateCommandOptions) createSelectedWorktree(
-	command *cobra.Command,
-	selection createWizardSelection,
-) error {
-	createOptions := &createCommandOptions{runtime: x.runtime}
-	createOptions.RepoName = selection.repoName
-	createOptions.herdr = x.herdr
-	createOptions.noHerdr = x.noHerdr
-	worktreePath, err := createOptions.createWorktree(command, []string{selection.worktreeName})
-	if err != nil {
-		return err
-	}
-	return x.runtime.reportCreatedWorktreePath(command, worktreePath)
-}
-
-func (x *tuiCreateCommandOptions) openSelectedWorktree(
-	command *cobra.Command,
-	selection createWizardSelection,
-) error {
-	repository, _, err := x.runtime.openRegisteredRepository(selection.repoName)
-	if err != nil {
-		return err
-	}
-	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, selection.repoName)
-	if err != nil {
-		return err
-	}
-	worktree, err := managedWorktreeByName(worktrees, selection.worktreeName)
-	if err != nil {
-		return err
-	}
-	if err := x.runtime.openHerdrSpace(command.Context(), worktree); err != nil {
-		return err
-	}
-	return reportOpenedHerdrSpace(command, worktree.Name)
-}
-
-func (x bubbleteaCreateWizardPrompter) Prompt(
+func (runtime Runtime) createSelectedWorktree(
+	ctx context.Context,
 	input io.Reader,
-	output io.Writer,
-	repos []registeredRepo,
-	worktrees []managedWorktree,
-	showTitle bool,
-) (createWizardSelection, error) {
-	if !x.terminalIsInteractive(input) {
-		return createWizardSelection{}, errors.New("tui requires an interactive terminal")
-	}
-
-	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
-	if input != nil {
-		programOptions = append(programOptions, tea.WithInput(input))
-	}
-	if output != nil {
-		programOptions = append(programOptions, tea.WithOutput(output))
-	}
-	finalModel, err := tea.NewProgram(newCreateWizardModel(repos, worktrees, showTitle), programOptions...).Run()
+	output, stdout io.Writer,
+	selection WizardSelection,
+	herdr, noHerdr bool,
+	reporters CreateReporters,
+) error {
+	worktreePath, _, err := runtime.CreateManagedWorktree(
+		ctx,
+		input,
+		output,
+		selection.RepoName,
+		selection.WorktreeName,
+		"",
+		false,
+		"",
+		herdr,
+		noHerdr,
+		reporters,
+	)
 	if err != nil {
-		if errors.Is(err, tea.ErrInterrupted) {
-			return createWizardSelection{cancelled: true}, nil
-		}
-		return createWizardSelection{}, err
+		return err
 	}
-
-	result, ok := finalModel.(*createWizardModel)
-	if !ok {
-		return createWizardSelection{}, errors.New("create wizard returned unexpected model")
-	}
-	if result.cancelled {
-		return createWizardSelection{cancelled: true}, nil
-	}
-	return result.selection, nil
+	return runtime.ReportCreatedWorktreePath(stdout, worktreePath)
 }
 
-func (x bubbleteaCreateWizardPrompter) terminalIsInteractive(input io.Reader) bool {
-	if x.interactive != nil {
-		return x.interactive()
+func (runtime Runtime) openSelectedWorktree(
+	ctx context.Context,
+	output io.Writer,
+	selection WizardSelection,
+	reporters CreateReporters,
+) error {
+	if reporters.HerdrOpened == nil {
+		return errors.New("tui requires a Herdr opening reporter")
 	}
-	return isInteractiveTerminal(input)
+	repository, _, err := runtime.openRegisteredRepository(selection.RepoName)
+	if err != nil {
+		return err
+	}
+	worktrees, err := runtime.managedWorktreesFromRepository(repository, selection.RepoName)
+	if err != nil {
+		return err
+	}
+	worktree, err := managedWorktreeByName(worktrees, selection.WorktreeName)
+	if err != nil {
+		return err
+	}
+	if err := runtime.openHerdrSpace(ctx, worktree); err != nil {
+		return err
+	}
+	return reporters.HerdrOpened(output, worktree.Name)
 }

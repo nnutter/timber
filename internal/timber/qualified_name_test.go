@@ -9,9 +9,9 @@ import (
 
 func TestRejectAtInWorktreeName(t *testing.T) {
 	t.Parallel()
-	require.NoError(t, rejectAtInWorktreeName("feature/login"))
-	require.NoError(t, rejectAtInWorktreeName(""))
-	err := rejectAtInWorktreeName("foo@bar")
+	require.NoError(t, ValidateWorktreeName("feature/login"))
+	require.NoError(t, ValidateWorktreeName(""))
+	err := ValidateWorktreeName("foo@bar")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must not contain @")
 }

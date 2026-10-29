@@ -4,34 +4,15 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/spf13/cobra"
 )
 
-type repoRemoveCommandOptions struct {
-	runtime Runtime
-}
-
-func NewRepoRemoveCommand(runtime Runtime) *cobra.Command {
-	options := &repoRemoveCommandOptions{runtime: runtime}
-	return &cobra.Command{
-		Use:               "remove <name>",
-		Aliases:           []string{"rm"},
-		Short:             "Remove a registered repository with no worktrees",
-		Args:              cobra.ExactArgs(1),
-		RunE:              options.Execute,
-		ValidArgsFunction: runtime.completeRegisteredRepoNames,
-	}
-}
-
-func (x *repoRemoveCommandOptions) Execute(command *cobra.Command, args []string) error {
-	repoName := args[0]
-	repository, repo, err := x.runtime.openRegisteredRepository(repoName)
+func (runtime Runtime) RemoveRepo(repoName string) error {
+	repository, repo, err := runtime.openRegisteredRepository(repoName)
 	if err != nil {
 		return err
 	}
 
-	worktrees, err := x.runtime.managedWorktreesFromRepository(repository, repo.Name)
+	worktrees, err := runtime.managedWorktreesFromRepository(repository, repo.Name)
 	if err != nil {
 		return err
 	}
@@ -73,10 +54,9 @@ func (x *repoRemoveCommandOptions) Execute(command *cobra.Command, args []string
 	if err := os.RemoveAll(repo.BarePath); err != nil {
 		return fmt.Errorf("remove bare repository %q: %w", repo.BarePath, err)
 	}
-	if err := x.runtime.removeEmptyBareParents(repo.BarePath); err != nil {
+	if err := runtime.removeEmptyBareParents(repo.BarePath); err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("removed repository "+repoName))
-	return err
+	return nil
 }

@@ -1,7 +1,7 @@
 package timber
 
 import (
-	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,19 +10,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/nnutter/timber/internal/terminal"
 )
 
-func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, upstream, worktreePath string) {
+func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string, prompter SetupPrompter, reportWarning func(io.Writer, SetupKind, error) error) {
 	warn := func(err error) {
-		fmt.Fprintf(command.ErrOrStderr(), "warning: automatic mise trust skipped: %v\n", err)
+		if reportWarning != nil {
+			_ = reportWarning(output, SetupMiseTrust, err)
+		}
 	}
 	settings, err := x.loadConfig()
 	if err != nil {
 		warn(err)
 		return
 	}
-	if !settings.AutoMiseTrust && (settings.AutoMiseTrustDecided || !isInteractiveTerminal(command.InOrStdin())) {
+	if !settings.AutoMiseTrust && (settings.AutoMiseTrustDecided || !terminal.IsInteractive(input)) {
 		return
 	}
 	configPath := filepath.Join(worktreePath, "mise.toml")
@@ -35,7 +37,7 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 	if !regular {
 		return
 	}
-	identity, owned, err := x.githubOwnedWorktree(command, repository, upstream)
+	identity, owned, err := x.githubOwnedWorktree(ctx, repository, upstream)
 	if err != nil {
 		warn(err)
 		return
@@ -44,20 +46,33 @@ func (x Runtime) autoTrustMise(command *cobra.Command, repository *Repository, u
 		return
 	}
 	if !settings.AutoMiseTrust {
-		enabled, err := x.promptAutoMiseTrust(command, settings, identity)
+		if prompter == nil {
+			warn(errors.New("automatic setup prompt is not configured"))
+			return
+		}
+		enabled, err := prompter.Choose(input, output, SetupMiseTrust, SetupIdentity{Username: identity.Username, Organizations: identity.Organizations})
 		if err != nil {
 			warn(err)
 			return
 		}
+		settings.AutoMiseTrust = enabled
+		settings.AutoMiseTrustDecided = true
+		if err := writeConfig(x.configPath(), settings); err != nil {
+			warn(fmt.Errorf("save mise trust choice: %w", err))
+			return
+		}
 		if !enabled {
+			if err := prompter.ReportDisabled(output, SetupMiseTrust); err != nil {
+				warn(err)
+			}
 			return
 		}
 	}
-	trust := x.command(command.Context(), "mise", "trust", configPath)
+	trust := x.command(ctx, "mise", "trust", configPath)
 	trust.Dir = worktreePath
-	output, err := trust.CombinedOutput()
+	combined, err := trust.CombinedOutput()
 	if err != nil {
-		warn(fmt.Errorf("mise trust failed: %w: %s", err, strings.TrimSpace(string(output))))
+		warn(fmt.Errorf("mise trust failed: %w: %s", err, strings.TrimSpace(string(combined))))
 	}
 }
 
@@ -74,18 +89,9 @@ func regularRootFile(path string) (bool, error) {
 	return info.Mode().IsRegular(), nil
 }
 
-func writeGitHubIdentity(output io.Writer, identity githubIdentity) error {
-	organizations := strings.Join(identity.Organizations, ", ")
-	if organizations == "" {
-		organizations = "none"
-	}
-	_, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations)
-	return err
-}
-
 // githubOwnedWorktree reports whether the selected upstream resolves to a
 // GitHub repository owned by the cached user or one of their organizations.
-func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Repository, upstream string) (githubIdentity, bool, error) {
+func (x Runtime) githubOwnedWorktree(ctx context.Context, repository *Repository, upstream string) (githubIdentity, bool, error) {
 	remoteURL, err := repository.upstreamRemoteURL(upstream)
 	if err != nil {
 		return githubIdentity{}, false, err
@@ -94,7 +100,7 @@ func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Reposit
 	if owner == "" {
 		return githubIdentity{}, false, nil
 	}
-	identity, err := x.githubIdentity(command.Context())
+	identity, err := x.githubIdentity(ctx)
 	if err != nil {
 		return githubIdentity{}, false, err
 	}
@@ -102,46 +108,6 @@ func (x Runtime) githubOwnedWorktree(command *cobra.Command, repository *Reposit
 		return githubIdentity{}, false, nil
 	}
 	return identity, true, nil
-}
-
-func (x Runtime) promptAutoMiseTrust(command *cobra.Command, settings config, identity githubIdentity) (bool, error) {
-	output := command.ErrOrStderr()
-	if _, err := fmt.Fprintln(output, "This worktree qualifies for automatic mise trust. Trusting mise configuration permits code execution."); err != nil {
-		return false, err
-	}
-	if err := writeGitHubIdentity(output, identity); err != nil {
-		return false, err
-	}
-	reader := bufio.NewReader(command.InOrStdin())
-	for {
-		if _, err := fmt.Fprint(output, "Enable automatic mise trust for repositories owned by you or your GitHub organizations? [y/N] "); err != nil {
-			return false, err
-		}
-		answer, err := reader.ReadString('\n')
-		if err != nil {
-			return false, fmt.Errorf("read mise trust choice: %w", err)
-		}
-		switch strings.ToLower(strings.TrimSpace(answer)) {
-		case "y", "yes":
-			settings.AutoMiseTrust = true
-		case "", "n", "no":
-			settings.AutoMiseTrust = false
-		default:
-			if _, err := fmt.Fprintln(output, "Enter yes or no."); err != nil {
-				return false, err
-			}
-			continue
-		}
-		settings.AutoMiseTrustDecided = true
-		if err := writeConfig(x.configPath(), settings); err != nil {
-			return false, fmt.Errorf("save mise trust choice: %w", err)
-		}
-		if !settings.AutoMiseTrust {
-			_, err := fmt.Fprintln(output, "Automatic mise trust remains disabled. Enable it later with: timber config --auto-mise-trust")
-			return false, err
-		}
-		return true, nil
-	}
 }
 
 // Resolve the selected start point, including local branches that track a remote.

@@ -1,11 +1,17 @@
 amends "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Config.pkl"
+
 import "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Builtins.pkl"
 
-local goChecks = new Mapping<String, Step> {
-  ["go-mod-tidy"] = (Builtins.gomod_tidy)
-  ["go-fumpt"] {
-    glob = "**/*.go"
-    check = """
+local checks = new Mapping<String, Step> {
+  ["go-mod-tidy"] = (Builtins.gomod_tidy) {
+    check = "go mod tidy -diff"
+    check_diff = null
+    fix = null
+    stage = null
+  }
+  ["go-fumpt"] = (Builtins.go_fumpt) {
+    check_list_files =
+      """
       set -e
       FILES=$(go tool gofumpt -l {{files}})
       if [ -n "$FILES" ]; then
@@ -13,11 +19,13 @@ local goChecks = new Mapping<String, Step> {
       exit 1
       fi
       """
+    check_diff = "go tool gofumpt -d {{files}}"
+    apply_check_diff = false
     fix = "go tool gofumpt -w {{files}}"
   }
-  ["go-imports"] {
-    glob = "**/*.go"
-    check = """
+  ["go-imports"] = (Builtins.go_imports) {
+    check_list_files =
+      """
       set -e
       FILES=$(go tool goimports -l -local $(go list -m) {{files}})
       if [ -n "$FILES" ]; then
@@ -25,20 +33,71 @@ local goChecks = new Mapping<String, Step> {
       exit 1
       fi
       """
+    check_diff = "go tool goimports -d -local $(go list -m) {{files}}"
+    apply_check_diff = false
     fix = "go tool goimports -w -local $(go list -m) {{files}}"
   }
-  ["go-fix"] = (Builtins.go_fix)
+  ["go-fix"] = (Builtins.go_fix) {
+    check = "go fix -diff ./..."
+    check_diff = null
+    fix = null
+  }
+  ["constable"] {
+    check = "go tool constable ./..."
+  }
+  ["errcheck"] {
+    check = "go tool errcheck ./..."
+  }
+  ["staticcheck"] = (Builtins.staticcheck) {
+    glob = null
+    check = "go tool staticcheck ./..."
+  }
+  ["testifylint"] {
+    check = "go tool testifylint ./..."
+  }
+  ["go-check-sumtype"] {
+    check =
+      "go tool go-check-sumtype -default-signifies-exhaustive=false -include-shared-interfaces ./..."
+  }
+  ["go-vet"] = (Builtins.go_vet) {
+    glob = null
+  }
+  ["gosec"] = (Builtins.go_sec) {
+    glob = null
+    check = "go tool gosec -severity high -quiet ./..."
+  }
+  ["govulncheck"] = (Builtins.go_vuln_check) {
+    glob = null
+    check = "go tool govulncheck ./..."
+  }
+  ["nilaway"] {
+    check = "go tool nilaway -include-pkgs $(go list -m) ./..."
+  }
+  ["mdlint"] {
+    glob = "**/*.md"
+    check = "mdlint format --check {{files}} && mdlint check --no-fix {{files}}"
+    fix = "mdlint format {{files}} && mdlint check --fix {{files}}"
+  }
+  ["pkl_format"] = Builtins.pkl_format
+  ["pkl"] = (Builtins.pkl) {
+    depends = List("pkl_format")
+  }
+  ["tombi_format"] = Builtins.tombi_format
+  ["tombi"] = (Builtins.tombi) {
+    depends = List("tombi_format")
+  }
+  ["yamlfmt"] = Builtins.yamlfmt
 }
 
 hooks {
   ["check"] {
-    steps = goChecks
+    steps = checks
   }
   ["commit-msg"] {
     fix = true
     steps {
       ["change-id"] {
-        fix = "git-review commit-msg \"{{commit_msg_file}}\""
+        fix = "timber review commit-msg \"{{commit_msg_file}}\""
       }
     }
   }
@@ -46,6 +105,10 @@ hooks {
     fix = true
     stash = "git"
     steps {
+      ["gitleaks"] = (Builtins.gitleaks) {
+        check =
+          "go tool gitleaks git --redact --pre-commit --staged && tmp=$(mktemp -d) || exit $?; trap 'rm -rf \"$tmp\"' EXIT INT TERM; git diff --cached --name-only -z --diff-filter=ACMRT > \"$tmp/list\" || exit $?; git checkout-index -z --stdin --prefix=\"$tmp/tree/\" < \"$tmp/list\" || exit $?; mkdir -p \"$tmp/tree\" || exit $?; go tool gitleaks dir --redact --verbose --no-banner \"$tmp/tree\" || exit $?"
+      }
       ["format"] {
         glob = "*.go"
         fix = "mise run pre-commit {{files}}"

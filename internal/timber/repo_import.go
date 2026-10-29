@@ -1,11 +1,10 @@
 package timber
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
-
-	"github.com/spf13/cobra"
 )
 
 // trashCommandName is the trash CLI used to move removed paths to the
@@ -30,36 +29,47 @@ type importSkip struct {
 	Reason string
 }
 
-type repoImportCommandOptions struct {
-	runtime Runtime
-	name    string
+// ImportReporter receives progress synchronously as an import proceeds.
+type ImportReporter struct {
+	Registered func(repoName, barePath string) error
+	Summary    func(ImportSummary) error
 }
 
-func NewRepoImportCommand(runtime Runtime) *cobra.Command {
-	options := &repoImportCommandOptions{runtime: runtime}
+// ImportSummary describes skipped and moved source worktrees.
+type ImportSummary struct {
+	Skipped   []ImportSkipped
+	Worktrees []ImportMove
+}
 
-	command := &cobra.Command{
-		Use:   "import <path>",
-		Short: "Convert an existing clone into a managed Timber repository",
-		Args:  cobra.ExactArgs(1),
-		RunE:  options.Execute,
+// ImportSkipped identifies a worktree that could not be moved.
+type ImportSkipped struct {
+	Path   string
+	Reason string
+}
+
+// ImportMove identifies the old and new paths of an imported worktree.
+type ImportMove struct {
+	Name       string
+	SourcePath string
+	TargetPath string
+}
+
+// ImportRepo converts an existing clone into a managed Timber repository.
+// Both reporter callbacks are required.
+func (runtime Runtime) ImportRepo(source, name string, reporter ImportReporter) error {
+	if reporter.Registered == nil || reporter.Summary == nil {
+		return errors.New("repository import requires registration and summary reporters")
 	}
-	command.Flags().StringVar(&options.name, "name", "", "Repository name (default: derived from remote or checkout)")
-
-	return command
-}
-
-func (x *repoImportCommandOptions) Execute(command *cobra.Command, args []string) error {
-	sourcePath, err := x.runtime.absolutePath(args[0])
+	sourcePath, err := runtime.absolutePath(source)
 	if err != nil {
 		return err
 	}
 
-	plan, err := x.runtime.buildImportPlan(sourcePath, normalizeRepoName(x.name))
+	plan, err := runtime.buildImportPlan(sourcePath, normalizeRepoName(name))
 	if err != nil {
 		return err
 	}
-	return plan.run(command)
+	return plan.run(reporter)
 }
 
 // rejectRegisteredSource refuses to import a repository that is already

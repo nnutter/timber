@@ -15,8 +15,7 @@ Defaults:
 - bare repos: `$TIMBER_WORKTREE_ROOT/<repo-name>/.git` (fallback: `~/worktrees/<repo-name>/.git`)
 - worktrees: `$TIMBER_WORKTREE_ROOT/<repo-name>/<worktree-name>/<repo-short-name>` (fallback: `~/worktrees/<repo-name>/<worktree-name>/<repo-short-name>`)
 
-Existing installs keep bare repositories under `$XDG_DATA_HOME/timber/repos` (fallback: `~/.local/share/timber/repos`).
-`timber repo fix` moves them into the worktree root and repairs linked worktrees.
+Existing installs keep bare repositories under `$XDG_DATA_HOME/timber/repos` (fallback: `~/.local/share/timber/repos`). `timber repo fix` moves them into the worktree root and repairs linked worktrees.
 
 For Timber-created worktrees, the worktree name and branch name are identical (including `/`).
 
@@ -41,19 +40,15 @@ Example:
 - branch: `nn/my-feature`
 - worktree path: `~/worktrees/timber/nn/my-feature/timber`
 
-Structured example (`t repo add nnutter/timber` defaults to the
-structured name; GitHub URLs keep `owner/repo`, other hosted paths keep
-their full grouping):
+Structured example (`t repo add nnutter/timber` defaults to the structured name; GitHub URLs keep `owner/repo`, other hosted paths keep their full grouping):
 
 - repo name: `nnutter/timber`
 - bare repo: `~/worktrees/nnutter/timber/.git`
 - branch: `structured-names`
 - worktree path: `~/worktrees/nnutter/timber/structured-names/timber`
 
-Rename with `timber repo rename <old> <new>` to move between simple and
-structured names; standard-layout worktrees move with the repo. Sorting
-`timber list --sort repo` orders by the full structured name, so the
-grouping prefix controls grouping.
+Rename with `timber repo rename <old> <new>` to move between simple and structured names; standard-layout worktrees move with the repo.
+Sorting `timber list --sort repo` orders by the full structured name, so the grouping prefix controls grouping.
 
 Use `timber repo import <path>` to register an existing clean clone and recreate its worktrees (including the former main checkout) in this layout.
 When invoked through the shell wrapper (`t repo import <path>`), the shell also `cd`s to `$HOME` after success.
@@ -62,9 +57,8 @@ When invoked through the shell wrapper (`t repo import <path>`), the shell also 
 
 ![timber worktree lifecycle](docs/demo/demo.gif)
 
-Register a repository, create a worktree, inspect it with `list`, step
-inside it, and remove it again. The still below shows `list` reporting a
-`merged`, `clean` worktree:
+Register a repository, create a worktree, inspect it with `list`, step inside it, and remove it again.
+The still below shows `list` reporting a `merged`, `clean` worktree:
 
 ![timber list output](docs/demo/demo-list.png)
 
@@ -122,7 +116,8 @@ Entry points:
 ## Commit review
 
 `timber review` embeds the Go implementation from [nnutter/git-review](https://github.com/nnutter/git-review).
-It uses the same saved review state as the standalone tool.
+It stores review state separately from the standalone tool.
+History from the standalone tool and earlier Timber builds is not migrated.
 Interactive review still requires `tuicr` on `PATH`.
 
 ```bash
@@ -136,6 +131,10 @@ The generated shell wrapper also supports `t review …`, including nested comma
 Review commands operate on the current checkout, not a Timber worktree selector.
 Run `timber review --help` for all commands and flags.
 
+Install the review feedback skill with `timber review --install-skill`.
+Use `--force` to replace an existing installation.
+For the Pi extension and package installation, see [pi/README.md](pi/README.md).
+
 ## Agent skills
 
 Install the bundled general-purpose Timber skill for agents with:
@@ -146,22 +145,18 @@ timber --install-skill
 timber --install-skill --force
 ```
 
-This writes [skills/timber/SKILL.md](skills/timber/SKILL.md) to
-`~/.agents/skills/timber/SKILL.md`, using the same installation layout as
-`timber todo --install-skill` for the separate `timber-todo` checklist skill.
-Existing skill files are preserved unless `--force` is given. No repository
-registration or GitHub authentication is needed to install a skill.
+This writes [skills/timber/SKILL.md](skills/timber/SKILL.md) to `~/.agents/skills/timber/SKILL.md`, using the same installation layout as `timber todo --install-skill` for the separate `timber-todo` checklist skill.
+Existing skill files are preserved unless `--force` is given.
+No repository registration or GitHub authentication is needed to install a skill.
 Use a build containing this feature if an older binary does not recognize the flag.
 
-The general skill covers repository discovery, explicitly qualified worktree
-creation, JSON status inspection, TODO lookup, and approval-gated cleanup.
-It requires Timber and Git on the agent runner's `PATH`; GitHub PR status also
-requires authenticated `gh`. It does not require the interactive zsh wrapper or
-Herdr. See the skill for configuration, side effects, and safety limitations.
+The general skill covers repository discovery, explicitly qualified worktree creation, JSON status inspection, TODO lookup, and approval-gated cleanup.
+It requires Timber and Git on the agent runner's `PATH`; GitHub PR status also requires authenticated `gh`.
+It does not require the interactive zsh wrapper or Herdr.
+See the skill for configuration, side effects, and safety limitations.
 
 Agents that discover `~/.agents/skills` can load the installed `timber` skill.
-For agents with another skill directory, copy `skills/timber` into that agent's
-documented discovery location; the installer does not configure individual agents.
+For agents with another skill directory, copy `skills/timber` into that agent's documented discovery location; the installer does not configure individual agents.
 Restart or refresh the agent's skill catalog if it caches discovery.
 
 ## Herdr Plugin
@@ -212,7 +207,7 @@ Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-t
 `mise run coverage` (or `mise run cover`) runs the tests and prints coverage.
 `mise run demo` re-renders the [demo](#demo) GIF, MP4, and still from `docs/demo/demo.tape` (needs a working Chrome for VHS).
 `mise run install-hooks` replaces existing Lefthook hooks with the hooks in `hk.pkl`.
-The commit-message hook requires `git-review` on `PATH`.
+The commit-message hook requires `timber` on `PATH`.
 
 ## Shell integration
 
@@ -233,7 +228,7 @@ The generated function:
 - routes most commands to `timber` (`t create`, `t list`, `t prune`, …)
 - after a successful `t create`, `cd`s into the new worktree unless `--no-cd`, `--herdr`, or automatic Herdr workspace creation applies
 - provides a shell-only `switch` that `cd`s into a worktree
-- `t switch -c` | `--create` creates the worktree first, then `cd`s, unless `--no-cd` or a Herdr space is opened
+- `t switch -c` or `t switch --create` creates the worktree first, then `cd`s, unless `--no-cd` or a Herdr space is opened
 - `t switch <name>` uses that worktree if the name exists in exactly one registered repository
 - `t switch <Tab>` completes worktree names from every registered repository
 - Unique names complete without `@`
@@ -310,7 +305,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `tui` | Interactively open an existing worktree or create a new one |
 | `herdr install` | Install the bundled Herdr plugin |
 | `herdr space` | Open a Herdr Agent + Shell space for a worktree |
-| `list` | List worktrees with merge/dirtiness status, TODO.md progress, and commit review progress when `git-review` is installed (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
+| `list` | List worktrees with merge/dirtiness status, TODO.md progress, and commit review progress (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |

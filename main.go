@@ -6,7 +6,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/nnutter/timber/internal/gitreview/display"
+	"github.com/nnutter/timber/internal/cli"
+	"github.com/nnutter/timber/internal/cli/root"
+	"github.com/nnutter/timber/internal/display"
 
 	"charm.land/fang/v2"
 
@@ -19,6 +21,9 @@ var todoSkillContent string
 //go:embed skills/timber/SKILL.md
 var skillContent string
 
+//go:embed skills/timber-review/SKILL.md
+var reviewSkillContent string
+
 // version is set via ldflags at build time (e.g. -X main.version=v1.2.3).
 var version string
 
@@ -29,8 +34,9 @@ func main() {
 	}
 	runtime.TodoSkillContent = todoSkillContent
 	runtime.SkillContent = skillContent
+	runtime.ReviewSkillContent = reviewSkillContent
 
-	root := timber.NewRootCommand(runtime)
+	root := root.New(runtime.HomeDirectory, runtime.SkillContent, cli.Commands(runtime)...)
 	if err := fang.Execute(
 		context.Background(),
 		root,

@@ -15,9 +15,9 @@ func TestTUICreateCreatesSelectedWorktree(t *testing.T) {
 
 	testRepository := newTestRepository(t)
 	prompter := &stubCreateWizardPrompter{
-		selection: createWizardSelection{repoName: testRepoName, worktreeName: branchName},
+		selection: WizardSelection{RepoName: testRepoName, WorktreeName: branchName},
 	}
-	options := &tuiCreateCommandOptions{runtime: testRepository.runtime}
+	options := &tuiTestOptions{runtime: testRepository.runtime}
 	result := runTUICreate(t, options, prompter)
 
 	require.NoError(t, result.err, result.stderr)
@@ -32,9 +32,9 @@ func TestTUICreateCancelDoesNotCreateWorktree(t *testing.T) {
 	const branchName = "feature/ui-cancel"
 
 	testRepository := newTestRepository(t)
-	options := &tuiCreateCommandOptions{runtime: testRepository.runtime}
+	options := &tuiTestOptions{runtime: testRepository.runtime}
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{
-		selection: createWizardSelection{cancelled: true},
+		selection: WizardSelection{Cancelled: true},
 	})
 
 	require.NoError(t, result.err, result.stderr)
@@ -45,7 +45,7 @@ func TestTUICreateCancelDoesNotCreateWorktree(t *testing.T) {
 func TestTUICreateFailsWhenNoRepositoriesAreRegistered(t *testing.T) {
 	t.Parallel()
 	home := resolvedTempDir(t)
-	options := &tuiCreateCommandOptions{runtime: testRuntimeForHome(home, home)}
+	options := &tuiTestOptions{runtime: testRuntimeForHome(home, home)}
 
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{})
 	require.Error(t, result.err)
@@ -60,12 +60,14 @@ func TestTUICreateListsEveryRepositoryFromAManagedWorktree(t *testing.T) {
 
 	testRepository := newTestRepository(t)
 	registerAdditionalRepo(t, testRepository, secondaryName)
-	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, currentBranch)).err)
+	currentPath := testRepository.worktreePath(currentBranch)
+	require.NoError(t, os.MkdirAll(filepath.Dir(currentPath), 0o755))
+	runGitCommand(t, testRepository.barePath, "worktree", "add", "-b", currentBranch, currentPath, "origin/main")
 
 	prompter := &stubCreateWizardPrompter{
-		selection: createWizardSelection{repoName: secondaryName, worktreeName: createdBranch},
+		selection: WizardSelection{RepoName: secondaryName, WorktreeName: createdBranch},
 	}
-	options := new(tuiCreateCommandOptions)
+	options := new(tuiTestOptions)
 	options.runtime = testRepository.runtime
 	options.runtime.CurrentDirectory = testRepository.worktreePath(currentBranch)
 	result := runTUICreate(t, options, prompter)
@@ -91,11 +93,11 @@ func TestTUICreateWithHerdrOpensStandardHerdrSpace(t *testing.T) {
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime.GhExecutable = installFakeGh(t)
 
-	options := new(tuiCreateCommandOptions)
+	options := new(tuiTestOptions)
 	options.runtime = testRepository.runtime
 	options.herdr = true
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{
-		selection: createWizardSelection{repoName: testRepoName, worktreeName: branchName},
+		selection: WizardSelection{RepoName: testRepoName, WorktreeName: branchName},
 	})
 
 	require.NoError(t, result.err, result.stderr)
@@ -118,20 +120,21 @@ func TestTUICreateOpensSelectedWorktreeInHerdrSpace(t *testing.T) {
 				path = filepath.Join(resolvedTempDir(t), name)
 				runGitCommand(t, testRepository.barePath, "worktree", "add", "-b", branchName, path, "origin/main")
 			} else {
-				require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, branchName)).err)
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+				runGitCommand(t, testRepository.barePath, "worktree", "add", "-b", branchName, path, "origin/main")
 			}
 			logPath := filepath.Join(resolvedTempDir(t), "herdr.log")
 			testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 			testRepository.runtime.GhExecutable = installFakeGh(t)
 
 			prompter := &stubCreateWizardPrompter{
-				selection: createWizardSelection{
-					action:       wizardActionOpen,
-					repoName:     testRepoName,
-					worktreeName: name,
+				selection: WizardSelection{
+					Action:       WizardActionOpen,
+					RepoName:     testRepoName,
+					WorktreeName: name,
 				},
 			}
-			options := &tuiCreateCommandOptions{runtime: testRepository.runtime}
+			options := &tuiTestOptions{runtime: testRepository.runtime}
 			result := runTUICreate(t, options, prompter)
 
 			require.NoError(t, result.err, result.stderr)
@@ -156,21 +159,14 @@ func TestTUICreateWithNoHerdrDoesNotInvokeHerdr(t *testing.T) {
 	testRepository.runtime.HerdrExecutable = installFakeHerdrSpace(t, logPath)
 	testRepository.runtime.GhExecutable = installFakeGh(t)
 
-	options := new(tuiCreateCommandOptions)
+	options := new(tuiTestOptions)
 	options.runtime = testRepository.runtime
 	options.noHerdr = true
 	result := runTUICreate(t, options, &stubCreateWizardPrompter{
-		selection: createWizardSelection{repoName: testRepoName, worktreeName: branchName},
+		selection: WizardSelection{RepoName: testRepoName, WorktreeName: branchName},
 	})
 
 	require.NoError(t, result.err, result.stderr)
 	_, err := os.Stat(logPath)
 	assert.ErrorIs(t, err, os.ErrNotExist)
-}
-
-func TestTUICreateRejectsHerdrAndNoHerdr(t *testing.T) {
-	t.Parallel()
-	result := runTimberCommand(t, "tui", "--herdr", "--no-herdr")
-	require.Error(t, result.err)
-	assert.Contains(t, result.err.Error(), "if any flags in the group [herdr no-herdr] are set none of the others can be")
 }

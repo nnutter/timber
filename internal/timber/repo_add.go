@@ -5,73 +5,51 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/spf13/cobra"
 )
 
-type repoAddCommandOptions struct {
-	runtime Runtime
-	name    string
-	alias   string
-}
-
-func NewRepoAddCommand(runtime Runtime) *cobra.Command {
-	options := &repoAddCommandOptions{runtime: runtime}
-
-	command := &cobra.Command{
-		Use:   "add <url-or-path>",
-		Short: "Register a bare repository from a remote URL or path",
-		Args:  cobra.ExactArgs(1),
-		RunE:  options.Execute,
-	}
-	command.Flags().StringVar(&options.name, "name", "", "Repository name (default: derived from URL)")
-	command.Flags().StringVar(&options.alias, "alias", "", "Repository display alias (default: derived from origin)")
-
-	return command
-}
-
-func (x *repoAddCommandOptions) Execute(command *cobra.Command, args []string) error {
-	remoteURL, err := resolveRemoteURL(args[0])
+// AddRepo registers a bare repository from a remote URL or path. It
+// returns the repository name and target path for CLI reporting.
+func (runtime Runtime) AddRepo(source, name, alias string) (string, string, error) {
+	remoteURL, err := resolveRemoteURL(source)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
-	repoName := normalizeRepoName(x.name)
+	repoName := normalizeRepoName(name)
 	if repoName == "" {
 		repoName, err = defaultRepoNameFromRemote(remoteURL)
 		if err != nil {
-			return err
+			return "", "", err
 		}
 	}
 	if err := validateRepoName(repoName); err != nil {
-		return err
+		return "", "", err
 	}
 
-	targetPath := x.runtime.bareRepoPath(repoName)
+	targetPath := runtime.bareRepoPath(repoName)
 	if _, err := os.Stat(targetPath); err == nil {
-		return fmt.Errorf("repository %q already exists at %s", repoName, targetPath)
+		return "", "", fmt.Errorf("repository %q already exists at %s", repoName, targetPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("inspect repository path %q: %w", targetPath, err)
+		return "", "", fmt.Errorf("inspect repository path %q: %w", targetPath, err)
 	}
 
 	if err := ensureDirectory(filepath.Dir(targetPath)); err != nil {
-		return err
+		return "", "", err
 	}
 
-	if _, err := gitOutput(x.runtime, x.runtime.CurrentDirectory, "clone", "--bare", remoteURL, targetPath); err != nil {
-		return err
+	if _, err := gitOutput(runtime, runtime.CurrentDirectory, "clone", "--bare", remoteURL, targetPath); err != nil {
+		return "", "", err
 	}
 
-	if err := configureBareOriginTracking(x.runtime, targetPath); err != nil {
-		return err
+	if err := configureBareOriginTracking(runtime, targetPath); err != nil {
+		return "", "", err
 	}
 
-	if x.alias != "" {
-		if _, err := gitOutput(x.runtime, targetPath, "config", "--local", "timber.alias", x.alias); err != nil {
-			return err
+	if alias != "" {
+		if _, err := gitOutput(runtime, targetPath, "config", "--local", "timber.alias", alias); err != nil {
+			return "", "", err
 		}
 	}
 
-	_, err = fmt.Fprintf(command.ErrOrStderr(), "%s\n", statusStyle.Render("added repository "+repoName+" at "+targetPath))
-	return err
+	return repoName, targetPath, nil
 }

@@ -5,9 +5,7 @@ description: Track per-worktree TODO lists stored in the worktree's git-dir TODO
 
 # Timber TODO
 
-Each timber worktree has its own `TODO.md`, stored in the worktree's
-git directory (inside the common git-dir) so notes never pollute the
-checkout.
+Each timber worktree has its own `TODO.md`, stored in the worktree's git directory (inside the common git-dir) so notes never pollute the checkout.
 
 ## Locate the TODO file
 
@@ -19,9 +17,8 @@ timber todo feature/login --path  # another worktree in any repo
 timber todo feature/login@timber --path
 ```
 
-This prints the absolute path of the worktree-specific `TODO.md`,
-creating it when missing. Do not guess the path; always resolve it
-with `--path` first.
+This prints the absolute path of the worktree-specific `TODO.md`, creating it when missing.
+Do not guess the path; always resolve it with `--path` first.
 
 ## Edit items as Markdown checkboxes
 

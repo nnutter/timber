@@ -2,43 +2,13 @@ package timber
 
 import (
 	"errors"
-	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestCreateGeneratesRandomNameWhenOmitted(t *testing.T) {
-	t.Parallel()
-	testRepository := newTestRepository(t)
-
-	result := testRepository.runTimber(t, "create", at(testRepoName, ""))
-	require.NoError(t, result.err, result.stderr)
-
-	worktreePath := strings.TrimSpace(result.stdout)
-	name := filepath.Base(filepath.Dir(worktreePath))
-	adjective, noun, found := strings.Cut(name, "-")
-	require.True(t, found, "generated name %q", name)
-	assert.True(t, slices.Contains(worktreeNameAdjectives, adjective), name)
-	assert.True(t, slices.Contains(worktreeNameNouns, noun), name)
-	testRepository.assertPathPresent(t, testRepository.worktreePath(name))
-}
-
-func TestCreateGeneratesDistinctNamesWhenOmittedTwice(t *testing.T) {
-	t.Parallel()
-	testRepository := newTestRepository(t)
-
-	first := testRepository.runTimber(t, "create", at(testRepoName, ""))
-	require.NoError(t, first.err, first.stderr)
-	second := testRepository.runTimber(t, "create", at(testRepoName, ""))
-	require.NoError(t, second.err, second.stderr)
-
-	assert.NotEqual(t, strings.TrimSpace(first.stdout), strings.TrimSpace(second.stdout))
-}
 
 func TestFirstUnusedWorktreeNameSkipsTakenNames(t *testing.T) {
 	t.Parallel()
