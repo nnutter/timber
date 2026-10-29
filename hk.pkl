@@ -28,6 +28,24 @@ local goChecks = new Mapping<String, Step> {
     fix = "go tool goimports -w -local $(go list -m) {{files}}"
   }
   ["go-fix"] = (Builtins.go_fix)
+  ["constable"] {
+    check = "go tool constable ./..."
+  }
+  ["go-check-sumtype"] {
+    check = "go tool go-check-sumtype -default-signifies-exhaustive=false -include-shared-interfaces ./..."
+  }
+  ["go-vet"] {
+    check = "go vet ./..."
+  }
+  ["gosec"] {
+    check = "go tool gosec -severity high -quiet ./..."
+  }
+  ["govulncheck"] {
+    check = "go tool govulncheck ./..."
+  }
+  ["nilaway"] {
+    check = "go tool nilaway -include-pkgs $(go list -m) ./..."
+  }
 }
 
 hooks {
