@@ -5,6 +5,7 @@ pkl = "0.32.1"
 tombi = "1.9.7"
 yamlfmt = "0.21.0"
 "github:nnutter/mdlint" = "0.4.2"
+uv = "0.13.6"
 
 #####################
 # Development Tasks #
@@ -86,8 +87,8 @@ fi
 '''
 
 [tasks.check]
-description = "Run all hk checks and scan for secrets without writing fixes"
-run = ["hk check --all", "mise run lint-gitleaks"]
+description = "Run checks, scan for secrets, and validate skills"
+run = ["hk check --all", "mise run lint-gitleaks", "mise run lint-skills"]
 
 [tasks.fix-gofumpt]
 description = "Run code formatting tools"
@@ -203,6 +204,7 @@ run = [
   { task = "lint-gosec" },
   { task = "lint-govulncheck" },
   { task = "lint-nilaway" },
+  { task = "lint-skills" },
   # TODO: Failing after Go upgrade
   # { task = "lint-staticcheck" },
   # TODO: Failing after Go upgrade
@@ -240,6 +242,20 @@ run = "go tool govulncheck ./..."
 [tasks.lint-nilaway]
 description = "Run nilaway on github.com/nnutter packages"
 run = "go tool nilaway -include-pkgs $(go list -m) ./..."
+
+[tasks.lint-skills]
+description = "Validate agent skills"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+status=0
+for skill in skills/*/; do
+  if ! uvx --from 'git+https://github.com/agentskills/agentskills.git@69ef37e9424c0a7ea9dd2293b559e43ec8176379#subdirectory=skills-ref' skills-ref validate "$skill"; then
+    status=1
+  fi
+done
+exit "$status"
+'''
 
 [tasks.lint-staticcheck]
 description = "Run staticcheck static analysis"
