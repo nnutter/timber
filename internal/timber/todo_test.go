@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/timber/todo"
 )
 
 func installFakeEditor(t *testing.T, logPath string) string {
@@ -32,7 +34,7 @@ func todoPathForWorktree(t *testing.T, worktreePath string) string {
 	t.Helper()
 
 	gitDir := strings.TrimSpace(runGitCommand(t, worktreePath, "rev-parse", "--absolute-git-dir"))
-	return todoFilePath(gitDir)
+	return todo.Path(gitDir)
 }
 
 func TestTodoOpensWorktreeSpecificFile(t *testing.T) {

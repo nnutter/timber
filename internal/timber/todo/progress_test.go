@@ -1,6 +1,7 @@
-package timber
+package todo
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,7 +15,7 @@ func TestParseTodoProgressCountsChecklistItems(t *testing.T) {
 	tests := []struct {
 		name     string
 		lines    []string
-		expected todoProgress
+		expected Progress
 	}{
 		{
 			name: "mixed checkboxes",
@@ -22,14 +23,14 @@ func TestParseTodoProgressCountsChecklistItems(t *testing.T) {
 				"- [x] done",
 				"- [ ] pending",
 			},
-			expected: todoProgress{Done: 1, Total: 2},
+			expected: Progress{Done: 1, Total: 2},
 		},
 		{
 			name: "uppercase checkbox counts as done",
 			lines: []string{
 				"- [X] done",
 			},
-			expected: todoProgress{Done: 1, Total: 1},
+			expected: Progress{Done: 1, Total: 1},
 		},
 		{
 			name: "nested and indented items count",
@@ -38,7 +39,7 @@ func TestParseTodoProgressCountsChecklistItems(t *testing.T) {
 				"  - [ ] nested",
 				"    - [x] deeper",
 			},
-			expected: todoProgress{Done: 1, Total: 2},
+			expected: Progress{Done: 1, Total: 2},
 		},
 		{
 			name: "non-checkbox lines are ignored",
@@ -48,12 +49,12 @@ func TestParseTodoProgressCountsChecklistItems(t *testing.T) {
 				"- [-] not a checkbox",
 				"text [x] inline",
 			},
-			expected: todoProgress{},
+			expected: Progress{},
 		},
 		{
 			name:     "empty checklist",
 			lines:    nil,
-			expected: todoProgress{},
+			expected: Progress{},
 		},
 	}
 
@@ -69,29 +70,29 @@ func TestParseTodoProgressCountsChecklistItems(t *testing.T) {
 
 func TestTodoProgressStringRendersDoneOverTotal(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "1/2", todoProgress{Done: 1, Total: 2}.String())
-	assert.Equal(t, "0/0", todoProgress{}.String())
+	assert.Equal(t, "1/2", Progress{Done: 1, Total: 2}.String())
+	assert.Equal(t, "0/0", Progress{}.String())
 }
 
 func TestReadTodoProgressReadsWorktreeGitDirectory(t *testing.T) {
 	t.Parallel()
 	gitDir := t.TempDir()
-	writeTodoFile(t, todoFilePath(gitDir), "- [x] done\n- [ ] pending\n")
+	require.NoError(t, os.WriteFile(Path(gitDir), []byte("- [x] done\n- [ ] pending\n"), 0o600))
 
-	progress, err := readTodoProgress(gitDir)
+	progress, err := ReadProgress(gitDir)
 	require.NoError(t, err)
-	assert.Equal(t, todoProgress{Done: 1, Total: 2}, progress)
+	assert.Equal(t, Progress{Done: 1, Total: 2}, progress)
 	assert.Equal(t, "1/2", progress.String())
 }
 
 func TestReadTodoProgressTreatsMissingFileAsEmpty(t *testing.T) {
 	t.Parallel()
-	progress, err := readTodoProgress(t.TempDir())
+	progress, err := ReadProgress(t.TempDir())
 	require.NoError(t, err)
-	assert.Equal(t, todoProgress{}, progress)
+	assert.Equal(t, Progress{}, progress)
 }
 
 func TestTodoFilePathLivesInGitDirectory(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, filepath.Join("/repo/.git/worktrees/one", todoFileName), todoFilePath("/repo/.git/worktrees/one"))
+	assert.Equal(t, filepath.Join("/repo/.git/worktrees/one", "TODO.md"), Path("/repo/.git/worktrees/one"))
 }

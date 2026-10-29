@@ -10,6 +10,8 @@ import (
 	json "encoding/json/v2"
 
 	"github.com/spf13/cobra"
+
+	"github.com/nnutter/timber/internal/timber/todo"
 )
 
 // todoJSONSummary counts TODO.md items by status.
@@ -38,19 +40,19 @@ type todoJSONOutput struct {
 // TODO.md is an empty checklist, not an error, because `timber todo` creates
 // the file lazily.
 func readTodoJSON(gitDir string) (todoJSONOutput, error) {
-	contents, err := os.ReadFile(todoFilePath(gitDir))
+	contents, err := os.ReadFile(todo.Path(gitDir))
 	if errors.Is(err, fs.ErrNotExist) {
 		return todoJSONOutput{Todos: []todoJSONItem{}}, nil
 	}
 	if err != nil {
-		return todoJSONOutput{}, fmt.Errorf("open %s: %w", todoFilePath(gitDir), err)
+		return todoJSONOutput{}, fmt.Errorf("open %s: %w", todo.Path(gitDir), err)
 	}
 	return todoJSONFromContents(string(contents)), nil
 }
 
 // todoJSONFromContents converts raw TODO.md text to its JSON document.
 func todoJSONFromContents(contents string) todoJSONOutput {
-	entries, err := parseTodoEntries(strings.NewReader(contents))
+	entries, err := todo.ParseEntries(strings.NewReader(contents))
 	if err != nil {
 		// parseTodoEntries only fails on scanner I/O errors, which cannot
 		// happen for an in-memory string; fall through with no items.
@@ -62,9 +64,9 @@ func todoJSONFromContents(contents string) todoJSONOutput {
 // todoEntriesToJSON resolves indentation into depends_on links and counts
 // the summary. Each item's parent is the nearest preceding item with less
 // indentation, tracked with a stack.
-func todoEntriesToJSON(entries []todoEntry) todoJSONOutput {
+func todoEntriesToJSON(entries []todo.Entry) todoJSONOutput {
 	output := todoJSONOutput{Todos: []todoJSONItem{}}
-	var stack []todoEntry
+	var stack []todo.Entry
 	for _, entry := range entries {
 		for len(stack) > 0 && stack[len(stack)-1].Indent >= entry.Indent {
 			stack = stack[:len(stack)-1]

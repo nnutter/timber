@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/timber/todo"
 )
 
 func TestRuntimeFromProcessCapturesProcessState(t *testing.T) {
@@ -113,5 +115,5 @@ func TestRuntimeWorktreeGitDirHoldsWorktreeTodoFile(t *testing.T) {
 	// The Git directory is where `timber todo` keeps the worktree's file.
 	todoResult := testRepository.runTimber(t, "todo", at(testRepoName, branchName), "--path")
 	require.NoError(t, todoResult.err, todoResult.stderr)
-	assert.Equal(t, todoFilePath(gitDir), strings.TrimSpace(todoResult.stdout))
+	assert.Equal(t, todo.Path(gitDir), strings.TrimSpace(todoResult.stdout))
 }

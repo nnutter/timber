@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/nnutter/timber/internal/timber/todo"
 )
 
 type managedWorktree struct {
@@ -19,7 +21,7 @@ type managedWorktree struct {
 	UpstreamRef     referenceName
 	Status          string
 	ListStatus      listStatus
-	Todo            todoProgress
+	Todo            todo.Progress
 	DefaultUpstream string
 	ListError       bool
 	Clean           bool

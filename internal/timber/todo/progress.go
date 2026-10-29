@@ -1,4 +1,4 @@
-package timber
+package todo
 
 import (
 	"bufio"
@@ -10,39 +10,39 @@ import (
 	"strings"
 )
 
-// todoProgress counts checklist items in a worktree's TODO.md.
-type todoProgress struct {
+// Progress counts checklist items in a worktree's TODO.md.
+type Progress struct {
 	Done  int
 	Total int
 }
 
-func (x todoProgress) String() string {
+func (x Progress) String() string {
 	return fmt.Sprintf("%d/%d", x.Done, x.Total)
 }
 
-// readTodoProgress counts the `- [ ]` and `- [x]` checklist items in a
+// ReadProgress counts the `- [ ]` and `- [x]` checklist items in a
 // worktree's TODO.md. A missing TODO.md is an empty checklist, not an error,
 // because `timber todo` creates the file lazily.
-func readTodoProgress(gitDir string) (todoProgress, error) {
-	file, err := os.Open(todoFilePath(gitDir))
+func ReadProgress(gitDir string) (Progress, error) {
+	file, err := os.Open(Path(gitDir))
 	if errors.Is(err, fs.ErrNotExist) {
-		return todoProgress{}, nil
+		return Progress{}, nil
 	}
 	if err != nil {
-		return todoProgress{}, fmt.Errorf("open %s: %w", todoFilePath(gitDir), err)
+		return Progress{}, fmt.Errorf("open %s: %w", Path(gitDir), err)
 	}
 	progress, parseErr := parseTodoProgress(file)
 	// A close failure on a read-only file carries no information.
 	if err := file.Close(); err != nil && parseErr == nil {
-		parseErr = fmt.Errorf("close %s: %w", todoFilePath(gitDir), err)
+		parseErr = fmt.Errorf("close %s: %w", Path(gitDir), err)
 	}
 	return progress, parseErr
 }
 
-// todoEntry is one Markdown checkbox in TODO.md. ID is the 1-based line
+// Entry is one Markdown checkbox in TODO.md. ID is the 1-based line
 // number in the file, and Indent is the leading-whitespace width used to
 // resolve parent-child relationships.
-type todoEntry struct {
+type Entry struct {
 	ID       int
 	Indent   int
 	Title    string
@@ -52,12 +52,12 @@ type todoEntry struct {
 // parseTodoProgress counts checklist items line by line. Items may be nested,
 // so leading whitespace is ignored, and only lines whose first non-space
 // characters form a checkbox count toward the totals.
-func parseTodoProgress(reader io.Reader) (todoProgress, error) {
-	entries, err := parseTodoEntries(reader)
+func parseTodoProgress(reader io.Reader) (Progress, error) {
+	entries, err := ParseEntries(reader)
 	if err != nil {
-		return todoProgress{}, err
+		return Progress{}, err
 	}
-	var progress todoProgress
+	var progress Progress
 	progress.Total = len(entries)
 	for _, entry := range entries {
 		if entry.Complete {
@@ -67,11 +67,11 @@ func parseTodoProgress(reader io.Reader) (todoProgress, error) {
 	return progress, nil
 }
 
-// parseTodoEntries returns one entry per checkbox line in file order.
+// ParseEntries returns one entry per checkbox line in file order.
 // Non-checkbox lines are skipped but still advance the 1-based line
 // numbers used as IDs.
-func parseTodoEntries(reader io.Reader) ([]todoEntry, error) {
-	var entries []todoEntry
+func ParseEntries(reader io.Reader) ([]Entry, error) {
+	var entries []Entry
 	scanner := bufio.NewScanner(reader)
 	lineNumber := 0
 	for scanner.Scan() {
@@ -81,7 +81,7 @@ func parseTodoEntries(reader io.Reader) ([]todoEntry, error) {
 		if !ok {
 			continue
 		}
-		entries = append(entries, todoEntry{
+		entries = append(entries, Entry{
 			ID:       lineNumber,
 			Indent:   todoIndentWidth(line),
 			Title:    title,

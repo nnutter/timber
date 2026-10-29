@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/nnutter/timber/internal/timber/todo"
 )
 
 const (
@@ -1078,14 +1080,14 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 // todoProgressForWorktree counts the worktree's TODO.md checklist items. A
 // worktree whose checklist cannot be read reports no progress; list already
 // degrades to placeholder cells for unreadable worktree state.
-func (x Runtime) todoProgressForWorktree(worktree managedWorktree) todoProgress {
+func (x Runtime) todoProgressForWorktree(worktree managedWorktree) todo.Progress {
 	gitDir, err := x.worktreeGitDir(worktree.Path)
 	if err != nil {
-		return todoProgress{}
+		return todo.Progress{}
 	}
-	progress, err := readTodoProgress(gitDir)
+	progress, err := todo.ReadProgress(gitDir)
 	if err != nil {
-		return todoProgress{}
+		return todo.Progress{}
 	}
 	return progress
 }
