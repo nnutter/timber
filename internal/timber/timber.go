@@ -10,6 +10,7 @@ import (
 	clirepo "github.com/nnutter/timber/internal/cli/repo"
 	repoadd "github.com/nnutter/timber/internal/cli/repo/add"
 	repofix "github.com/nnutter/timber/internal/cli/repo/fix"
+	repoimport "github.com/nnutter/timber/internal/cli/repo/import"
 	repolist "github.com/nnutter/timber/internal/cli/repo/list"
 	reporemove "github.com/nnutter/timber/internal/cli/repo/remove"
 	reporename "github.com/nnutter/timber/internal/cli/repo/rename"
@@ -36,7 +37,9 @@ func Commands(runtime Runtime) []*cobra.Command {
 				Add:          runtime.AddRepo,
 				RenderStatus: func(message string) string { return statusStyle.Render(message) },
 			}),
-			NewRepoImportCommand(runtime),
+			repoimport.New(repoimport.Dependencies{
+				Import: runtime.ImportRepo,
+			}),
 			repofix.New(repofix.Dependencies{
 				Fix:          runtime.FixRepos,
 				RenderStatus: func(message string) string { return statusStyle.Render(message) },

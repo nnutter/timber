@@ -3,10 +3,9 @@ package timber
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/spf13/cobra"
 )
 
 type importPlan struct {
@@ -95,7 +94,7 @@ func (x *importPlan) validateTargets() error {
 //
 // A failure in step 2 rolls back the freshly created worktrees and the bare
 // clone, leaving the source repository untouched.
-func (x *importPlan) run(command *cobra.Command) error {
+func (x *importPlan) run(stderr io.Writer) error {
 	if err := ensureDirectory(filepath.Dir(x.barePath)); err != nil {
 		return err
 	}
@@ -106,7 +105,6 @@ func (x *importPlan) run(command *cobra.Command) error {
 		return errors.Join(err, x.runtime.trashPaths(x.barePath))
 	}
 
-	stderr := command.ErrOrStderr()
 	registeredMessage := fmt.Sprintf(
 		"registered repository %s at %s",
 		x.repoName,
@@ -144,7 +142,7 @@ func (x *importPlan) run(command *cobra.Command) error {
 		}
 	}
 
-	return x.reportSummary(command)
+	return x.reportSummary(stderr)
 }
 
 func (x *importPlan) createWorktree(bareRepository *Repository, worktree *importWorktree) error {
@@ -191,9 +189,7 @@ func (x *importPlan) rollbackCreated(bareRepository *Repository, created []*impo
 	return errors.Join(rollbackErrors...)
 }
 
-func (x *importPlan) reportSummary(command *cobra.Command) error {
-	stderr := command.ErrOrStderr()
-
+func (x *importPlan) reportSummary(stderr io.Writer) error {
 	for _, skip := range x.skips {
 		message := fmt.Sprintf(
 			"skipped worktree %s: %s",

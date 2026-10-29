@@ -2,10 +2,9 @@ package timber
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
-
-	"github.com/spf13/cobra"
 )
 
 // trashCommandName is the trash CLI used to move removed paths to the
@@ -30,36 +29,20 @@ type importSkip struct {
 	Reason string
 }
 
-type repoImportCommandOptions struct {
-	runtime Runtime
-	name    string
-}
-
-func NewRepoImportCommand(runtime Runtime) *cobra.Command {
-	options := &repoImportCommandOptions{runtime: runtime}
-
-	command := &cobra.Command{
-		Use:   "import <path>",
-		Short: "Convert an existing clone into a managed Timber repository",
-		Args:  cobra.ExactArgs(1),
-		RunE:  options.Execute,
-	}
-	command.Flags().StringVar(&options.name, "name", "", "Repository name (default: derived from remote or checkout)")
-
-	return command
-}
-
-func (x *repoImportCommandOptions) Execute(command *cobra.Command, args []string) error {
-	sourcePath, err := x.runtime.absolutePath(args[0])
+// ImportRepo converts an existing clone into a managed Timber repository.
+// Progress and the final summary are written to output as the import
+// proceeds, preserving the order of the original command output.
+func (runtime Runtime) ImportRepo(source, name string, output io.Writer) error {
+	sourcePath, err := runtime.absolutePath(source)
 	if err != nil {
 		return err
 	}
 
-	plan, err := x.runtime.buildImportPlan(sourcePath, normalizeRepoName(x.name))
+	plan, err := runtime.buildImportPlan(sourcePath, normalizeRepoName(name))
 	if err != nil {
 		return err
 	}
-	return plan.run(command)
+	return plan.run(output)
 }
 
 // rejectRegisteredSource refuses to import a repository that is already
