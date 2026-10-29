@@ -4,7 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+
+	"github.com/nnutter/timber/internal/terminal"
 )
 
 type repoSelection struct {
@@ -130,7 +131,7 @@ func (x *repoSelection) resolvePrompt(input io.Reader) (registeredRepo, *Reposit
 		return registeredRepo{}, nil, errors.New("no registered repositories; run timber repo add first")
 	}
 
-	if !isInteractiveTerminal(input) {
+	if !terminal.IsInteractive(input) {
 		return registeredRepo{}, nil, errors.New("repository selection requires @<repo>, a managed worktree cwd, or an interactive terminal")
 	}
 
@@ -157,31 +158,6 @@ func (x *repoSelection) resolvePrompt(input io.Reader) (registeredRepo, *Reposit
 		return registeredRepo{}, nil, err
 	}
 	return repo, repository, nil
-}
-
-func isInteractiveTerminal(input io.Reader) bool {
-	file, ok := input.(*os.File)
-	if !ok {
-		return false
-	}
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return false
-	}
-	if fileInfo.Mode()&os.ModeCharDevice == 0 {
-		return false
-	}
-
-	// bubbletea needs /dev/tty; treat its absence as non-interactive.
-	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
-	if err != nil {
-		return false
-	}
-	if err := tty.Close(); err != nil {
-		return false
-	}
-	return true
 }
 
 func samePath(left string, right string) (bool, error) {

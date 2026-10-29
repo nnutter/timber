@@ -4,22 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-)
-
-const (
-	tuiWorktreeInputMaxLength = 72
-	tuiWorktreeTitle          = "Open or Create Worktree"
-	tuiWorktreeLegend         = "tab/↓ next • shift+tab/↑ prev • enter accept • esc/^c quit • worktree@repo creates"
-)
-
-var (
-	tuiWorktreeTitleStyle    = lipgloss.NewStyle().Bold(true)
-	tuiWorktreeLegendStyle   = lipgloss.NewStyle().Faint(true)
-	tuiWorktreeInputBoxStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-	tuiWorktreeViewStyle     = lipgloss.NewStyle().Padding(1, 2)
 )
 
 // WizardActionCreate creates the selected worktree.
@@ -41,15 +25,11 @@ type WizardPrompter interface {
 	Prompt(io.Reader, io.Writer, []RepoRef, []WorktreeRef, bool) (WizardSelection, error)
 }
 
-type bubbleteaCreateWizardPrompter struct {
-	interactive func() bool
-}
-
-// RunTUI runs the interactive worktree wizard. A cancelled wizard returns
-// nil without creating or opening anything.
+// RunTUI runs the interactive worktree wizard using the supplied prompter.
+// A cancelled wizard returns nil without creating or opening anything.
 func (runtime Runtime) RunTUI(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool, prompter WizardPrompter) error {
 	if prompter == nil {
-		prompter = bubbleteaCreateWizardPrompter{}
+		return errors.New("tui requires a wizard prompter")
 	}
 	repos, err := runtime.listRegisteredReposForWizard()
 	if err != nil {
@@ -126,47 +106,4 @@ func (runtime Runtime) openSelectedWorktree(
 		return err
 	}
 	return reportOpenedHerdrSpace(output, worktree.Name)
-}
-
-func (x bubbleteaCreateWizardPrompter) Prompt(
-	input io.Reader,
-	output io.Writer,
-	repos []RepoRef,
-	worktrees []WorktreeRef,
-	showTitle bool,
-) (WizardSelection, error) {
-	if !x.terminalIsInteractive(input) {
-		return WizardSelection{}, errors.New("tui requires an interactive terminal")
-	}
-
-	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
-	if input != nil {
-		programOptions = append(programOptions, tea.WithInput(input))
-	}
-	if output != nil {
-		programOptions = append(programOptions, tea.WithOutput(output))
-	}
-	finalModel, err := tea.NewProgram(newCreateWizardModel(repos, worktrees, showTitle), programOptions...).Run()
-	if err != nil {
-		if errors.Is(err, tea.ErrInterrupted) {
-			return WizardSelection{Cancelled: true}, nil
-		}
-		return WizardSelection{}, err
-	}
-
-	result, ok := finalModel.(*createWizardModel)
-	if !ok {
-		return WizardSelection{}, errors.New("create wizard returned unexpected model")
-	}
-	if result.cancelled {
-		return WizardSelection{Cancelled: true}, nil
-	}
-	return result.selection, nil
-}
-
-func (x bubbleteaCreateWizardPrompter) terminalIsInteractive(input io.Reader) bool {
-	if x.interactive != nil {
-		return x.interactive()
-	}
-	return isInteractiveTerminal(input)
 }

@@ -10,7 +10,8 @@ type qualifiedName struct {
 	Repo string
 }
 
-func rejectAtInWorktreeName(name string) error {
+// ValidateWorktreeName rejects names that conflict with repository qualifiers.
+func ValidateWorktreeName(name string) error {
 	if strings.Contains(name, "@") {
 		return fmt.Errorf("worktree name %q must not contain @", name)
 	}

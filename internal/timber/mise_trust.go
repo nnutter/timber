@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nnutter/timber/internal/terminal"
 )
 
 func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string) {
@@ -22,7 +24,7 @@ func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.W
 		warn(err)
 		return
 	}
-	if !settings.AutoMiseTrust && (settings.AutoMiseTrustDecided || !isInteractiveTerminal(input)) {
+	if !settings.AutoMiseTrust && (settings.AutoMiseTrustDecided || !terminal.IsInteractive(input)) {
 		return
 	}
 	configPath := filepath.Join(worktreePath, "mise.toml")

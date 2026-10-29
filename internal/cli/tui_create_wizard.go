@@ -1,10 +1,11 @@
-package timber
+package cli
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/nnutter/timber/internal/display"
+	"github.com/nnutter/timber/internal/timber"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -12,18 +13,18 @@ import (
 )
 
 type createWizardModel struct {
-	repos     []RepoRef
-	worktrees []WorktreeRef
+	repos     []timber.RepoRef
+	worktrees []timber.WorktreeRef
 	showTitle bool
 	input     textinput.Model
 	list      list.Model
-	selection WizardSelection
+	selection timber.WizardSelection
 	err       error
 	cancelled bool
 }
 
 type wizardWorktreeItem struct {
-	worktree WorktreeRef
+	worktree timber.WorktreeRef
 }
 
 func (x wizardWorktreeItem) FilterValue() string {
@@ -55,7 +56,7 @@ func (x wizardCreateWorktreeItem) Description() string {
 	return "create new worktree"
 }
 
-func newCreateWizardModel(repos []RepoRef, worktrees []WorktreeRef, showTitle bool) *createWizardModel {
+func newCreateWizardModel(repos []timber.RepoRef, worktrees []timber.WorktreeRef, showTitle bool) *createWizardModel {
 	input := textinput.New()
 	input.Prompt = ""
 	input.Placeholder = "type worktree@repo"
@@ -152,17 +153,17 @@ func (m *createWizardModel) View() string {
 	return tuiWorktreeViewStyle.Render(view + "\n" + tuiWorktreeLegendStyle.Render(tuiWorktreeLegend))
 }
 
-func (m *createWizardModel) selectionForEnter() (WizardSelection, error) {
+func (m *createWizardModel) selectionForEnter() (timber.WizardSelection, error) {
 	switch item := m.list.SelectedItem().(type) {
 	case wizardWorktreeItem:
-		return WizardSelection{
-			Action:       WizardActionOpen,
+		return timber.WizardSelection{
+			Action:       timber.WizardActionOpen,
 			RepoName:     item.worktree.Repo,
 			WorktreeName: item.worktree.Name,
 		}, nil
 	case wizardCreateWorktreeItem:
-		return WizardSelection{
-			Action:       WizardActionCreate,
+		return timber.WizardSelection{
+			Action:       timber.WizardActionCreate,
 			RepoName:     item.repoName,
 			WorktreeName: item.worktreeName,
 		}, nil
@@ -170,22 +171,22 @@ func (m *createWizardModel) selectionForEnter() (WizardSelection, error) {
 
 	worktreeName, repoName, err := splitWizardWorktreeValue(m.input.Value())
 	if err != nil {
-		return WizardSelection{}, err
+		return timber.WizardSelection{}, err
 	}
-	if err := rejectAtInWorktreeName(worktreeName); err != nil {
-		return WizardSelection{}, err
+	if err := timber.ValidateWorktreeName(worktreeName); err != nil {
+		return timber.WizardSelection{}, err
 	}
 	if !wizardHasRepository(m.repos, repoName) {
-		return WizardSelection{}, fmt.Errorf("unknown repository %q", repoName)
+		return timber.WizardSelection{}, fmt.Errorf("unknown repository %q", repoName)
 	}
-	return WizardSelection{
-		Action:       WizardActionCreate,
+	return timber.WizardSelection{
+		Action:       timber.WizardActionCreate,
 		RepoName:     repoName,
 		WorktreeName: worktreeName,
 	}, nil
 }
 
-func wizardItemsForTerm(repos []RepoRef, worktrees []WorktreeRef, term string) []list.Item {
+func wizardItemsForTerm(repos []timber.RepoRef, worktrees []timber.WorktreeRef, term string) []list.Item {
 	worktreeValues := make([]string, len(worktrees))
 	for index, worktree := range worktrees {
 		worktreeValues[index] = wizardWorktreeValue(worktree)
@@ -219,7 +220,7 @@ func wizardItemsForTerm(repos []RepoRef, worktrees []WorktreeRef, term string) [
 	return items
 }
 
-func wizardHasWorktree(worktrees []WorktreeRef, worktreeName string, repoName string) bool {
+func wizardHasWorktree(worktrees []timber.WorktreeRef, worktreeName string, repoName string) bool {
 	for _, worktree := range worktrees {
 		if worktree.Name == worktreeName && worktree.Repo == repoName {
 			return true
@@ -228,7 +229,7 @@ func wizardHasWorktree(worktrees []WorktreeRef, worktreeName string, repoName st
 	return false
 }
 
-func wizardHasRepository(repos []RepoRef, name string) bool {
+func wizardHasRepository(repos []timber.RepoRef, name string) bool {
 	for _, repo := range repos {
 		if repo.Name == name {
 			return true
@@ -284,7 +285,7 @@ func filterWizardTerm(term string, targets []string) []list.Rank {
 	return list.DefaultFilter(term, targets)
 }
 
-func wizardWorktreeValue(worktree WorktreeRef) string {
+func wizardWorktreeValue(worktree timber.WorktreeRef) string {
 	return worktree.Name + "@" + worktree.Repo
 }
 

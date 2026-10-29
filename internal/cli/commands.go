@@ -108,7 +108,7 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 		}),
 		clitui.New(clitui.Dependencies{
 			Run: func(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool) error {
-				return runtime.RunTUI(ctx, input, output, stdout, herdr, noHerdr, noTitle, nil)
+				return runtime.RunTUI(ctx, input, output, stdout, herdr, noHerdr, noTitle, bubbleteaCreateWizardPrompter{})
 			},
 		}),
 		generate.New(runtime.DataHome),

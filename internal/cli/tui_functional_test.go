@@ -7,6 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTUICreateRequiresInteractiveTerminal(t *testing.T) {
+	t.Parallel()
+	repository := newTestRepository(t)
+	result := repository.runTimber(t, "tui")
+	require.ErrorContains(t, result.err, "tui requires an interactive terminal")
+}
+
 func TestTUICreateRejectsHerdrAndNoHerdr(t *testing.T) {
 	t.Parallel()
 	result := runTimberCommand(t, "tui", "--herdr", "--no-herdr")

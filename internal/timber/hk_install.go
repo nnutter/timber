@@ -7,6 +7,8 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/nnutter/timber/internal/terminal"
 )
 
 func (x Runtime) autoInstallHKHooks(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string) {
@@ -19,7 +21,7 @@ func (x Runtime) autoInstallHKHooks(ctx context.Context, input io.Reader, output
 		warn(err)
 		return
 	}
-	if !settings.AutoHKInstall && (settings.AutoHKInstallDecided || !isInteractiveTerminal(input)) {
+	if !settings.AutoHKInstall && (settings.AutoHKInstallDecided || !terminal.IsInteractive(input)) {
 		return
 	}
 	regular, err := regularRootFile(filepath.Join(worktreePath, "hk.pkl"))

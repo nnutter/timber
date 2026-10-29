@@ -20,7 +20,7 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 	if err != nil {
 		return "", false, err
 	}
-	if err := rejectAtInWorktreeName(qualified.Name); err != nil {
+	if err := ValidateWorktreeName(qualified.Name); err != nil {
 		return "", false, err
 	}
 	if qualified.Repo != "" {
