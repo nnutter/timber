@@ -21,20 +21,6 @@ type commandResult struct {
 	err    error
 }
 
-// listJSONRecord mirrors the worktree fields asserted from `list --json`.
-type listJSONRecord struct {
-	Name        string `json:"name"`
-	Repo        string `json:"repo"`
-	Path        string `json:"path"`
-	Upstream    string `json:"upstream"`
-	Commit      string `json:"commit"`
-	Clean       bool   `json:"clean"`
-	Merged      bool   `json:"merged"`
-	StatusError bool   `json:"statusError"`
-	TodoDone    int    `json:"todoDone"`
-	TodoTotal   int    `json:"todoTotal"`
-}
-
 type stubPrompter struct {
 	selected []WorktreeRef
 	err      error
@@ -199,14 +185,6 @@ func readFakeHerdrLog(t *testing.T, logPath string) []string {
 	contents, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	return strings.Split(strings.TrimSpace(string(contents)), "\n")
-}
-
-func skipIfNoPty(t *testing.T) {
-	t.Helper()
-	command := testCommand(t, "python3", "-c", "import pty; pty.openpty()")
-	if err := command.Run(); err != nil {
-		t.Skip("pty devices are not available")
-	}
 }
 
 func testRuntime(t *testing.T) Runtime {
@@ -438,27 +416,6 @@ func replaceGitRemotePath(barePath string, oldPath string, newPath string) error
 	return os.WriteFile(configPath, updated, 0o644)
 }
 
-func seedBareRemote(t *testing.T, remotePath string) {
-	t.Helper()
-	tempClone := filepath.Join(resolvedTempDir(t), "seed")
-	runGitCommand(t, filepath.Dir(tempClone), "clone", remotePath, tempClone)
-	configureGitUser(t, tempClone)
-	require.NoError(t, os.WriteFile(filepath.Join(tempClone, "README.md"), []byte("initial\n"), 0o644))
-	runGitCommand(t, tempClone, "add", "README.md")
-	runGitCommand(t, tempClone, "commit", "-m", "initial")
-	runGitCommand(t, tempClone, "branch", "-M", "main")
-	runGitCommand(t, tempClone, "push", "-u", remoteName, "main")
-	// git init --bare leaves HEAD at init.defaultBranch (often master). Point it at
-	// the branch we actually pushed so clones and remote set-head --auto work on CI.
-	runGitCommand(t, remotePath, "symbolic-ref", "HEAD", "refs/heads/main")
-}
-
-func configureGitUser(t *testing.T, path string) {
-	t.Helper()
-	runGitCommand(t, path, "config", "user.name", "Test User")
-	runGitCommand(t, path, "config", "user.email", "test@example.com")
-}
-
 func (x testRepository) worktreePath(branchName string) string {
 	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
 }
@@ -508,27 +465,11 @@ func (x testRepository) commitFileInWorktree(t *testing.T, branchName string, fi
 	runGitCommand(t, path, "commit", "-m", "change")
 }
 
-func writeTodoFile(t *testing.T, path string, contents string) {
-	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
-}
-
 func (x testRepository) writeFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
 	t.Helper()
 	path := filepath.Join(x.worktreePath(branchName), fileName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
-}
-
-func (x testRepository) mergeWorktreeBranch(t *testing.T, branchName string) {
-	t.Helper()
-	// Create a temporary worktree on main to merge into, then push.
-	mergePath := filepath.Join(resolvedTempDir(t), "merge-main")
-	runGitCommand(t, x.barePath, "worktree", "add", mergePath, "main")
-	runGitCommand(t, mergePath, "merge", "--ff-only", branchName)
-	runGitCommand(t, mergePath, "push", remoteName, "main")
-	runGitCommand(t, x.barePath, "fetch", remoteName)
-	runGitCommand(t, x.barePath, "worktree", "remove", mergePath)
 }
 
 func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
@@ -604,11 +545,6 @@ func gitTestEnv() []string {
 		"GIT_CONFIG_KEY_2=init.templateDir",
 		"GIT_CONFIG_VALUE_2=",
 	}
-}
-
-func runGitCommandAllowError(t *testing.T, cwd string, args ...string) {
-	t.Helper()
-	_, _ = runGitCommandResult(cwd, args...)
 }
 
 // resolvedTempDir returns a per-test temporary directory with symlinks resolved.
