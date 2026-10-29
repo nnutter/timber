@@ -22,7 +22,7 @@ type RepoPrompter interface {
 }
 
 func (x registeredRepo) ref() RepoRef {
-	return RepoRef{Name: x.Name, BarePath: x.BarePath}
+	return RepoRef(x)
 }
 
 type bubbleteaRepoPrompter struct {
