@@ -148,14 +148,15 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 // todoCommand connects the TODO CLI to worktree selection and process state.
 func todoCommand(runtime timber.Runtime) *cobra.Command {
 	return clitodo.New(clitodo.Dependencies{
-		CurrentDirectory: runtime.CurrentDirectory,
-		HomeDirectory:    runtime.HomeDirectory,
-		Environment:      runtime.Environment,
-		SkillContent:     runtime.TodoSkillContent,
-		Command:          runtime.NewCommand,
-		Complete:         cliComplete.QualifiedWorktreeNames(runtime),
-		RenderStatus:     func(message string) string { return display.StatusStyle.Render(message) },
-		ResolveGitDir:    runtime.ResolveTodoGitDir,
+		CurrentDirectory:  runtime.CurrentDirectory,
+		HomeDirectory:     runtime.HomeDirectory,
+		Environment:       runtime.Environment,
+		SkillContent:      runtime.TodoSkillContent,
+		Command:           runtime.NewCommand,
+		Complete:          cliComplete.QualifiedWorktreeNames(runtime),
+		RenderStatus:      func(message string) string { return display.StatusStyle.Render(message) },
+		ResolveGitDir:     runtime.ResolveTodoGitDir,
+		ResolveRepoGitDir: runtime.ResolveTodoRepoGitDir,
 	})
 }
 

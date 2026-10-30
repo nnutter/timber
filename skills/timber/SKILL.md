@@ -68,6 +68,9 @@ timber list @owner/repo --pr --json
 # Resolve per-worktree notes without opening an editor.
 timber todo feature/login@owner/repo --path
 timber todo feature/login@owner/repo --json
+# Resolve the repository-wide list using a worktree selector.
+timber todo feature/login@owner/repo --repo --path
+timber todo --repo --json
 
 # Preview cleanup before proposing any deletion.
 timber prune @owner/repo --dry-run
@@ -110,9 +113,12 @@ timber remove feature/login@owner/repo
   Names for manually linked checkouts can change when collisions appear; rediscover before acting.
 - The zsh wrapper `t` supplies shell integration and `cd` behavior.
   Do not assume `timber switch` changes the agent runner's working directory, and avoid `tui` or interactive pickers in unattended sessions.
-- `todo --path` and `todo --json` create a missing TODO.md inside the Git directory.
+- `todo --path` and `todo --json` create a missing TODO file inside the Git directory.
+  Without `--repo`, the file is the worktree's `TODO.md`; with `--repo`, it is `TODO.repo.md` in the common Git directory.
+  The positional selector still selects a worktree and thereby identifies its repository.
+  Repository TODO items do not affect worktree status counts.
   Resolve the path instead of writing a checkout-root TODO.md.
-  Notes are local worktree state, not committed source; preserve them before removal.
+  Notes are local Git state, not committed source; preserve worktree notes before removal.
 - A failed create can leave a worktree behind (for example after optional setup fails).
   Re-list before retrying; do not force-remove it automatically.
 

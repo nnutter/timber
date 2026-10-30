@@ -18,14 +18,15 @@ import (
 var fallbackEditors = []string{"nvim", "nano", "vim", "vi"}
 
 type Dependencies struct {
-	CurrentDirectory string
-	HomeDirectory    string
-	Environment      []string
-	SkillContent     string
-	ResolveGitDir    func(io.Reader, []string) (string, error)
-	Command          func(context.Context, string, ...string) *exec.Cmd
-	Complete         func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
-	RenderStatus     func(string) string
+	CurrentDirectory  string
+	HomeDirectory     string
+	Environment       []string
+	SkillContent      string
+	ResolveGitDir     func(io.Reader, []string) (string, error)
+	ResolveRepoGitDir func(io.Reader, []string) (string, error)
+	Command           func(context.Context, string, ...string) *exec.Cmd
+	Complete          func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
+	RenderStatus      func(string) string
 }
 
 type todoCommandOptions struct {
@@ -34,6 +35,7 @@ type todoCommandOptions struct {
 	installSkill bool
 	force        bool
 	jsonOutput   bool
+	repo         bool
 }
 
 func New(deps Dependencies) *cobra.Command {
@@ -41,16 +43,18 @@ func New(deps Dependencies) *cobra.Command {
 
 	command := &cobra.Command{
 		Use:               "todo [name[@repo]]",
-		Short:             "Open the worktree-specific TODO.md",
+		Short:             "Open the worktree or repository TODO list",
 		Args:              cobra.MaximumNArgs(1),
 		RunE:              options.Execute,
 		ValidArgsFunction: deps.Complete,
 	}
-	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO.md path instead of opening it")
+	command.Flags().BoolVar(&options.repo, "repo", false, "Use the repository TODO list instead of the worktree list")
+	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO list path instead of opening it")
 	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
 	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
-	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO.md items as JSON instead of opening the file")
+	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO items as JSON instead of opening the file")
 	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
+	command.MarkFlagsMutuallyExclusive("repo", "install-skill")
 	return command
 }
 
@@ -62,18 +66,25 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return x.installTodoSkill(command)
 	}
 
-	gitDir, err := x.deps.ResolveGitDir(command.InOrStdin(), args)
+	resolveGitDir := x.deps.ResolveGitDir
+	if x.repo {
+		resolveGitDir = x.deps.ResolveRepoGitDir
+	}
+	gitDir, err := resolveGitDir(command.InOrStdin(), args)
 	if err != nil {
 		return err
 	}
 
 	todoPath := tododata.Path(gitDir)
+	if x.repo {
+		todoPath = filepath.Join(gitDir, "TODO.repo.md")
+	}
 	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
 	if err != nil {
-		return fmt.Errorf("create TODO.md: %w", err)
+		return fmt.Errorf("create TODO file: %w", err)
 	}
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("create TODO.md: %w", err)
+		return fmt.Errorf("create TODO file: %w", err)
 	}
 
 	if x.pathOnly {
@@ -82,7 +93,7 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 	}
 
 	if x.jsonOutput {
-		return x.reportTodoJSON(command, gitDir)
+		return x.reportTodoJSON(command, todoPath)
 	}
 
 	editorLine, err := editorCommandLine(x.deps.Environment)
