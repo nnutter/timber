@@ -51,6 +51,8 @@ timber list @owner/repo --json
 
 # Only if registration is needed and authorized:
 timber repo add owner/repo
+# Create a local repository without a remote, with one empty commit:
+timber repo init demo -b main
 
 # Create an explicitly named worktree, with no Herdr window.
 timber create feature/login@owner/repo --no-herdr
@@ -102,6 +104,8 @@ timber remove feature/login@owner/repo
   Import relocates existing clean checkouts and requires a `trash`
   CLI.
   Do not use import as simple registration.
+- A repository created with `repo init` has no `origin`, so its worktree branches have no upstream and `remove` refuses them without `--force`.
+  Add a remote, then fetch, before relying on upstream or pull request status.
 - Detached worktrees are not managed.
   Names for manually linked checkouts can change when collisions appear; rediscover before acting.
 - The zsh wrapper `t` supplies shell integration and `cd` behavior.

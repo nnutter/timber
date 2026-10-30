@@ -208,6 +208,12 @@ func (x *zshCommandOptions) writeFunctionFile(target string) error {
                 cd "$target_dir" || return $?
             fi
             ;;
+        init)
+            # init creates only a bare repository, so there is no checkout to
+            # enter and the caller's directory stays where it is.
+            command timber "$@"
+            return $?
+            ;;
         import)
             # Snapshot cwd, then leave it before the source tree may disappear;
             # import moves the source worktrees to the system trash.

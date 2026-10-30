@@ -24,6 +24,7 @@ import (
 	repoadd "github.com/nnutter/timber/internal/cli/repo/add"
 	repofix "github.com/nnutter/timber/internal/cli/repo/fix"
 	repoimport "github.com/nnutter/timber/internal/cli/repo/import"
+	repoinit "github.com/nnutter/timber/internal/cli/repo/init"
 	repolist "github.com/nnutter/timber/internal/cli/repo/list"
 	reporemove "github.com/nnutter/timber/internal/cli/repo/remove"
 	reporename "github.com/nnutter/timber/internal/cli/repo/rename"
@@ -103,6 +104,12 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 			repofix.New(repofix.Dependencies{
 				Fix:          runtime.FixRepos,
 				RenderStatus: renderStatus,
+			}),
+			repoinit.New(repoinit.Dependencies{
+				Init:             runtime.InitRepo,
+				CompleteArgs:     cliComplete.RepoInitArguments(),
+				CompleteBranches: cliComplete.InitialBranches(),
+				RenderStatus:     renderStatus,
 			}),
 			repolist.New(runtime.ListRepos),
 			reporemove.New(runtime.RemoveRepo, cliComplete.RegisteredRepoNames(runtime), renderStatus),

@@ -248,6 +248,13 @@ func (x *Repository) remoteHeadBranch() (string, error) {
 		return localFallback, nil
 	}
 
+	// A repository without a remote still names its default branch in HEAD.
+	// `timber repo init` creates exactly that shape, and its initial branch
+	// need not be named main or master.
+	if headBranch, err := x.localHeadBranch(); err == nil {
+		return headBranch, nil
+	}
+
 	return "", fmt.Errorf("resolve origin/HEAD: no origin/HEAD, origin/master, origin/main, or local main/master")
 }
 
@@ -267,15 +274,58 @@ func (x *Repository) resolvedRemoteHeadBranch() (string, error) {
 	return "", fmt.Errorf("remote head branch not found")
 }
 
-func (x *Repository) ensureOriginRemoteTracking() error {
-	url, configured, err := x.gitConfigValue("remote." + remoteName + ".url")
+// fetchOrigin updates the remote-tracking refs from origin. A repository
+// without an origin, such as one created by `timber repo init`, has nothing
+// to fetch.
+func (x *Repository) fetchOrigin() error {
+	hasOrigin, err := x.hasOriginRemote()
 	if err != nil {
 		return err
 	}
-	if !configured || url == "" {
+	if !hasOrigin {
+		return nil
+	}
+	if _, err := x.git("fetch", remoteName); err != nil {
+		return fmt.Errorf("fetch %s: %w", remoteName, err)
+	}
+	return nil
+}
+
+// hasOriginRemote reports whether an origin URL is configured.
+func (x *Repository) hasOriginRemote() (bool, error) {
+	url, configured, err := x.gitConfigValue("remote." + remoteName + ".url")
+	if err != nil {
+		return false, err
+	}
+	return configured && url != "", nil
+}
+
+func (x *Repository) ensureOriginRemoteTracking() error {
+	hasOrigin, err := x.hasOriginRemote()
+	if err != nil {
+		return err
+	}
+	if !hasOrigin {
 		return fmt.Errorf("remote %q is not configured", remoteName)
 	}
 	return configureBareOriginTracking(x.Runtime, x.GitDir)
+}
+
+func (x *Repository) localHeadBranch() (string, error) {
+	result, err := x.git("symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("resolve HEAD: %w", err)
+	}
+	// HEAD survives the deletion of its branch and then names a branch that
+	// cannot start a worktree, so report only a branch that exists.
+	exists, err := x.branchExists(result.stdout)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return "", fmt.Errorf("HEAD branch %q does not exist", result.stdout)
+	}
+	return result.stdout, nil
 }
 
 func (x *Repository) firstExistingRemoteBranch(branchNames ...string) (string, error) {
