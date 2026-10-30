@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nnutter/timber/internal/cli/review/approve"
+	"github.com/nnutter/timber/internal/cli/review/auto"
 	"github.com/nnutter/timber/internal/cli/review/cache"
 	"github.com/nnutter/timber/internal/cli/review/commitmsg"
 	"github.com/nnutter/timber/internal/cli/review/commits"
@@ -22,6 +23,7 @@ import (
 	"github.com/nnutter/timber/internal/cli/review/log"
 	"github.com/nnutter/timber/internal/cli/review/status"
 	"github.com/nnutter/timber/internal/display"
+	coreconfig "github.com/nnutter/timber/internal/timber/config"
 	"github.com/nnutter/timber/internal/timber/review"
 )
 
@@ -31,21 +33,29 @@ type Command struct {
 	Input       io.Reader
 	Output      io.Writer
 	Terminal    io.Writer
+	LoadModels  func() (coreconfig.Models, error)
 	JSON        bool
 	Debug       bool
 	outputError error
 }
 
 // New builds the root command and installs every sub-command onto it.
-func New(svc review.Service, in io.Reader, out, term io.Writer, jsonDef bool) *cobra.Command {
-	c := &Command{Service: svc, Input: in, Output: out, Terminal: term, JSON: jsonDef}
+func New(svc review.Service, in io.Reader, out, term io.Writer, jsonDef bool, loadModels func() (coreconfig.Models, error)) *cobra.Command {
+	c := &Command{
+		Service:    svc,
+		Input:      in,
+		Output:     out,
+		Terminal:   term,
+		LoadModels: loadModels,
+		JSON:       jsonDef,
+	}
 	return c.build()
 }
 
 // Install adds the assembled tree to parent. It exists so every command
 // package shares the same constructor shape; the binary uses Execute.
-func Install(parent *cobra.Command, svc review.Service, in io.Reader, out, term io.Writer, jsonDef bool) {
-	parent.AddCommand(New(svc, in, out, term, jsonDef))
+func Install(parent *cobra.Command, svc review.Service, in io.Reader, out, term io.Writer, jsonDef bool, loadModels func() (coreconfig.Models, error)) {
+	parent.AddCommand(New(svc, in, out, term, jsonDef, loadModels))
 }
 
 // Execute runs a command with explicit process streams and checkout location.
@@ -88,6 +98,7 @@ func (c *Command) build() *cobra.Command {
 	root.PersistentFlags().BoolVar(&c.JSON, "json", c.JSON, "Emit a versioned JSON result without interactive prompts")
 	root.AddCommand(commitmsg.New(c.Service.Repository.Dir))
 	approve.Install(root, c.Service, c.Output)
+	auto.Install(root, c.Service, c.Output, c.LoadModels)
 	cache.Install(root, c.Service.Repository, c.Output)
 	commits.Install(root, c.Service, c.Input, c.Output, c.Terminal)
 	feedback.Install(root, c.Service, c.Output)

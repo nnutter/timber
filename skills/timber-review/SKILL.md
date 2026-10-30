@@ -30,13 +30,19 @@ The summary always includes these states in this order, including zero counts:
 1. `reviewing`
 1. `feedback`
 1. `incomplete`
+1. `auto_reviewed`
 1. `approved`
 
 Counts include all commits in the current feature range, including attached fixups.
 Each commit inherits its stack's current state.
 Historical attempts and removed commits do not contribute to the counts.
 Changed stacks lose prior approval and count as `needs_review` until a new attempt records another state.
-An empty feature range produces all five states with zero counts.
+An empty feature range produces all six states with zero counts.
+
+`auto_reviewed` marks a stack that `timber review auto` assessed without approval.
+Its attempt records the model decision, reason, and evidence.
+`timber review status` shows it as `Auto-Reviewed` and a model approval as `Auto-Approved`; a model approval counts as `approved`.
+The model result stands until the stack content changes, and it does not stop you from reviewing the stack yourself.
 
 Check the exit code and output version before interpreting the result.
 Keep stderr separate when parsing JSON: warnings can appear there.
@@ -241,7 +247,7 @@ Record the new commit IDs for the report.
 1. Report each attempt ID, addressed comment, new stack range, and validation result.
 
 Leave review eligibility and approval decisions to timber review.
-Do not call `timber review approve`, launch a review, or claim user approval.
+Do not call `timber review approve` or `timber review auto`, launch a review, or claim user approval.
 Do not change stored state to mark feedback addressed.
 Keep backup branches until the user requests their removal.
 Remove temporary fix branches only after checking their commits are reachable from the feature branch.

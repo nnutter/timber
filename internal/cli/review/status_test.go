@@ -38,7 +38,7 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 	before, err := os.ReadFile(view.Path)
 	require.NoError(t, err)
 	// The feedback stack has newer stacks above it, so its feedback is not reported.
-	want := []review.StateCount{{State: "needs_review", Count: 3}, {State: "reviewing", Count: 1}, {State: "feedback"}, {State: "incomplete", Count: 1}, {State: "approved", Count: 2}}
+	want := []review.StateCount{{State: "needs_review", Count: 3}, {State: "reviewing", Count: 1}, {State: "feedback"}, {State: "incomplete", Count: 1}, {State: "auto_reviewed"}, {State: "approved", Count: 2}}
 	entryStates := []string{"needs_review", "reviewing", "needs_review", "incomplete", "approved"}
 	for _, args := range [][]string{{"status", "--json"}, {"--json", "status"}} {
 		out, terminal, err := executeBinary(t, binary, dir, args...)
@@ -104,13 +104,13 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 	out, _, err = executeBinary(t, binary, dir, "status", "--json")
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
-	require.Equal(t, []review.StateCount{{State: "needs_review", Count: 6}, {State: "reviewing", Count: 1}, {State: "feedback"}, {State: "incomplete", Count: 1}, {State: "approved", Count: 0}}, result.Summary)
+	require.Equal(t, []review.StateCount{{State: "needs_review", Count: 6}, {State: "reviewing", Count: 1}, {State: "feedback"}, {State: "incomplete", Count: 1}, {State: "auto_reviewed"}, {State: "approved", Count: 0}}, result.Summary)
 	assertStatusVerbosity(t, binary, dir, out)
 	git(t, dir, "reset", "--hard", "main")
 	out, _, err = executeBinary(t, binary, dir, "status", "--json")
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
-	require.Equal(t, []review.StateCount{{State: "needs_review"}, {State: "reviewing"}, {State: "feedback"}, {State: "incomplete"}, {State: "approved"}}, result.Summary)
+	require.Equal(t, []review.StateCount{{State: "needs_review"}, {State: "reviewing"}, {State: "feedback"}, {State: "incomplete"}, {State: "auto_reviewed"}, {State: "approved"}}, result.Summary)
 	require.Empty(t, result.Entries)
 	require.Equal(t, "pending", result.Status) // The historical active attempt still needs recovery.
 }
@@ -150,7 +150,7 @@ func TestStatusWithoutReviewHistory(t *testing.T) {
 	require.Empty(t, terminal)
 	var result review.Result
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
-	require.Equal(t, []review.StateCount{{State: "needs_review", Count: 1}, {State: "reviewing"}, {State: "feedback"}, {State: "incomplete"}, {State: "approved"}}, result.Summary)
+	require.Equal(t, []review.StateCount{{State: "needs_review", Count: 1}, {State: "reviewing"}, {State: "feedback"}, {State: "incomplete"}, {State: "auto_reviewed"}, {State: "approved"}}, result.Summary)
 	require.Len(t, result.Entries, 1)
 	require.Equal(t, "needs_review", result.Entries[0].Status)
 	_, err = os.Stat(view.Path)

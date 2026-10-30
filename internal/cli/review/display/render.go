@@ -62,7 +62,7 @@ func RenderResult(result review.Result, verbose bool) (string, error) {
 func renderStackTable(entries []review.Entry) string {
 	rows := make([][]string, 0, len(entries))
 	for _, entry := range entries {
-		label := StatusLabel(entry.Status)
+		label := EntryStatusLabel(entry)
 		if entry.Previous != nil {
 			if entry.Status == "needs_review" {
 				label += " (changed)"
@@ -218,6 +218,16 @@ func renderAttempt(out *strings.Builder, attempt review.Attempt, prefix string) 
 	if attempt.Error != "" {
 		fmt.Fprintln(out, prefix+safeText(attempt.Error))
 	}
+	if attempt.Automatic != nil {
+		automatic := attempt.Automatic
+		fmt.Fprintf(out, "%sModel review %s: %s · %s · policy %s\n",
+			prefix, safeText(automatic.Model), autoDecisionLabel(automatic.Decision),
+			safeText(automatic.ResponseID), safeText(automatic.PolicyVersion))
+		fmt.Fprintf(out, "%s  %s\n", prefix, safeText(automatic.Reason))
+		for _, evidence := range automatic.Evidence {
+			fmt.Fprintf(out, "%s  - %s\n", prefix, safeText(evidence))
+		}
+	}
 	if len(attempt.Review) == 0 {
 		return nil
 	}
@@ -295,6 +305,14 @@ func ShortStack(stack review.Stack) string {
 	return first
 }
 
+// EntryStatusLabel names a model result separately from a user result.
+func EntryStatusLabel(entry review.Entry) string {
+	if entry.Status == "approved" && entry.Attempt != nil && entry.Attempt.ApprovalSource == "model" {
+		return "Auto-Approved"
+	}
+	return StatusLabel(entry.Status)
+}
+
 func StatusLabel(status string) string {
 	switch status {
 	case "needs_review":
@@ -307,8 +325,23 @@ func StatusLabel(status string) string {
 		return "Reviewing"
 	case "incomplete":
 		return "Incomplete"
+	case "auto_reviewed":
+		return "Auto-Reviewed"
 	default:
 		return safeText(status)
+	}
+}
+
+func autoDecisionLabel(decision string) string {
+	switch decision {
+	case "approve":
+		return "Approved"
+	case "needs-human-review":
+		return "Needs human review"
+	case "not-eligible":
+		return "Not eligible"
+	default:
+		return safeText(decision)
 	}
 }
 

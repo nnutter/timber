@@ -6,6 +6,7 @@ package cli
 import (
 	"context"
 	"io"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/nnutter/timber/internal/cli/worktreeoutput"
 	"github.com/nnutter/timber/internal/display"
 	"github.com/nnutter/timber/internal/timber"
+	coreconfig "github.com/nnutter/timber/internal/timber/config"
 )
 
 // Commands assembles the Timber command tree from application operations.
@@ -119,7 +121,9 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 				RenderStatus: renderStatus,
 			}),
 		),
-		clireview.New(runtime.CurrentDirectory, runtime.HomeDirectory, runtime.ReviewSkillContent),
+		clireview.New(runtime.CurrentDirectory, runtime.HomeDirectory, runtime.ReviewSkillContent, func() (coreconfig.Models, error) {
+			return coreconfig.LoadModels(filepath.Join(runtime.ConfigHome, "timber", "model.json"))
+		}),
 		herdrCommand(runtime),
 		cliswitch.New(cliswitch.Dependencies{
 			Resolve:    runtime.ResolveSwitchWorktree,

@@ -10,6 +10,26 @@ const summary = [
 	{ state: "approved", count: 3 },
 ];
 
+test("status parser counts recorded model results as needing review", () => {
+	const result = {
+		version: 1,
+		command: "status",
+		status: "pending",
+		entries: [],
+		summary: [
+			{ state: "needs_review", count: 1 },
+			{ state: "reviewing", count: 0 },
+			{ state: "feedback", count: 0 },
+			{ state: "incomplete", count: 0 },
+			{ state: "auto_reviewed", count: 2 },
+			{ state: "approved", count: 3 },
+		],
+	};
+	assert.deepEqual(parseTimberReviewStatus(JSON.stringify(result)), {
+		needsReview: 3, total: 6, feedback: 0, line: "Needs Review: 3/6",
+	});
+});
+
 test("status parser reads idle summary and includes additional states in total", () => {
 	const result = { version: 1, command: "status", status: "idle", entries: [], summary: [...summary, { state: "future", count: 2 }] };
 	assert.deepEqual(parseTimberReviewStatus(JSON.stringify(result)), {

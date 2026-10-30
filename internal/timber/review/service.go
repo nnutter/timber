@@ -56,6 +56,7 @@ func countStates(entries []Entry) []StateCount {
 		{State: "reviewing"},
 		{State: "feedback"},
 		{State: "incomplete"},
+		{State: "auto_reviewed"},
 		{State: "approved"},
 	}
 	for _, entry := range entries {

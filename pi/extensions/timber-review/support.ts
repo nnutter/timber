@@ -21,6 +21,9 @@ export const MISE_COORDINATES_EVENT = "mise-hooks:coordinates-on-stop";
 
 const REQUIRED_STATES = ["needs_review", "reviewing", "feedback", "incomplete", "approved"] as const;
 
+/** A recorded model result leaves the stack unapproved, so it still needs the user. */
+const NEEDS_REVIEW_STATES = ["needs_review", "auto_reviewed"] as const;
+
 export type TimberReviewStatus = {
 	needsReview: number;
 	total: number;
@@ -70,7 +73,8 @@ export function parseTimberReviewStatus(stdout: string): TimberReviewStatus | un
 
 	let total = 0;
 	for (const count of counts.values()) total += count;
-	const needsReview = counts.get("needs_review") ?? 0;
+	let needsReview = 0;
+	for (const state of NEEDS_REVIEW_STATES) needsReview += counts.get(state) ?? 0;
 	if (needsReview > total) return undefined;
 	const feedback = counts.get("feedback") ?? 0;
 	return {
