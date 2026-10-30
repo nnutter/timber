@@ -36,16 +36,15 @@ type todoJSONOutput struct {
 	Todos   []todoJSONItem  `json:"todos"`
 }
 
-// readTodoJSON parses a worktree's TODO.md into its JSON document. A missing
-// TODO.md is an empty checklist, not an error, because `timber todo` creates
-// the file lazily.
-func readTodoJSON(gitDir string) (todoJSONOutput, error) {
-	contents, err := os.ReadFile(todo.Path(gitDir))
+// readTodoJSON parses a TODO list into its JSON document. A missing file is
+// an empty checklist because `timber todo` creates the file lazily.
+func readTodoJSON(path string) (todoJSONOutput, error) {
+	contents, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return todoJSONOutput{Todos: []todoJSONItem{}}, nil
 	}
 	if err != nil {
-		return todoJSONOutput{}, fmt.Errorf("open %s: %w", todo.Path(gitDir), err)
+		return todoJSONOutput{}, fmt.Errorf("open %s: %w", path, err)
 	}
 	return todoJSONFromContents(string(contents)), nil
 }
@@ -91,8 +90,8 @@ func todoEntriesToJSON(entries []todo.Entry) todoJSONOutput {
 	return output
 }
 
-func (x *todoCommandOptions) reportTodoJSON(command *cobra.Command, gitDir string) error {
-	output, err := readTodoJSON(gitDir)
+func (x *todoCommandOptions) reportTodoJSON(command *cobra.Command, path string) error {
+	output, err := readTodoJSON(path)
 	if err != nil {
 		return err
 	}

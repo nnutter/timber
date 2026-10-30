@@ -6,6 +6,18 @@ import (
 	"path/filepath"
 )
 
+func (x Runtime) ResolveTodoRepoGitDir(input io.Reader, args []string) (string, error) {
+	gitDir, err := x.ResolveTodoGitDir(input, args)
+	if err != nil {
+		return "", err
+	}
+	result, err := gitOutput(x, gitDir, "--git-dir", gitDir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", fmt.Errorf("resolve common git dir: %w", err)
+	}
+	return filepath.Clean(result.stdout), nil
+}
+
 func (x Runtime) ResolveTodoGitDir(input io.Reader, args []string) (string, error) {
 	if len(args) == 0 {
 		gitDir, err := gitOutput(x, x.CurrentDirectory, "rev-parse", "--absolute-git-dir")

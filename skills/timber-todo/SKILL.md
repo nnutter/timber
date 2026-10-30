@@ -1,11 +1,14 @@
 ---
 name: timber-todo
-description: Track per-worktree TODO lists stored in the worktree's git-dir TODO.md file. Use when managing task lists for the current worktree.
+description: Track Timber worktree and repository TODO lists. Use when managing task lists for a worktree or its repository.
 ---
 
 # Timber TODO
 
-Each timber worktree has its own `TODO.md`, stored in the worktree's git directory (inside the common git-dir) so notes never pollute the checkout.
+Each Timber worktree has its own `TODO.md` in its Git directory.
+Each repository also has a shared `TODO.repo.md` in its common Git directory.
+These notes do not pollute the checkout.
+Repository TODO items do not affect worktree status counts.
 
 ## Locate the TODO file
 
@@ -15,9 +18,12 @@ Run from inside the worktree:
 timber todo --path                # current worktree
 timber todo feature/login --path  # another worktree in any repo
 timber todo feature/login@timber --path
+timber todo --repo --path                 # current worktree's repository
+timber todo feature/login@timber --repo --path
 ```
 
-This prints the absolute path of the worktree-specific `TODO.md`, creating it when missing.
+This prints the absolute path of the selected TODO file, creating it when missing.
+With `--repo`, the existing positional worktree selector identifies the repository; it is not a repository selector.
 Do not guess the path; always resolve it with `--path` first.
 
 ## Edit items as Markdown checkboxes
