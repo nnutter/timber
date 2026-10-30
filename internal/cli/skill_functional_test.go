@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,7 +38,9 @@ func TestTimberSkillExamplesMatchCLI(t *testing.T) {
 		}
 		examples++
 		t.Run(line, func(t *testing.T) {
-			args := strings.Fields(line)[1:]
+			args, err := splitShellWords(line)
+			require.NoError(t, err)
+			args = args[1:]
 			root := newRootCommand(timber.Runtime{})
 			command, remaining, err := root.Find(args)
 			require.NoError(t, err)
@@ -47,6 +50,44 @@ func TestTimberSkillExamplesMatchCLI(t *testing.T) {
 		})
 	}
 	require.Positive(t, examples, "must validate at least one runnable example")
+}
+
+// splitShellWords splits an example line into arguments, keeping a value that
+// the example quotes together so a title or body with spaces survives.
+func splitShellWords(line string) ([]string, error) {
+	var words []string
+	var current strings.Builder
+	var quote rune
+	inWord := false
+	for _, character := range line {
+		switch {
+		case quote != 0:
+			if character == quote {
+				quote = 0
+				continue
+			}
+			current.WriteRune(character)
+		case character == '\'' || character == '"':
+			quote = character
+			inWord = true
+		case character == ' ' || character == '\t':
+			if inWord {
+				words = append(words, current.String())
+				current.Reset()
+				inWord = false
+			}
+		default:
+			current.WriteRune(character)
+			inWord = true
+		}
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("unbalanced %q in example", string(quote))
+	}
+	if inWord {
+		words = append(words, current.String())
+	}
+	return words, nil
 }
 
 func TestTimberSkillWorktreeWorkflow(t *testing.T) {

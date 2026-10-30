@@ -60,6 +60,10 @@ type Runtime struct {
 	// value follows GH_CONFIG_DIR and then the Timber config home.
 	GhConfigDirectory string
 
+	// GitHubAPIBaseURL overrides the GitHub API endpoint. It is primarily
+	// useful for tests; an empty value uses the github.com endpoint.
+	GitHubAPIBaseURL string
+
 	// GitHubKeyringLookup overrides the system keyring read used to find a
 	// GitHub CLI credential. It is primarily useful for tests; an empty value
 	// uses the system keyring.

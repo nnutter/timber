@@ -325,6 +325,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `list` | List worktrees with merge/dirtiness status, TODO.md progress, and commit review progress (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
+| `pr create` | Open a GitHub pull request for a pushed worktree branch (`--title`, `--body`, `--base`, `--draft`) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |
 | `generate zsh` | Generate the `t` wrapper, completion, and autoload helper |
 
