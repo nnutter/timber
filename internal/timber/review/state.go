@@ -191,10 +191,10 @@ func (a Attempt) validate() error {
 	if !slices.Contains([]string{"reviewing", "approved", "feedback", "incomplete", "addressed"}, a.Status) {
 		return fmt.Errorf("invalid attempt status %q", a.Status)
 	}
-	if a.ApprovalSource != "" {
-		if a.ApprovalSource != "user-command" {
-			return fmt.Errorf("invalid approval source")
-		}
+	switch a.ApprovalSource {
+	case "", "user-command":
+	default:
+		return fmt.Errorf("invalid approval source")
 	}
 	if a.Replacement != nil {
 		if err := a.Replacement.validate(); err != nil {
