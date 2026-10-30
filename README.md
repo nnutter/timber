@@ -53,6 +53,10 @@ Sorting `timber list --sort repo` orders by the full structured name, so the gro
 Use `timber repo import <path>` to register an existing clean clone and recreate its worktrees (including the former main checkout) in this layout.
 When invoked through the shell wrapper (`t repo import <path>`), the shell also `cd`s to `$HOME` after success.
 
+Use `timber repo init <name>` to create a local repository without a remote.
+It creates the bare repository with one empty commit on `main`, or on `-b`/`--initial-branch <branch>`, so worktrees can be created before the repository has any history.
+Because there is no `origin`, created worktree branches have no upstream: `timber remove` needs `--force` for them until you add a remote.
+
 ## Demo
 
 ![timber worktree lifecycle](docs/demo/demo.gif)
@@ -306,6 +310,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | Command | What it does |
 | --- | --- |
 | `repo add` | Register a bare repository (GitHub `owner/repo` shorthand supported) |
+| `repo init` | Create a local repository with an empty initial commit (`-b`/`--initial-branch`, default `main`) |
 | `repo list` | List registered repositories with aliases and origin URLs |
 | `repo import` | Convert an existing clone into a managed repository |
 | `repo fix` | Move bare repositories from the old data directory into the worktree root and repair worktree links |

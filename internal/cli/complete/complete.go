@@ -98,3 +98,26 @@ func RepoSuffix(queries Queries) func(worktreeName, repoPrefix string, requireWo
 		return withError(queries.QueryRepoSuffixes(worktreeName, repoPrefix, requireWorktree))
 	}
 }
+
+// RepoInitArguments completes nothing for the name of a repository that does not
+// exist yet. The argument is a name, so file completion would only mislead.
+func RepoInitArguments() func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
+// InitialBranches completes the conventional names for a repository's first
+// branch. A repository that is about to be created has no branches of its own.
+func InitialBranches() func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	names := []string{"main", "master"}
+	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		matches := make([]string, 0, len(names))
+		for _, name := range names {
+			if strings.HasPrefix(name, toComplete) {
+				matches = append(matches, name)
+			}
+		}
+		return matches, cobra.ShellCompDirectiveNoFileComp
+	}
+}
