@@ -267,6 +267,14 @@ func (x *Repository) resolvedRemoteHeadBranch() (string, error) {
 	return "", fmt.Errorf("remote head branch not found")
 }
 
+// fetchOrigin updates the remote-tracking refs from origin.
+func (x *Repository) fetchOrigin() error {
+	if _, err := x.git("fetch", remoteName); err != nil {
+		return fmt.Errorf("fetch %s: %w", remoteName, err)
+	}
+	return nil
+}
+
 func (x *Repository) ensureOriginRemoteTracking() error {
 	url, configured, err := x.gitConfigValue("remote." + remoteName + ".url")
 	if err != nil {

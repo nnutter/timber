@@ -36,8 +36,8 @@ func (runtime Runtime) removeResolvedWorktree(repository *Repository, worktree m
 	}
 
 	if !force {
-		if _, err := repository.git("fetch", remoteName); err != nil {
-			return worktreeRemovalResult{}, fmt.Errorf("fetch %s: %w", remoteName, err)
+		if err := repository.fetchOrigin(); err != nil {
+			return worktreeRemovalResult{}, err
 		}
 	}
 

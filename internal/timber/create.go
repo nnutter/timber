@@ -72,8 +72,8 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 		return "", false, fmt.Errorf("worktree %q already exists", branchName)
 	}
 
-	if _, err := repository.git("fetch", remoteName); err != nil {
-		return "", false, fmt.Errorf("fetch %s: %w", remoteName, err)
+	if err := repository.fetchOrigin(); err != nil {
+		return "", false, err
 	}
 
 	upstreamBranch := upstream
