@@ -122,6 +122,29 @@ func TestRepoInitDiscardsRepositoryWithoutCommitIdentity(t *testing.T) {
 	}
 }
 
+func TestRepoInitWorktreeLifecycleWithoutOrigin(t *testing.T) {
+	t.Parallel()
+
+	runtime := repoInitRuntime(t)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "repo", "init", "demo", "-b", "trunk").err)
+	initialCommit := strings.TrimSpace(runGitCommand(t, repoTestBarePath(runtime, "demo"), "rev-parse", "refs/heads/trunk"))
+
+	created := runTimberCommandWithRuntime(t, runtime, "create", at("demo", "feature/local"))
+
+	require.NoError(t, created.err, created.stderr)
+	worktreePath := repoTestWorktreePath(runtime, "demo", "feature/local")
+	assert.Equal(t, "feature/local\n", runGitCommand(t, worktreePath, "branch", "--show-current"))
+	assert.Equal(t, initialCommit, strings.TrimSpace(runGitCommand(t, worktreePath, "rev-parse", "HEAD")))
+
+	refused := runTimberCommandWithRuntime(t, runtime, "remove", at("demo", "feature/local"))
+	require.Error(t, refused.err)
+	assert.Contains(t, refused.err.Error(), "has no upstream branch")
+
+	removed := runTimberCommandWithRuntime(t, runtime, "remove", at("demo", "feature/local"), "--force")
+	require.NoError(t, removed.err, removed.stderr)
+	assert.NoDirExists(t, worktreePath)
+}
+
 func TestRepoInitCompletion(t *testing.T) {
 	t.Parallel()
 
