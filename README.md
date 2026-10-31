@@ -253,7 +253,7 @@ This repository uses [mise](https://mise.jdx.dev) for tools and tasks.
 
 ```bash
 mise install
-mise run install-hooks
+mise run setup
 mise run all
 ```
 
@@ -265,7 +265,7 @@ Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-t
 `mise run static-analysis` runs the configured static-analysis tools, including gitleaks.
 `mise run coverage` (or `mise run cover`) runs the tests and prints coverage.
 `mise run demo` re-renders the [demo](#demo) GIF, MP4, and still from `docs/demo/demo.tape` (needs a working Chrome for VHS).
-`mise run install-hooks` replaces existing Lefthook hooks with the hooks in `hk.pkl`.
+`mise run setup` installs the hk Git hooks from `hk.pkl` without removing other hook managers.
 The commit-message hook requires `timber` on `PATH`.
 
 ## Shell integration

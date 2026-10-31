@@ -39,7 +39,6 @@ description = "Run tests and generate coverage report"
 run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
 
 [tasks.setup]
-alias = "install-hooks"
 description = "Install hk Git hooks without removing other hook managers"
 run = "hk install --mise"
 
