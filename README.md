@@ -122,12 +122,26 @@ Eligibility requires a root-level, regular `hk.pkl` and a GitHub upstream owned 
 Timber adds `--mise` when the worktree also has a root-level, regular `mise.toml`, so hooks can use mise-managed tools.
 A failed `hk install` also produces a warning and keeps the worktree.
 
+### Per-worktree Git hooks
+
+Linked worktrees share one hooks directory by default.
+`create` gives each new worktree its own directory at `<git-dir>/hooks` so that hooks can differ per worktree.
+Timber copies the hooks that the worktree had before the split.
+
+Timber sets `core.hooksPath` only when no scope sets it already.
+A hooks path from your Git configuration, from a hook manager such as hk, or from an earlier Timber run stays in control.
+
+Per-worktree configuration needs the `extensions.worktreeConfig` Git extension.
+Timber turns it on when it first configures hooks, and moves the bare repository marker into the main worktree configuration first, because Git stops special-casing `core.bare` once the extension is on.
+Git versions older than 2.20 reject this extension.
+
 Entry points:
 
 - [internal/timber/config.go](internal/timber/config.go): settings and config command
 - [internal/timber/github_identity.go](internal/timber/github_identity.go): identity cache
 - [internal/timber/mise_trust.go](internal/timber/mise_trust.go): eligibility and trust
 - [internal/timber/hk_install.go](internal/timber/hk_install.go): hk hook installation
+- [internal/timber/worktree_hooks.go](internal/timber/worktree_hooks.go): per-worktree hook configuration
 
 ## Commit review
 

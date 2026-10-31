@@ -122,6 +122,12 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 	runtime.autoTrustMise(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt, reporters.SetupWarning)
 	runtime.autoInstallHKHooks(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt, reporters.SetupWarning)
 
+	// Run after hook installation so the worktree hooks directory keeps the
+	// hooks a hook manager just installed.
+	if err := runtime.ConfigureWorktreeHooks(worktreePath); err != nil {
+		return "", false, err
+	}
+
 	if !(herdr || (!noHerdr && runtime.HerdrEnvironment)) {
 		return worktreePath, false, nil
 	}

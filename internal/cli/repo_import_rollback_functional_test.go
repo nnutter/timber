@@ -25,7 +25,9 @@ printf '%s\n' "$PWD" >> "$IMPORT_CHECKOUT_LOG"
 [ "$PWD" != "$IMPORT_FAIL_PATH" ]
 `), 0o755))
 	fixture.runtime.Environment = shellTestEnvironment(fixture.runtime.Environment,
-		"GIT_CONFIG_VALUE_0="+hooks,
+		"GIT_CONFIG_COUNT=3",
+		"GIT_CONFIG_KEY_2=core.hooksPath",
+		"GIT_CONFIG_VALUE_2="+hooks,
 		"IMPORT_CHECKOUT_LOG="+log,
 		"IMPORT_FAIL_PATH="+fixture.managedWorktreePath("project", "feature"),
 	)
@@ -47,7 +49,7 @@ printf '%s\n' "$PWD" >> "$IMPORT_CHECKOUT_LOG"
 	assert.NoDirExists(t, fixture.managedWorktreePath("project", "main"))
 	assert.NoDirExists(t, fixture.managedWorktreePath("project", "feature"))
 
-	fixture.runtime.Environment = shellTestEnvironment(fixture.runtime.Environment, "GIT_CONFIG_VALUE_0="+os.DevNull)
+	fixture.runtime.Environment = shellTestEnvironment(fixture.runtime.Environment, "GIT_CONFIG_VALUE_2="+os.DevNull)
 	retry := fixture.importRun(t, "--name", "project")
 	require.NoError(t, retry.err, retry.stderr)
 	fixture.assertWorktreeBranchAt(t, fixture.managedWorktreePath("project", "main"), "main")
