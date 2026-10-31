@@ -37,6 +37,9 @@ For detailed checklist editing, use the separate `timber-todo` skill.
   `~/.config/timber/config.toml`.
 - Bare repositories live at `$TIMBER_WORKTREE_ROOT/<repo-name>/.git` (fallback `~/worktrees/<repo-name>/.git`). `TIMBER_WORKTREE_ROOT` overrides the default `~/worktrees` checkout root.
   Preserve the user's environment.
+- Each managed worktree uses its own Git hooks directory at `<git-dir>/hooks`.
+  Timber copies the shared hooks first and sets `core.hooksPath` only when no Git scope sets it, so an existing hook manager keeps control.
+  `create` and `switch` apply this setting; a `switch` that cannot apply it exits non-zero.
 - Automatic mise trust and hk installation default to disabled.
   Do not enable them without approval: they permit repository-defined code execution.
   Already-enabled settings still apply to headless creation; `--no-herdr` does not disable them.

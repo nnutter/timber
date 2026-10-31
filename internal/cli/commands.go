@@ -143,10 +143,11 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 		}),
 		herdrCommand(runtime),
 		cliswitch.New(cliswitch.Dependencies{
-			Resolve:    runtime.ResolveSwitchWorktree,
-			Create:     create,
-			ReportPath: runtime.ReportSwitchWorktreePath,
-			Complete:   cliComplete.QualifiedWorktreeNames(runtime),
+			Resolve:        runtime.ResolveSwitchWorktree,
+			Create:         create,
+			ConfigureHooks: runtime.ConfigureWorktreeHooks,
+			ReportPath:     runtime.ReportSwitchWorktreePath,
+			Complete:       cliComplete.QualifiedWorktreeNames(runtime),
 		}),
 		todoCommand(runtime),
 		cligit.New(cligit.Dependencies{
