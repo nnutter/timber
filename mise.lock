@@ -46,45 +46,6 @@ url = "https://github.com/nnutter/mdlint/releases/download/v0.4.2/mdlint-windows
 url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/683662456"
 provenance = "github-attestations"
 
-[[tools.gitleaks]]
-version = "8.30.1"
-backend = "aqua:gitleaks/gitleaks"
-
-[tools.gitleaks."platforms.linux-arm64"]
-checksum = "sha256:e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080"
-url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332057"
-
-[tools.gitleaks."platforms.linux-arm64-musl"]
-checksum = "sha256:e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080"
-url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332057"
-
-[tools.gitleaks."platforms.linux-x64"]
-checksum = "sha256:551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
-url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332058"
-
-[tools.gitleaks."platforms.linux-x64-musl"]
-checksum = "sha256:551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
-url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332058"
-
-[tools.gitleaks."platforms.macos-arm64"]
-checksum = "sha256:b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5"
-url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332059"
-
-[tools.gitleaks."platforms.macos-x64"]
-checksum = "sha256:dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709"
-url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_x64.tar.gz"
-url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332053"
-
-[tools.gitleaks."platforms.windows-x64"]
-checksum = "sha256:d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e"
-url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip"
-url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378333178"
-
 [[tools.go]]
 version = "1.27.3"
 backend = "core:go"
@@ -116,73 +77,6 @@ url = "https://dl.google.com/go/go1.27.3.darwin-amd64.tar.gz"
 [tools.go."platforms.windows-x64"]
 checksum = "sha256:f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff"
 url = "https://dl.google.com/go/go1.27.3.windows-amd64.zip"
-
-[[tools."go:github.com/Antonboom/testifylint"]]
-version = "1.6.4"
-backend = "go:github.com/Antonboom/testifylint"
-
-[[tools."go:github.com/alecthomas/go-check-sumtype/cmd/go-check-sumtype"]]
-version = "0.5.0"
-backend = "go:github.com/alecthomas/go-check-sumtype/cmd/go-check-sumtype"
-
-[[tools."go:github.com/kisielk/errcheck"]]
-version = "1.20.0"
-backend = "go:github.com/kisielk/errcheck"
-
-[[tools."go:github.com/securego/gosec/v2/cmd/gosec"]]
-version = "2.29.0"
-backend = "go:github.com/securego/gosec/v2/cmd/gosec"
-
-[[tools."go:go.uber.org/nilaway/cmd/nilaway"]]
-version = "8649a03c818a"
-backend = "go:go.uber.org/nilaway/cmd/nilaway"
-
-[[tools."go:golang.org/x/tools/cmd/goimports"]]
-version = "0.49.0"
-backend = "go:golang.org/x/tools/cmd/goimports"
-
-[[tools."go:golang.org/x/vuln/cmd/govulncheck"]]
-version = "1.6.0"
-backend = "go:golang.org/x/vuln/cmd/govulncheck"
-
-[[tools.gofumpt]]
-version = "0.11.0"
-backend = "aqua:mvdan/gofumpt"
-
-[tools.gofumpt."platforms.linux-arm64"]
-checksum = "sha256:9272c2d1738acc1acae33793419e74c69653e70fe56bec4ad9044b12b54715e5"
-url = "https://github.com/mvdan/gofumpt/releases/download/v0.11.0/gofumpt_v0.11.0_linux_arm64"
-url_api = "https://api.github.com/repos/mvdan/gofumpt/releases/assets/491232873"
-
-[tools.gofumpt."platforms.linux-arm64-musl"]
-checksum = "sha256:9272c2d1738acc1acae33793419e74c69653e70fe56bec4ad9044b12b54715e5"
-url = "https://github.com/mvdan/gofumpt/releases/download/v0.11.0/gofumpt_v0.11.0_linux_arm64"
-url_api = "https://api.github.com/repos/mvdan/gofumpt/releases/assets/491232873"
-
-[tools.gofumpt."platforms.linux-x64"]
-checksum = "sha256:9f247ec294f5082375c7b062f3ddf48c8212a8711f65a6d75f5129f7fda0d7da"
-url = "https://github.com/mvdan/gofumpt/releases/download/v0.11.0/gofumpt_v0.11.0_linux_amd64"
-url_api = "https://api.github.com/repos/mvdan/gofumpt/releases/assets/491232932"
-
-[tools.gofumpt."platforms.linux-x64-musl"]
-checksum = "sha256:9f247ec294f5082375c7b062f3ddf48c8212a8711f65a6d75f5129f7fda0d7da"
-url = "https://github.com/mvdan/gofumpt/releases/download/v0.11.0/gofumpt_v0.11.0_linux_amd64"
-url_api = "https://api.github.com/repos/mvdan/gofumpt/releases/assets/491232932"
-
-[tools.gofumpt."platforms.macos-arm64"]
-checksum = "sha256:18936628f195369a80a129c73ee33d23e39086286dab538781ba826effc7e10b"
-url = "https://github.com/mvdan/gofumpt/releases/download/v0.11.0/gofumpt_v0.11.0_darwin_arm64"
-url_api = "https://api.github.com/repos/mvdan/gofumpt/releases/assets/491232979"
-
-[tools.gofumpt."platforms.macos-x64"]
-checksum = "sha256:b93b3d2c326196af9fb1ce34a5436a18e7b9a73a795bf42e5b6a542eea88d322"
-url = "https://github.com/mvdan/gofumpt/releases/download/v0.11.0/gofumpt_v0.11.0_darwin_amd64"
-url_api = "https://api.github.com/repos/mvdan/gofumpt/releases/assets/491232997"
-
-[tools.gofumpt."platforms.windows-x64"]
-checksum = "sha256:e7ae4253344a600f1116e4b5c7d0d0fcc108abbbf383c3d786a530077b4d4622"
-url = "https://github.com/mvdan/gofumpt/releases/download/v0.11.0/gofumpt_v0.11.0_windows_amd64.exe"
-url_api = "https://api.github.com/repos/mvdan/gofumpt/releases/assets/491232806"
 
 [[tools.hk]]
 version = "2.8.0"
@@ -257,45 +151,6 @@ checksum = "sha256:ac3c55c2e43c20964dc5faf51e47bf73a90150dfe1874aa37753651753edf
 url = "https://github.com/apple/pkl/releases/download/0.32.2/pkl-windows-amd64.exe"
 url_api = "https://api.github.com/repos/apple/pkl/releases/assets/663854370"
 
-[[tools.staticcheck]]
-version = "2026.2.1"
-backend = "aqua:dominikh/go-tools/staticcheck"
-
-[tools.staticcheck."platforms.linux-arm64"]
-checksum = "sha256:594421f28ba620ea14b98377cb84a309cf73cc420ba0f52f30c7fa4d92fd2b0e"
-url = "https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524230775"
-
-[tools.staticcheck."platforms.linux-arm64-musl"]
-checksum = "sha256:594421f28ba620ea14b98377cb84a309cf73cc420ba0f52f30c7fa4d92fd2b0e"
-url = "https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524230775"
-
-[tools.staticcheck."platforms.linux-x64"]
-checksum = "sha256:91186205a78db3f2d40efb3c102749aef66f85c2204793de7488d163b655aa7c"
-url = "https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524230032"
-
-[tools.staticcheck."platforms.linux-x64-musl"]
-checksum = "sha256:91186205a78db3f2d40efb3c102749aef66f85c2204793de7488d163b655aa7c"
-url = "https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524230032"
-
-[tools.staticcheck."platforms.macos-arm64"]
-checksum = "sha256:06db0a00e5d44d0d60bc99dab10e1bd49103531054d560af658775450a25f72c"
-url = "https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524227332"
-
-[tools.staticcheck."platforms.macos-x64"]
-checksum = "sha256:a581a26261c9554a9a9450e0de2d0cfd93a7babd4de98cc9ea556444015216f4"
-url = "https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524226842"
-
-[tools.staticcheck."platforms.windows-x64"]
-checksum = "sha256:c111b68123d4fb738d09184d8dae37211488431259150c658a4b80d7ef3c1c2c"
-url = "https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_windows_amd64.tar.gz"
-url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/524233774"
-
 [[tools.tombi]]
 version = "1.9.7"
 backend = "aqua:tombi-toml/tombi"
@@ -341,31 +196,6 @@ checksum = "sha256:6cd38ddb14c3cecde86becbad22a3e8e4e73aa53c98197e78e68f742096e3
 url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-x86_64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/683771552"
 provenance = "github-attestations"
-
-[[tools.ttyd]]
-version = "1.7.7"
-backend = "aqua:tsl0922/ttyd"
-
-[tools.ttyd."platforms.linux-arm64"]
-url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.aarch64"
-url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377644"
-
-[tools.ttyd."platforms.linux-arm64-musl"]
-url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.aarch64"
-url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377644"
-
-[tools.ttyd."platforms.linux-x64"]
-checksum = "blake3:6ed0d916345e111411cdc7f7d649bcb984ec1ee603d470b2151ac0a31b9585a4"
-url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64"
-url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377628"
-
-[tools.ttyd."platforms.linux-x64-musl"]
-url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64"
-url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377628"
-
-[tools.ttyd."platforms.windows-x64"]
-url = "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.win32.exe"
-url_api = "https://api.github.com/repos/tsl0922/ttyd/releases/assets/159377630"
 
 [[tools.uv]]
 version = "0.13.6"
