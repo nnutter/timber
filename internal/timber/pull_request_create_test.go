@@ -34,7 +34,6 @@ func newFakeGitHub(t *testing.T) (*fakeGitHub, *httptest.Server) {
 	t.Helper()
 	github := &fakeGitHub{
 		handlers: map[string]http.HandlerFunc{
-			"GET /repos/owner/timber":                       repositoryHandler("main"),
 			"GET /repos/owner/timber/branches/feature/pull": branchHandler(""),
 			"POST /repos/owner/timber/pulls":                createdPullRequestHandler("https://github.com/owner/timber/pull/7"),
 		},
@@ -75,12 +74,6 @@ func (x *fakeGitHub) replaceHandler(key string, handler http.HandlerFunc) {
 	x.handlers[key] = handler
 }
 
-func repositoryHandler(defaultBranch string) http.HandlerFunc {
-	return func(writer http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(writer, `{"full_name":"owner/timber","default_branch":"`+defaultBranch+`"}`)
-	}
-}
-
 // branchHandler answers a branch lookup with sha. An empty sha reports a
 // branch GitHub does not have.
 func branchHandler(sha string) http.HandlerFunc {
@@ -119,6 +112,26 @@ func preparePullRequestRepository(t *testing.T) (testRepository, Runtime, *fakeG
 	return repository, runtime, github
 }
 
+// useForkUpstream points the pull request branch at a second remote, as a
+// GitHub fork workflow does.
+func useForkUpstream(t *testing.T, repository testRepository) {
+	t.Helper()
+
+	runGitCommand(t, repository.barePath, "remote", "add", "fork", "git@github.com:contributor/timber.git")
+	mainSHA := strings.TrimSpace(runGitCommand(t, repository.barePath, "rev-parse", "main"))
+	runGitCommand(t, repository.barePath, "update-ref", "refs/remotes/fork/main", mainSHA)
+	runGitCommand(t, repository.worktreePath(pullRequestBranch), "branch", "--set-upstream-to", "fork/main", pullRequestBranch)
+}
+
+// pullRequestUpstream reports the upstream a worktree branch tracks, as
+// "<remote>/<branch>".
+func pullRequestUpstream(t *testing.T, repository testRepository) string {
+	t.Helper()
+
+	upstream := runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "--abbrev-ref", pullRequestBranch+"@{upstream}")
+	return strings.TrimSpace(upstream)
+}
+
 func TestCreatePullRequestCreatesOnGitHub(t *testing.T) {
 	repository, runtime, github := preparePullRequestRepository(t)
 	headSHA := strings.TrimSpace(runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "HEAD"))
@@ -131,16 +144,17 @@ func TestCreatePullRequestCreatesOnGitHub(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "https://github.com/owner/timber/pull/7", url)
+	// The command reads the upstream, so it must leave it in place.
+	assert.Equal(t, "origin/main", pullRequestUpstream(t, repository))
 
 	requests := github.recorded()
-	require.Len(t, requests, 3)
+	require.Len(t, requests, 2)
 	for _, request := range requests {
 		assert.Equal(t, "Bearer test-token", request.auth)
 	}
-	assert.Equal(t, "GET /repos/owner/timber", requests[0].method+" "+requests[0].path)
-	assert.Equal(t, "GET /repos/owner/timber/branches/feature/pull", requests[1].method+" "+requests[1].path)
+	assert.Equal(t, "GET /repos/owner/timber/branches/feature/pull", requests[0].method+" "+requests[0].path)
 
-	created := requests[2]
+	created := requests[1]
 	assert.Equal(t, "POST /repos/owner/timber/pulls", created.method+" "+created.path)
 	assert.Equal(t, map[string]any{
 		"title": "Add a pull request command",
@@ -213,16 +227,14 @@ func TestCreatePullRequestUsesExplicitBase(t *testing.T) {
 	require.NoError(t, err)
 
 	requests := github.recorded()
-	require.Len(t, requests, 3)
-	assert.Equal(t, "develop", requests[2].body["base"])
+	require.Len(t, requests, 2)
+	assert.Equal(t, "develop", requests[1].body["base"])
 }
 
-func TestCreatePullRequestUsesDefaultBranchForSelfTrackingBranch(t *testing.T) {
-	repository, runtime, github := preparePullRequestRepository(t)
-	headSHA := strings.TrimSpace(runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "HEAD"))
-	github.replaceHandler("GET /repos/owner/timber/branches/feature/pull", branchHandler(headSHA))
-	github.replaceHandler("GET /repos/owner/timber", repositoryHandler("trunk"))
-	// A self-named upstream names no separate base branch.
+func TestCreatePullRequestRequiresBaseForSelfTrackingBranch(t *testing.T) {
+	repository, runtime, _ := preparePullRequestRepository(t)
+	// A self-named upstream names no separate base branch, and Timber must not
+	// let GitHub choose one.
 	runGitCommand(t, repository.worktreePath(pullRequestBranch), "config", "branch."+pullRequestBranch+".remote", remoteName)
 	runGitCommand(t, repository.worktreePath(pullRequestBranch), "config", "branch."+pullRequestBranch+".merge", "refs/heads/"+pullRequestBranch)
 
@@ -230,11 +242,61 @@ func TestCreatePullRequestUsesDefaultBranchForSelfTrackingBranch(t *testing.T) {
 		Raw:   at(testRepoName, pullRequestBranch),
 		Title: "Add a pull request command",
 	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--base")
+}
+
+func TestCreatePullRequestResolvesRepositoryWithoutUpstream(t *testing.T) {
+	repository, runtime, github := preparePullRequestRepository(t)
+	headSHA := strings.TrimSpace(runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "HEAD"))
+	runGitCommand(t, repository.worktreePath(pullRequestBranch), "branch", "--unset-upstream")
+	github.replaceHandler("GET /repos/owner/timber/branches/"+pullRequestBranch, branchHandler(headSHA))
+
+	_, err := runtime.CreatePullRequest(t.Context(), strings.NewReader(""), PullRequestDraft{
+		Raw:   at(testRepoName, pullRequestBranch),
+		Title: "Add a pull request command",
+		Base:  "develop",
+	})
 	require.NoError(t, err)
 
 	requests := github.recorded()
-	require.Len(t, requests, 3)
-	assert.Equal(t, "trunk", requests[2].body["base"])
+	require.Len(t, requests, 2)
+	created := requests[1]
+	assert.Equal(t, "POST /repos/owner/timber/pulls", created.method+" "+created.path)
+	assert.Equal(t, "develop", created.body["base"])
+}
+
+func TestCreatePullRequestUsesUpstreamRemoteRepository(t *testing.T) {
+	repository, runtime, github := preparePullRequestRepository(t)
+	headSHA := strings.TrimSpace(runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "HEAD"))
+	useForkUpstream(t, repository)
+	github.replaceHandler("GET /repos/contributor/timber/branches/"+pullRequestBranch, branchHandler(headSHA))
+	github.replaceHandler("POST /repos/contributor/timber/pulls", createdPullRequestHandler("https://github.com/contributor/timber/pull/9"))
+
+	url, err := runtime.CreatePullRequest(t.Context(), strings.NewReader(""), PullRequestDraft{
+		Raw:   at(testRepoName, pullRequestBranch),
+		Title: "Add a pull request command",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://github.com/contributor/timber/pull/9", url)
+
+	requests := github.recorded()
+	require.Len(t, requests, 2)
+	created := requests[1]
+	assert.Equal(t, "POST /repos/contributor/timber/pulls", created.method+" "+created.path)
+	assert.Equal(t, "main", created.body["base"])
+}
+
+func TestCreatePullRequestPushesToUpstreamRemote(t *testing.T) {
+	repository, runtime, _ := preparePullRequestRepository(t)
+	useForkUpstream(t, repository)
+
+	_, err := runtime.CreatePullRequest(t.Context(), strings.NewReader(""), PullRequestDraft{
+		Raw:   at(testRepoName, pullRequestBranch),
+		Title: "Add a pull request command",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "git push fork "+pullRequestBranch)
 }
 
 func TestCreatePullRequestRequiresTitle(t *testing.T) {

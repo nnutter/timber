@@ -124,7 +124,11 @@ timber remove feature/login@owner/repo
 - `pr create` creates a pull request only; it does not push, change the worktree, or open a browser.
   Push the branch first with the user's existing Git authentication.
   A branch that GitHub does not have, or has at a different commit, fails with the `git push` command to run.
-  Forks and GitHub Enterprise hosts are not supported: the pull request head and base must be branches of the same `github.com` repository.
+  The request always names a base repository and a base branch, because GitHub otherwise picks a base, and from a fork it can pick the fork's source repository.
+  The repository comes from the branch's upstream remote, so a branch that tracks `upstream/master` opens the pull request on the `upstream` remote's GitHub repository.
+  The base branch is the branch's upstream branch, or `--base`.
+  A branch that tracks its own name, or tracks no remote branch, needs `--base`.
+  Only `github.com` hosts are supported.
 - `list` and `prune` default to every registered repository: always qualify cleanup with `@<repo>`. `repo remove`, `repo rename`, `repo import`, and `repo fix` are broader operations requiring explicit approval. `repo fix` moves bare repositories into the worktree root and rewrites worktree links.
   Import relocates existing clean checkouts and requires a `trash`
   CLI.
