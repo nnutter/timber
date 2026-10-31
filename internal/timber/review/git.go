@@ -287,16 +287,23 @@ func environmentValue(environment []string, key string) string {
 	return value
 }
 
+// diffOptions pins every diff input that changes rendered patch bytes. Patch
+// fingerprints and model review must describe the same bytes, so neither reads
+// user diff configuration.
+var diffOptions = []string{
+	"-c", "core.quotePath=true", "-c", "diff.suppressBlankEmpty=false", "diff",
+	"--patch", "--binary", "--full-index", "--no-renames", "--no-ext-diff",
+	"--no-textconv", "--no-color", "--no-relative", "--ignore-submodules=none",
+	"--src-prefix=a/", "--dst-prefix=b/", "--output-indicator-new=+",
+	"--output-indicator-old=-", "--output-indicator-context= ",
+	"--unified=3", "--inter-hunk-context=0", "--diff-algorithm=myers",
+	"--no-indent-heuristic", "--submodule=short", "-O/dev/null",
+}
+
 // patchHash fingerprints the aggregate diff, not commit metadata. Empty diffs
 // have no content identity, so unrelated empty commits cannot share approval.
 func (r Repository) patchHash(ctx context.Context, base, tip string) (string, error) {
-	patch, err := r.gitOutput(ctx, "-c", "core.quotePath=true", "-c", "diff.suppressBlankEmpty=false", "diff",
-		"--patch", "--binary", "--full-index", "--no-renames", "--no-ext-diff",
-		"--no-textconv", "--no-color", "--no-relative", "--ignore-submodules=none",
-		"--src-prefix=a/", "--dst-prefix=b/", "--output-indicator-new=+",
-		"--output-indicator-old=-", "--output-indicator-context= ",
-		"--unified=3", "--inter-hunk-context=0", "--diff-algorithm=myers",
-		"--no-indent-heuristic", "--submodule=short", "-O/dev/null", base, tip, "--")
+	patch, err := r.gitOutput(ctx, slices.Concat(diffOptions, []string{base, tip, "--"})...)
 	if err != nil {
 		return "", err
 	}

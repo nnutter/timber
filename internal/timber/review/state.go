@@ -9,8 +9,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 	"uuid"
+
+	"github.com/nnutter/timber/internal/timber/review/autoreview"
 )
 
 // Attempt retains the immutable scope and result of a review.
@@ -20,12 +23,23 @@ type Attempt struct {
 	Status         string                    `json:"status"`
 	StartedAt      string                    `json:"startedAt"`
 	ApprovalSource string                    `json:"approvalSource,omitempty"`
+	Automatic      *AutomaticReview          `json:"automatic,omitzero"`
 	Review         jsontext.Value            `json:"review,omitempty"`
 	Error          string                    `json:"error,omitempty"`
 	Deferred       bool                      `json:"deferred,omitzero"`
 	Response       string                    `json:"response,omitempty"`
 	Replacement    *Stack                    `json:"replacement,omitzero"`
 	Extra          map[string]jsontext.Value `json:",inline"`
+}
+
+// AutomaticReview records the evidence and provenance of a model review.
+type AutomaticReview struct {
+	PolicyVersion string   `json:"policyVersion"`
+	Decision      string   `json:"decision"`
+	Model         string   `json:"model"`
+	ResponseID    string   `json:"responseId"`
+	Reason        string   `json:"reason"`
+	Evidence      []string `json:"evidence"`
 }
 
 // State retains the version-1 attempt format.
@@ -160,11 +174,26 @@ func (s State) validate() error {
 // matches transfers only completed outcomes. Saved sessions and interrupted
 // attempts retain their original commit scope for recovery.
 func (a Attempt) matches(stack Stack) bool {
+	if a.ApprovalSource == "model" {
+		// A result stands only under the policy that produced it: a policy
+		// change asks different questions, so earlier answers cannot count.
+		if a.Automatic == nil || a.Automatic.PolicyVersion != autoreview.PolicyVersion {
+			return false
+		}
+		// A model approval covers the commit messages and any context the model
+		// read, so unlike a user approval it must not transfer to a rewritten
+		// commit that happens to keep the same patch.
+		if a.Status == "approved" {
+			return sameStack(a.Stack, stack) && a.Stack.Subject == stack.Subject
+		}
+	}
 	if sameStack(a.Stack, stack) {
 		return true
 	}
 	switch a.Status {
-	case "approved", "feedback":
+	case "approved", "feedback", "auto_reviewed":
+		// A recorded model result only avoids asking again while the content is
+		// unchanged, so it resets exactly like a user result.
 		return samePatch(a.Stack, stack)
 	default:
 		return false
@@ -188,13 +217,38 @@ func (a Attempt) validate() error {
 	if _, err := time.Parse(time.RFC3339Nano, a.StartedAt); err != nil {
 		return fmt.Errorf("invalid attempt start time: %w", err)
 	}
-	if !slices.Contains([]string{"reviewing", "approved", "feedback", "incomplete", "addressed"}, a.Status) {
+	if !slices.Contains([]string{"reviewing", "approved", "feedback", "incomplete", "addressed", "auto_reviewed"}, a.Status) {
 		return fmt.Errorf("invalid attempt status %q", a.Status)
 	}
-	if a.ApprovalSource != "" {
-		if a.ApprovalSource != "user-command" {
-			return fmt.Errorf("invalid approval source")
+	switch a.ApprovalSource {
+	case "", "user-command":
+		if a.Automatic != nil {
+			return fmt.Errorf("automatic evidence requires a model review source")
 		}
+		if a.Status == "auto_reviewed" {
+			return fmt.Errorf("recorded model review requires a model review source")
+		}
+	case "model":
+		if a.Automatic == nil {
+			return fmt.Errorf("model review requires recorded evidence")
+		}
+		if err := a.Automatic.validate(); err != nil {
+			return err
+		}
+		switch a.Status {
+		case "approved":
+			if a.Automatic.Decision != "approve" {
+				return fmt.Errorf("model approval requires an approve decision")
+			}
+		case "auto_reviewed":
+			if a.Automatic.Decision == "approve" {
+				return fmt.Errorf("recorded model review must not approve")
+			}
+		default:
+			return fmt.Errorf("model review requires approved or auto_reviewed status")
+		}
+	default:
+		return fmt.Errorf("invalid approval source")
 	}
 	if a.Replacement != nil {
 		if err := a.Replacement.validate(); err != nil {
@@ -202,6 +256,29 @@ func (a Attempt) validate() error {
 		}
 	}
 	return a.Stack.validate()
+}
+
+func (a AutomaticReview) validate() error {
+	for _, value := range []string{a.PolicyVersion, a.Decision, a.Model, a.ResponseID, a.Reason} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("model review requires policy, decision, model, response ID, and reason")
+		}
+	}
+	switch a.Decision {
+	case "needs-human-review", "not-eligible":
+	case "approve":
+		if len(a.Evidence) == 0 {
+			return fmt.Errorf("model approval requires evidence")
+		}
+	default:
+		return fmt.Errorf("invalid model decision %q", a.Decision)
+	}
+	for _, evidence := range a.Evidence {
+		if strings.TrimSpace(evidence) == "" {
+			return fmt.Errorf("model review evidence must not be empty")
+		}
+	}
+	return nil
 }
 
 func newAttempt(stack Stack, status string) Attempt {

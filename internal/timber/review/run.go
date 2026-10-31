@@ -497,10 +497,11 @@ func nextStack(view Snapshot, state State) *Stack {
 func recoverablePrior(state State, stack Stack) *Attempt {
 	prior := state.latest(stack)
 	if prior != nil {
-		if prior.Status != "approved" {
-			return prior
+		// A model result has no saved session to recover or replace.
+		if prior.Status == "approved" || prior.ApprovalSource == "model" {
+			return nil
 		}
-		return nil
+		return prior
 	}
 	prior = state.previous(stack)
 	if prior != nil {

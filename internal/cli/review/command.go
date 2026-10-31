@@ -10,17 +10,18 @@ import (
 	"github.com/spf13/cobra"
 
 	reviewroot "github.com/nnutter/timber/internal/cli/review/root"
+	coreconfig "github.com/nnutter/timber/internal/timber/config"
 	"github.com/nnutter/timber/internal/timber/review"
 )
 
 // New attaches the review workflow to the current checkout.
-func New(directory, homeDirectory, skillContent string) *cobra.Command {
+func New(directory, homeDirectory, skillContent string, loadModels func() (coreconfig.Models, error)) *cobra.Command {
 	var command *cobra.Command
 	var installSkill, force bool
 	input := reviewInput{command: &command}
 	output := reviewOutput{command: &command}
 	terminal := reviewOutput{command: &command, terminal: true}
-	command = reviewroot.New(review.Service{Repository: review.Repository{Dir: directory}}, input, output, terminal, false)
+	command = reviewroot.New(review.Service{Repository: review.Repository{Dir: directory}}, input, output, terminal, false, loadModels)
 	command.Use = "review"
 	command.Args = cobra.NoArgs
 	command.Flags().BoolVar(&installSkill, "install-skill", false, "Install the timber-review skill to ~/.agents/skills")
