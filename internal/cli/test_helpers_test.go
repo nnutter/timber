@@ -238,13 +238,11 @@ func gitTestEnv() []string {
 		"GIT_CONFIG_GLOBAL=" + os.DevNull,
 		"GIT_ATTR_NOSYSTEM=1",
 		"GIT_TERMINAL_PROMPT=0",
-		"GIT_CONFIG_COUNT=3",
-		"GIT_CONFIG_KEY_0=core.hooksPath",
-		"GIT_CONFIG_VALUE_0=" + os.DevNull,
-		"GIT_CONFIG_KEY_1=commit.gpgSign",
-		"GIT_CONFIG_VALUE_1=false",
-		"GIT_CONFIG_KEY_2=init.templateDir",
-		"GIT_CONFIG_VALUE_2=",
+		"GIT_CONFIG_COUNT=2",
+		"GIT_CONFIG_KEY_0=commit.gpgSign",
+		"GIT_CONFIG_VALUE_0=false",
+		"GIT_CONFIG_KEY_1=init.templateDir",
+		"GIT_CONFIG_VALUE_1=",
 	}
 }
 

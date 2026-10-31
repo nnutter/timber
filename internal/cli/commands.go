@@ -18,6 +18,7 @@ import (
 	cliherdr "github.com/nnutter/timber/internal/cli/herdr"
 	"github.com/nnutter/timber/internal/cli/herdr/install"
 	"github.com/nnutter/timber/internal/cli/herdr/space"
+	clihooks "github.com/nnutter/timber/internal/cli/hooks"
 	clilist "github.com/nnutter/timber/internal/cli/list"
 	clipr "github.com/nnutter/timber/internal/cli/pr"
 	prcreate "github.com/nnutter/timber/internal/cli/pr/create"
@@ -138,15 +139,17 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 				RenderStatus: renderStatus,
 			}),
 		),
+		clihooks.New(runtime.CurrentDirectory),
 		clireview.New(runtime.CurrentDirectory, runtime.HomeDirectory, runtime.ReviewSkillContent, func() (coreconfig.Models, error) {
 			return coreconfig.LoadModels(filepath.Join(runtime.ConfigHome, "timber", "model.json"))
 		}),
 		herdrCommand(runtime),
 		cliswitch.New(cliswitch.Dependencies{
-			Resolve:    runtime.ResolveSwitchWorktree,
-			Create:     create,
-			ReportPath: runtime.ReportSwitchWorktreePath,
-			Complete:   cliComplete.QualifiedWorktreeNames(runtime),
+			Resolve:        runtime.ResolveSwitchWorktree,
+			Create:         create,
+			ConfigureHooks: runtime.ConfigureWorktreeHooks,
+			ReportPath:     runtime.ReportSwitchWorktreePath,
+			Complete:       cliComplete.QualifiedWorktreeNames(runtime),
 		}),
 		todoCommand(runtime),
 		cligit.New(cligit.Dependencies{

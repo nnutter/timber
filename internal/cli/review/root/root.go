@@ -13,10 +13,10 @@ import (
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 
+	"github.com/nnutter/timber/internal/cli/hooks/commitmsg"
 	"github.com/nnutter/timber/internal/cli/review/approve"
 	"github.com/nnutter/timber/internal/cli/review/auto"
 	"github.com/nnutter/timber/internal/cli/review/cache"
-	"github.com/nnutter/timber/internal/cli/review/commitmsg"
 	"github.com/nnutter/timber/internal/cli/review/commits"
 	"github.com/nnutter/timber/internal/cli/review/feedback"
 	"github.com/nnutter/timber/internal/cli/review/files"
@@ -81,6 +81,14 @@ func Execute(ctx context.Context, args []string, dir string, input io.Reader, ou
 	return errors.Join(err, c.outputError)
 }
 
+// reviewCommitMessageHook keeps `timber review commit-msg` working for hooks
+// that were installed before the command moved to `timber hooks commit-msg`.
+func reviewCommitMessageHook(directory string) *cobra.Command {
+	command := commitmsg.New(directory)
+	command.Hidden = true
+	return command
+}
+
 func (c *Command) build() *cobra.Command {
 	writer := c.Terminal
 	if writer == nil {
@@ -96,7 +104,7 @@ func (c *Command) build() *cobra.Command {
 	}
 	root.PersistentFlags().BoolVar(&c.Debug, "debug", false, "Write diagnostic logs to stderr")
 	root.PersistentFlags().BoolVar(&c.JSON, "json", c.JSON, "Emit a versioned JSON result without interactive prompts")
-	root.AddCommand(commitmsg.New(c.Service.Repository.Dir))
+	root.AddCommand(reviewCommitMessageHook(c.Service.Repository.Dir))
 	approve.Install(root, c.Service, c.Output)
 	auto.Install(root, c.Service, c.Output, c.LoadModels)
 	cache.Install(root, c.Service.Repository, c.Output)

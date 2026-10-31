@@ -97,7 +97,7 @@ hooks {
     fix = true
     steps {
       ["change-id"] {
-        fix = "timber review commit-msg \"{{commit_msg_file}}\""
+        fix = "timber hooks commit-msg \"{{commit_msg_file}}\""
       }
     }
   }

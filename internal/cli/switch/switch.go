@@ -8,12 +8,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Dependencies connects the switch CLI to worktree lookup and creation.
+// Dependencies connects the switch CLI to worktree lookup, creation, and
+// per-worktree hook configuration.
 type Dependencies struct {
-	Resolve    func(input io.Reader, raw, repoName string) (name, path string, alreadyIn bool, err error)
-	Create     func(ctx context.Context, input io.Reader, output io.Writer, repoName, raw, explicitPath string, hasExplicitPath bool, upstream string, herdr, noHerdr bool) (path string, herdrOpened bool, err error)
-	ReportPath func(output io.Writer, path string) error
-	Complete   func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
+	Resolve        func(input io.Reader, raw, repoName string) (name, path string, alreadyIn bool, err error)
+	Create         func(ctx context.Context, input io.Reader, output io.Writer, repoName, raw, explicitPath string, hasExplicitPath bool, upstream string, herdr, noHerdr bool) (path string, herdrOpened bool, err error)
+	ConfigureHooks func(path string) error
+	ReportPath     func(output io.Writer, path string) error
+	Complete       func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
 }
 
 // New constructs the command that resolves a managed worktree path.
@@ -64,6 +66,9 @@ func run(deps Dependencies, create, noCd *bool, upstream *string, herdr, noHerdr
 		}
 		name, worktreePath, alreadyIn, err := deps.Resolve(command.InOrStdin(), args[0], "")
 		if err != nil {
+			return err
+		}
+		if err := deps.ConfigureHooks(worktreePath); err != nil {
 			return err
 		}
 		if alreadyIn {
