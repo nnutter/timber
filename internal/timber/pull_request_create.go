@@ -110,7 +110,10 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 		return pullRequestTarget{}, fmt.Errorf("worktree %q has a detached HEAD; a pull request needs a branch", worktree.Name)
 	}
 
-	remote := remoteName
+	remote, err := repository.pullRequestRemote(head)
+	if err != nil {
+		return pullRequestTarget{}, err
+	}
 	remoteURL, configured, err := repository.gitConfigValue("remote." + remote + ".url")
 	if err != nil {
 		return pullRequestTarget{}, err
@@ -137,6 +140,21 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 	}
 
 	return pullRequestTarget{remote: remote, owner: owner, repo: repo, head: head, base: base, headSHA: headSHA}, nil
+}
+
+// pullRequestRemote names the remote that holds the branch's upstream, and so
+// the repository the pull request belongs to. A branch with no upstream remote
+// falls back to origin, which keeps --base usable on its own.
+func (x *Repository) pullRequestRemote(branchName string) (string, error) {
+	remote, configured, err := x.gitConfigValue("branch." + branchName + ".remote")
+	if err != nil {
+		return "", err
+	}
+	// A "." remote names a local branch, which holds no repository.
+	if !configured || remote == "" || remote == "." {
+		return remoteName, nil
+	}
+	return remote, nil
 }
 
 // pullRequestBase derives the merge base from the branch's upstream. A branch

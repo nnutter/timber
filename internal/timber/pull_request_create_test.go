@@ -119,6 +119,17 @@ func preparePullRequestRepository(t *testing.T) (testRepository, Runtime, *fakeG
 	return repository, runtime, github
 }
 
+// useForkUpstream points the pull request branch at a second remote, as a
+// GitHub fork workflow does.
+func useForkUpstream(t *testing.T, repository testRepository) {
+	t.Helper()
+
+	runGitCommand(t, repository.barePath, "remote", "add", "fork", "git@github.com:contributor/timber.git")
+	mainSHA := strings.TrimSpace(runGitCommand(t, repository.barePath, "rev-parse", "main"))
+	runGitCommand(t, repository.barePath, "update-ref", "refs/remotes/fork/main", mainSHA)
+	runGitCommand(t, repository.worktreePath(pullRequestBranch), "branch", "--set-upstream-to", "fork/main", pullRequestBranch)
+}
+
 func TestCreatePullRequestCreatesOnGitHub(t *testing.T) {
 	repository, runtime, github := preparePullRequestRepository(t)
 	headSHA := strings.TrimSpace(runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "HEAD"))
@@ -235,6 +246,61 @@ func TestCreatePullRequestUsesDefaultBranchForSelfTrackingBranch(t *testing.T) {
 	requests := github.recorded()
 	require.Len(t, requests, 3)
 	assert.Equal(t, "trunk", requests[2].body["base"])
+}
+
+func TestCreatePullRequestResolvesRepositoryWithoutUpstream(t *testing.T) {
+	repository, runtime, github := preparePullRequestRepository(t)
+	headSHA := strings.TrimSpace(runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "HEAD"))
+	runGitCommand(t, repository.worktreePath(pullRequestBranch), "branch", "--unset-upstream")
+	github.replaceHandler("GET /repos/owner/timber/branches/"+pullRequestBranch, branchHandler(headSHA))
+
+	_, err := runtime.CreatePullRequest(t.Context(), strings.NewReader(""), PullRequestDraft{
+		Raw:   at(testRepoName, pullRequestBranch),
+		Title: "Add a pull request command",
+		Base:  "develop",
+	})
+	require.NoError(t, err)
+
+	requests := github.recorded()
+	require.Len(t, requests, 3)
+	created := requests[2]
+	assert.Equal(t, "POST /repos/owner/timber/pulls", created.method+" "+created.path)
+	assert.Equal(t, "develop", created.body["base"])
+}
+
+func TestCreatePullRequestUsesUpstreamRemoteRepository(t *testing.T) {
+	repository, runtime, github := preparePullRequestRepository(t)
+	headSHA := strings.TrimSpace(runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "HEAD"))
+	useForkUpstream(t, repository)
+	github.replaceHandler("GET /repos/contributor/timber", repositoryHandler("main"))
+	github.replaceHandler("GET /repos/contributor/timber/branches/"+pullRequestBranch, branchHandler(headSHA))
+	github.replaceHandler("POST /repos/contributor/timber/pulls", createdPullRequestHandler("https://github.com/contributor/timber/pull/9"))
+
+	url, err := runtime.CreatePullRequest(t.Context(), strings.NewReader(""), PullRequestDraft{
+		Raw:   at(testRepoName, pullRequestBranch),
+		Title: "Add a pull request command",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://github.com/contributor/timber/pull/9", url)
+
+	requests := github.recorded()
+	require.Len(t, requests, 3)
+	created := requests[2]
+	assert.Equal(t, "POST /repos/contributor/timber/pulls", created.method+" "+created.path)
+	assert.Equal(t, "main", created.body["base"])
+}
+
+func TestCreatePullRequestPushesToUpstreamRemote(t *testing.T) {
+	repository, runtime, github := preparePullRequestRepository(t)
+	useForkUpstream(t, repository)
+	github.replaceHandler("GET /repos/contributor/timber", repositoryHandler("main"))
+
+	_, err := runtime.CreatePullRequest(t.Context(), strings.NewReader(""), PullRequestDraft{
+		Raw:   at(testRepoName, pullRequestBranch),
+		Title: "Add a pull request command",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "git push fork "+pullRequestBranch)
 }
 
 func TestCreatePullRequestRequiresTitle(t *testing.T) {
