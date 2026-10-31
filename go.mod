@@ -20,6 +20,7 @@ require (
 	github.com/go-git/go-git/v6 v6.0.0-beta.1
 	github.com/google/go-github/v91 v91.0.0
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
+	github.com/openai/openai-go/v3 v3.52.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -143,7 +144,6 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/nnutter/constable v0.1.2 // indirect
 	github.com/nwaples/rardecode/v2 v2.1.0 // indirect
-	github.com/openai/openai-go/v3 v3.52.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect

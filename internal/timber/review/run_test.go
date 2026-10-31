@@ -275,3 +275,34 @@ func TestReviewRefusesConcurrentWorktreeUse(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, state.Attempts)
 }
+
+func TestRecoverablePriorIgnoresRecordedModelResults(t *testing.T) {
+	r := testRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("one\n"), 0o600))
+	gitTest(t, r.Dir, "add", "value")
+	gitTest(t, r.Dir, "commit", "-m", "Refactor: Extract constant")
+	view, err := r.Snapshot(t.Context())
+	require.NoError(t, err)
+	model := newAttempt(view.Stacks[0], "auto_reviewed")
+	model.ApprovalSource = "model"
+	model.Automatic = &AutomaticReview{PolicyVersion: "refactor-v1", Decision: "needs-human-review", Model: "test-model", ResponseID: "resp_test", Reason: "Equivalence is unclear."}
+	require.NoError(t, (Store{Path: view.Path}).Update(func(state *State) error {
+		state.Attempts = append(state.Attempts, model)
+		return nil
+	}))
+	// A recorded model result has no saved session, so it is not a recovery target.
+	state, err := (Store{Path: view.Path}).Load()
+	require.NoError(t, err)
+	require.Nil(t, recoverablePrior(state, view.Stacks[0]))
+	// A human attempt still is, even when it follows the model result.
+	human := newAttempt(view.Stacks[0], "incomplete")
+	require.NoError(t, (Store{Path: view.Path}).Update(func(state *State) error {
+		state.Attempts = append(state.Attempts, human)
+		return nil
+	}))
+	state, err = (Store{Path: view.Path}).Load()
+	require.NoError(t, err)
+	prior := recoverablePrior(state, view.Stacks[0])
+	require.NotNil(t, prior)
+	require.Equal(t, human.ID, prior.ID)
+}

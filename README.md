@@ -143,6 +143,34 @@ timber review commits
 timber review feedback --json
 ```
 
+`timber review auto` delegates review of `Refactor:` stacks to an AI model.
+An approval is recorded as model evidence and shows as `Auto-Approved`.
+An abstention is recorded and shows as `Auto-Reviewed` until the stack content changes.
+Each result is recorded as its stack completes, so a failed or interrupted run keeps finished work and the next run resumes with the stacks that have no result.
+
+Configure the endpoint in `$XDG_CONFIG_HOME/timber/model.json`, a file that follows [Pi's models schema](https://pi.dev/schemas/models.schema.json):
+
+```json
+{
+  "$schema": "https://pi.dev/schemas/models.schema.json",
+  "providers": {
+    "openai": {
+      "baseUrl": "https://api.openai.com/v1",
+      "api": "openai-responses",
+      "apiKey": "$OPENAI_API_KEY",
+      "models": [{ "id": "gpt-5.2", "maxTokens": 16384 }]
+    }
+  }
+}
+```
+
+A model must use `api: "openai-responses"`.
+`--model` or `TIMBER_REVIEW_MODEL` selects `provider/model` or an exact model ID; a file with one model needs no selection.
+`apiKey` and `headers` values can be a literal, `$NAME`/`${NAME}` environment interpolation, or `!security ...` output, which keeps a secret out of the file.
+Timber runs only `/usr/bin/security` with the remaining words as literal arguments and never uses a shell, so `!security find-generic-password -s my-service -w` reads one keychain item.
+The flag beats the environment and the environment beats the file, so a missing file falls back to `OPENAI_API_KEY` and `OPENAI_BASE_URL`.
+`--dry-run` assesses without recording results.
+
 The generated shell wrapper also supports `t review …`, including nested command and flag completion.
 Review commands operate on the current checkout, not a Timber worktree selector.
 Run `timber review --help` for all commands and flags.

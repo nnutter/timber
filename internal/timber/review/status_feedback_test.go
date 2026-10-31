@@ -43,6 +43,7 @@ func TestStatusOmitsFeedbackFromEarlierStacks(t *testing.T) {
 		{State: "reviewing"},
 		{State: "feedback", Count: 1},
 		{State: "incomplete"},
+		{State: "auto_reviewed"},
 		{State: "approved"},
 	}, result.Summary)
 
