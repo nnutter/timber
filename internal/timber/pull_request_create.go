@@ -19,7 +19,7 @@ type PullRequestDraft struct {
 	Title string
 	Body  string
 	// Base overrides the branch the pull request merges into. An empty value
-	// uses the branch's upstream, or the repository default branch.
+	// uses the branch's upstream, which every request must name.
 	Base  string
 	Draft bool
 }
@@ -30,6 +30,9 @@ type PullRequestDraft struct {
 // The command only creates the pull request. It never pushes, so a branch that
 // is missing from GitHub or behind the worktree fails with the push command to
 // run. Only github.com is supported.
+//
+// Every request names the base repository and the base branch. GitHub otherwise
+// chooses a base, and from a fork it chooses the fork's source repository.
 func (runtime Runtime) CreatePullRequest(ctx context.Context, input io.Reader, draft PullRequestDraft) (string, error) {
 	if strings.TrimSpace(draft.Title) == "" {
 		return "", fmt.Errorf("a pull request needs a title")
@@ -48,18 +51,6 @@ func (runtime Runtime) CreatePullRequest(ctx context.Context, input io.Reader, d
 		return "", err
 	}
 
-	repository, _, err := client.Repositories.Get(ctx, target.owner, target.repo)
-	if err != nil {
-		return "", fmt.Errorf("read GitHub repository %s/%s: %w", target.owner, target.repo, err)
-	}
-	base := target.base
-	if base == "" {
-		base = repository.GetDefaultBranch()
-	}
-	if base == "" {
-		return "", fmt.Errorf("could not determine the base branch for %s/%s", target.owner, target.repo)
-	}
-
 	if err := target.requirePushed(ctx, client); err != nil {
 		return "", err
 	}
@@ -67,7 +58,7 @@ func (runtime Runtime) CreatePullRequest(ctx context.Context, input io.Reader, d
 	request := github.CreatePullRequest{
 		Title: new(draft.Title),
 		Head:  target.head,
-		Base:  base,
+		Base:  target.base,
 		Draft: new(draft.Draft),
 	}
 	if draft.Body != "" {
@@ -75,7 +66,7 @@ func (runtime Runtime) CreatePullRequest(ctx context.Context, input io.Reader, d
 	}
 	pullRequest, _, err := client.PullRequests.Create(ctx, target.owner, target.repo, request)
 	if err != nil {
-		return "", fmt.Errorf("create pull request from %s into %s: %w", target.head, base, err)
+		return "", fmt.Errorf("create pull request from %s into %s: %w", target.head, target.base, err)
 	}
 	if url := pullRequest.GetHTMLURL(); url != "" {
 		return url, nil
@@ -157,9 +148,8 @@ func (x *Repository) pullRequestRemote(branchName string) (string, error) {
 	return remote, nil
 }
 
-// pullRequestBase derives the merge base from the branch's upstream. A branch
-// that tracks the same name upstream has no separate base, so an empty result
-// defers to the repository default branch.
+// pullRequestBase derives the merge base from the branch's upstream, so every
+// request names a base branch and GitHub never picks one.
 func (x *Repository) pullRequestBase(branchName string, remote string) (string, error) {
 	upstreamRef, err := x.upstreamReference(branchName)
 	if err != nil {
@@ -170,7 +160,7 @@ func (x *Repository) pullRequestBase(branchName string, remote string) (string, 
 		return "", fmt.Errorf("branch %q tracks %s, which is not a branch on %s; use --base to name the base branch", branchName, shortReference(upstreamRef), remote)
 	}
 	if remoteBranch == branchName {
-		return "", nil
+		return "", fmt.Errorf("branch %q tracks %s/%s, so it needs --base to name the branch it merges into", branchName, remote, remoteBranch)
 	}
 	return remoteBranch, nil
 }
