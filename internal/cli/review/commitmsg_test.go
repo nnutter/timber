@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// These tests run the review tree, where commit-msg is the hidden alias for
+// `timber hooks commit-msg` that earlier installed hooks still call.
+
 func TestCommitMsgMatchesGerritHook(t *testing.T) {
 	binary := buildGitReview(t)
 	reference, err := filepath.Abs("testdata/commit-msg")

@@ -369,6 +369,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `pr create` | Open a GitHub pull request for a pushed worktree branch (`--title`, `--body`, `--base`, `--draft`) |
+| `hooks commit-msg` | Add a Gerrit-compatible `Change-Id` to a commit message (`timber review commit-msg` stays as a hidden alias) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |
 | `generate zsh` | Generate the `t` wrapper, completion, and autoload helper |
 
