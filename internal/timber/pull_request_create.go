@@ -86,6 +86,8 @@ func (runtime Runtime) CreatePullRequest(ctx context.Context, input io.Reader, d
 // pullRequestTarget identifies the repository, branch, and commit a pull
 // request would publish.
 type pullRequestTarget struct {
+	// remote is the remote that holds the head branch and the base repository.
+	remote  string
 	owner   string
 	repo    string
 	head    string
@@ -108,12 +110,13 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 		return pullRequestTarget{}, fmt.Errorf("worktree %q has a detached HEAD; a pull request needs a branch", worktree.Name)
 	}
 
-	remoteURL, configured, err := repository.gitConfigValue("remote." + remoteName + ".url")
+	remote := remoteName
+	remoteURL, configured, err := repository.gitConfigValue("remote." + remote + ".url")
 	if err != nil {
 		return pullRequestTarget{}, err
 	}
 	if !configured || remoteURL == "" {
-		return pullRequestTarget{}, fmt.Errorf("repository %s has no %s remote; a pull request needs a GitHub remote", worktree.Repo, remoteName)
+		return pullRequestTarget{}, fmt.Errorf("repository %s has no %s remote; a pull request needs a GitHub remote", worktree.Repo, remote)
 	}
 	owner, repo, err := githubRepositoryFromRemoteURL(remoteURL)
 	if err != nil {
@@ -122,7 +125,7 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 
 	base := draft.Base
 	if base == "" {
-		base, err = repository.pullRequestBase(head)
+		base, err = repository.pullRequestBase(head, remote)
 		if err != nil {
 			return pullRequestTarget{}, err
 		}
@@ -133,20 +136,20 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 		return pullRequestTarget{}, err
 	}
 
-	return pullRequestTarget{owner: owner, repo: repo, head: head, base: base, headSHA: headSHA}, nil
+	return pullRequestTarget{remote: remote, owner: owner, repo: repo, head: head, base: base, headSHA: headSHA}, nil
 }
 
 // pullRequestBase derives the merge base from the branch's upstream. A branch
 // that tracks the same name upstream has no separate base, so an empty result
 // defers to the repository default branch.
-func (x *Repository) pullRequestBase(branchName string) (string, error) {
+func (x *Repository) pullRequestBase(branchName string, remote string) (string, error) {
 	upstreamRef, err := x.upstreamReference(branchName)
 	if err != nil {
 		return "", fmt.Errorf("branch %q needs an upstream or --base to name the pull request base: %w", branchName, err)
 	}
-	remoteBranch, found := strings.CutPrefix(string(upstreamRef), remoteRefPrefix+remoteName+"/")
+	remoteBranch, found := strings.CutPrefix(string(upstreamRef), remoteRefPrefix+remote+"/")
 	if !found {
-		return "", fmt.Errorf("branch %q tracks %s, which is not a branch on %s; use --base to name the base branch", branchName, shortReference(upstreamRef), remoteName)
+		return "", fmt.Errorf("branch %q tracks %s, which is not a branch on %s; use --base to name the base branch", branchName, shortReference(upstreamRef), remote)
 	}
 	if remoteBranch == branchName {
 		return "", nil
@@ -172,7 +175,7 @@ func (target pullRequestTarget) requirePushed(ctx context.Context, client *githu
 
 func (target pullRequestTarget) pushError(problem string) error {
 	return fmt.Errorf("branch %q %s but the worktree is at %s; push it first: git push %s %s",
-		target.head, problem, shortCommit(target.headSHA), remoteName, target.head)
+		target.head, problem, shortCommit(target.headSHA), target.remote, target.head)
 }
 
 // localHeadCommit reads the commit the worktree has checked out.
