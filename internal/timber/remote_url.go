@@ -79,20 +79,31 @@ func looksLikeSSHShorthand(input string) bool {
 	return !strings.Contains(host, "/") && strings.Contains(host, ".")
 }
 
-// defaultRepoAliasFromRemote shortens GitHub origins while preserving other origins.
-func defaultRepoAliasFromRemote(remoteURL string) string {
-	var host, repoPath string
+// remoteHostAndPath splits a remote URL into its host and repository path.
+// It reports false when the remote names no host, such as a filesystem path.
+func remoteHostAndPath(remoteURL string) (host, repoPath string, ok bool) {
 	if strings.Contains(remoteURL, "://") {
 		parsed, err := url.Parse(remoteURL)
 		if err != nil {
-			return remoteURL
+			return "", "", false
 		}
-		host, repoPath = parsed.Hostname(), parsed.Path
-	} else {
-		host, repoPath, _ = strings.Cut(remoteURL, ":")
-		if _, hostname, found := strings.Cut(host, "@"); found {
-			host = hostname
-		}
+		return parsed.Hostname(), parsed.Path, true
+	}
+	host, repoPath, found := strings.Cut(remoteURL, ":")
+	if !found {
+		return "", "", false
+	}
+	if _, hostname, hasUser := strings.Cut(host, "@"); hasUser {
+		host = hostname
+	}
+	return host, repoPath, true
+}
+
+// defaultRepoAliasFromRemote shortens GitHub origins while preserving other origins.
+func defaultRepoAliasFromRemote(remoteURL string) string {
+	host, repoPath, ok := remoteHostAndPath(remoteURL)
+	if !ok {
+		return remoteURL
 	}
 	if !strings.EqualFold(host, "github.com") && !strings.EqualFold(host, "ssh.github.com") {
 		return remoteURL

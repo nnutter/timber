@@ -18,6 +18,8 @@ import (
 	"github.com/nnutter/timber/internal/cli/herdr/install"
 	"github.com/nnutter/timber/internal/cli/herdr/space"
 	clilist "github.com/nnutter/timber/internal/cli/list"
+	clipr "github.com/nnutter/timber/internal/cli/pr"
+	prcreate "github.com/nnutter/timber/internal/cli/pr/create"
 	cliprune "github.com/nnutter/timber/internal/cli/prune"
 	cliremove "github.com/nnutter/timber/internal/cli/remove"
 	clirepo "github.com/nnutter/timber/internal/cli/repo"
@@ -90,6 +92,21 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 			RenderStatus:  renderStatus,
 			RenderWarning: renderWarning,
 		}),
+		clipr.New(
+			prcreate.New(prcreate.Dependencies{
+				Create: func(ctx context.Context, input io.Reader, raw string, draft prcreate.Draft) (string, error) {
+					return runtime.CreatePullRequest(ctx, input, timber.PullRequestDraft{
+						Raw:   raw,
+						Title: draft.Title,
+						Body:  draft.Body,
+						Base:  draft.Base,
+						Draft: draft.Draft,
+					})
+				},
+				Complete:     cliComplete.QualifiedWorktreeNames(runtime),
+				RenderStatus: renderStatus,
+			}),
+		),
 		clirepo.New(
 			repoadd.New(repoadd.Dependencies{
 				Add:          runtime.AddRepo,

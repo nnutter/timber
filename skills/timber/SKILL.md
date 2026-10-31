@@ -14,7 +14,8 @@ For detailed checklist editing, use the separate `timber-todo` skill.
 - Create an isolated checkout for a task or locate an existing worktree.
 - Inspect worktree status and TODO progress across registered repositories.
 - Clean up a specific finished worktree after confirming what will be removed.
-- Do not use for detached worktrees or unrelated Git hosting operations.
+- Open a pull request for a worktree branch when the user asks for one.
+- Do not use for detached worktrees, or for Git hosting work beyond creating a pull request (review, merge, or release).
 
 ## Prerequisites and configuration
 
@@ -26,6 +27,11 @@ For detailed checklist editing, use the separate `timber-todo` skill.
   Never embed credentials.
 - `gh` authenticated to GitHub is optional for `list --pr` and automatic mise trust / hk eligibility checks.
   Herdr is optional; use `--no-herdr` for headless creation.
+- `timber pr create` needs a GitHub token for `github.com`.
+  It reads `GH_TOKEN`, then `GITHUB_TOKEN`, then the credential that `gh auth login` stored in the system keyring.
+  Timber never reads a token from a configuration file, and never accepts one on a command line.
+  Do not write a secret into a Timber or gh configuration file.
+  On a machine without a keyring, such as a headless server or CI, set `GH_TOKEN`.
 - `timber config` shows settings and creates the configuration file if absent:
   `$XDG_CONFIG_HOME/timber/config.toml`, falling back to
   `~/.config/timber/config.toml`.
@@ -72,6 +78,11 @@ timber todo feature/login@owner/repo --json
 timber todo feature/login@owner/repo --repo --path
 timber todo --repo --json
 
+# Open a GitHub pull request for a pushed branch (title is required).
+timber pr create feature/login@owner/repo --title "Add login" --body "Adds login."
+# Merge somewhere other than the branch's upstream, or open a draft:
+timber pr create feature/login@owner/repo --title "Add login" --base develop --draft
+
 # Preview cleanup before proposing any deletion.
 timber prune @owner/repo --dry-run
 # Only after approval for this exact worktree and its branch:
@@ -95,6 +106,10 @@ timber remove feature/login@owner/repo
    Verify with `git status --short --branch` and `timber list @owner/repo --json`.
    Treat `statusError: true` as unknown status, not permission to delete.
    JSON also includes `clean`, `merged`, `upstream`, `ahead`, `behind`, `todoDone`, and `todoTotal`.
+1. For a pull request, only when the user asks for one.
+   Verify the branch and its commits first, then run `timber pr create` with an explicit selector, a `--title` that follows the repository's commit subject style, and a `--body` that explains why.
+   The command never pushes: the branch must already be at the worktree's commit on GitHub, and only `github.com` remotes are supported.
+   Report the printed URL.
 1. For cleanup, inspect Git status, preserve needed commits/files/notes, and show the scoped `prune --dry-run` result before requesting approval.
    `prune` removes clean, merged worktrees; `remove` also deletes the branch.
    Never infer user approval from `merged`, and never retry with `--force` merely because normal removal refused.
@@ -103,6 +118,10 @@ timber remove feature/login@owner/repo
 
 ## Pitfalls and limitations
 
+- `pr create` creates a pull request only; it does not push, change the worktree, or open a browser.
+  Push the branch first with the user's existing Git authentication.
+  A branch that GitHub does not have, or has at a different commit, fails with the `git push` command to run.
+  Forks and GitHub Enterprise hosts are not supported: the pull request head and base must be branches of the same `github.com` repository.
 - `list` and `prune` default to every registered repository: always qualify cleanup with `@<repo>`. `repo remove`, `repo rename`, `repo import`, and `repo fix` are broader operations requiring explicit approval. `repo fix` moves bare repositories into the worktree root and rewrites worktree links.
   Import relocates existing clean checkouts and requires a `trash`
   CLI.
@@ -125,5 +144,6 @@ timber remove feature/login@owner/repo
 ## Verification
 
 Confirm the expected repository, name, and real checkout path in `list --json`; check the branch with Git inside that checkout.
+After `pr create`, confirm the printed URL is a pull request for the intended repository, branch, and base.
 After approved removal, confirm that selector is absent and unrelated worktrees remain.
 Report the path/branch and any warnings, not merely the command's exit status.

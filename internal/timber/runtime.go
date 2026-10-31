@@ -55,6 +55,20 @@ type Runtime struct {
 	// primarily useful for tests; an empty value uses PATH lookup.
 	GhExecutable string
 
+	// GhConfigDirectory overrides where the GitHub CLI keeps its
+	// configuration, which Timber reads for a stored credential. An empty
+	// value follows GH_CONFIG_DIR and then the Timber config home.
+	GhConfigDirectory string
+
+	// GitHubAPIBaseURL overrides the GitHub API endpoint. It is primarily
+	// useful for tests; an empty value uses the github.com endpoint.
+	GitHubAPIBaseURL string
+
+	// GitHubKeyringLookup overrides the system keyring read used to find a
+	// GitHub CLI credential. It is primarily useful for tests; an empty value
+	// uses the system keyring.
+	GitHubKeyringLookup func(service, user string) (string, error)
+
 	// TrashExecutable overrides the executable used to move removed paths to
 	// the system trash. It is primarily useful for tests; an empty value uses
 	// PATH lookup of "trash".
