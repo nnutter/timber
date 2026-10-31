@@ -123,6 +123,15 @@ func useForkUpstream(t *testing.T, repository testRepository) {
 	runGitCommand(t, repository.worktreePath(pullRequestBranch), "branch", "--set-upstream-to", "fork/main", pullRequestBranch)
 }
 
+// pullRequestUpstream reports the upstream a worktree branch tracks, as
+// "<remote>/<branch>".
+func pullRequestUpstream(t *testing.T, repository testRepository) string {
+	t.Helper()
+
+	upstream := runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "--abbrev-ref", pullRequestBranch+"@{upstream}")
+	return strings.TrimSpace(upstream)
+}
+
 func TestCreatePullRequestCreatesOnGitHub(t *testing.T) {
 	repository, runtime, github := preparePullRequestRepository(t)
 	headSHA := strings.TrimSpace(runGitCommand(t, repository.worktreePath(pullRequestBranch), "rev-parse", "HEAD"))
@@ -135,6 +144,8 @@ func TestCreatePullRequestCreatesOnGitHub(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "https://github.com/owner/timber/pull/7", url)
+	// The command reads the upstream, so it must leave it in place.
+	assert.Equal(t, "origin/main", pullRequestUpstream(t, repository))
 
 	requests := github.recorded()
 	require.Len(t, requests, 2)
