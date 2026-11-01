@@ -49,15 +49,9 @@ func (setupPrompter) Choose(input io.Reader, output io.Writer, kind timber.Setup
 		if err != nil {
 			return false, fmt.Errorf("%s: %w", text.read, err)
 		}
-		switch strings.ToLower(strings.TrimSpace(answer)) {
-		case "y", "yes":
-			return true, nil
-		case "", "n", "no":
-			return false, nil
-		default:
-			if _, err := fmt.Fprintln(output, "Enter yes or no."); err != nil {
-				return false, err
-			}
+		decided, accept, err := setupAnswer(output, answer)
+		if err != nil || isTrue(decided) {
+			return accept, err
 		}
 	}
 }
@@ -69,6 +63,20 @@ func (setupPrompter) ReportDisabled(output io.Writer, kind timber.SetupKind) err
 	}
 	_, err = fmt.Fprintln(output, text.disabled)
 	return err
+}
+
+func setupAnswer(output io.Writer, answer string) (bool, bool, error) {
+	switch strings.ToLower(strings.TrimSpace(answer)) {
+	case "y", "yes":
+		return true, true, nil
+	case "", "n", "no":
+		return true, false, nil
+	default:
+		if _, err := fmt.Fprintln(output, "Enter yes or no."); err != nil {
+			return true, false, err
+		}
+		return false, false, nil
+	}
 }
 
 type setupPromptText struct {

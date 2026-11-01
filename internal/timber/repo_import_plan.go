@@ -137,42 +137,13 @@ func (x *importPlan) run(reporter ImportReporter) error {
 		return err
 	}
 
-	created := make([]*importWorktree, 0, len(x.worktrees))
-	for index := range x.worktrees {
-		worktree := &x.worktrees[index]
-		// Git can leave a worktree behind even when add reports a failure.
-		created = append(created, worktree)
-		if err := x.createWorktree(bareRepository, worktree); err != nil {
-			return errors.Join(err, x.rollbackCreated(bareRepository, created))
-		}
-	}
-
-	trashablePaths := make([]string, 0, len(x.worktrees))
-	for _, worktree := range x.worktrees {
-		trashablePaths = append(trashablePaths, worktree.CurrentPath)
-	}
-	if err := x.runtime.trashPaths(trashablePaths...); err != nil {
+	if err := createImportedWorktrees(x, bareRepository); err != nil {
 		return err
 	}
-	for _, worktree := range x.worktrees {
-		if err := x.runtime.removeEmptySourceParents(worktree.CurrentPath); err != nil {
-			return err
-		}
+	if err := trashImportedSources(x); err != nil {
+		return err
 	}
-
-	summary := ImportSummary{
-		Skipped:   make([]ImportSkipped, 0, len(x.skips)),
-		Worktrees: make([]ImportMove, 0, len(x.worktrees)),
-	}
-	for _, skip := range x.skips {
-		summary.Skipped = append(summary.Skipped, ImportSkipped(skip))
-	}
-	for _, worktree := range x.worktrees {
-		summary.Worktrees = append(summary.Worktrees, ImportMove{
-			Name: worktree.Name, SourcePath: worktree.CurrentPath, TargetPath: worktree.TargetPath,
-		})
-	}
-	return reporter.Summary(summary)
+	return reportImport(x, reporter)
 }
 
 // validateTargets fails before anything is touched when two worktrees would
@@ -193,4 +164,49 @@ func (x *importPlan) validateTargets() error {
 		}
 	}
 	return nil
+}
+
+func createImportedWorktrees(x *importPlan, bareRepository *Repository) error {
+	created := make([]*importWorktree, 0, len(x.worktrees))
+	for index := range x.worktrees {
+		worktree := &x.worktrees[index]
+		// Git can leave a worktree behind even when add reports a failure.
+		created = append(created, worktree)
+		if err := x.createWorktree(bareRepository, worktree); err != nil {
+			return errors.Join(err, x.rollbackCreated(bareRepository, created))
+		}
+	}
+	return nil
+}
+
+func trashImportedSources(x *importPlan) error {
+	trashablePaths := make([]string, 0, len(x.worktrees))
+	for _, worktree := range x.worktrees {
+		trashablePaths = append(trashablePaths, worktree.CurrentPath)
+	}
+	if err := x.runtime.trashPaths(trashablePaths...); err != nil {
+		return err
+	}
+	for _, worktree := range x.worktrees {
+		if err := x.runtime.removeEmptySourceParents(worktree.CurrentPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func reportImport(x *importPlan, reporter ImportReporter) error {
+	summary := ImportSummary{
+		Skipped:   make([]ImportSkipped, 0, len(x.skips)),
+		Worktrees: make([]ImportMove, 0, len(x.worktrees)),
+	}
+	for _, skip := range x.skips {
+		summary.Skipped = append(summary.Skipped, ImportSkipped(skip))
+	}
+	for _, worktree := range x.worktrees {
+		summary.Worktrees = append(summary.Worktrees, ImportMove{
+			Name: worktree.Name, SourcePath: worktree.CurrentPath, TargetPath: worktree.TargetPath,
+		})
+	}
+	return reporter.Summary(summary)
 }

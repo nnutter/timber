@@ -20,6 +20,11 @@ func isFalse(v bool) bool {
 	return !v
 }
 
+// isTrue reports whether v is true.
+func isTrue(v bool) bool {
+	return v
+}
+
 // isSymlink reports whether info describes a symbolic link.
 func isSymlink(info os.FileInfo) bool {
 	return info.Mode()&os.ModeSymlink != 0

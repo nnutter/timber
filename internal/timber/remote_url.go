@@ -45,26 +45,33 @@ func resolveRemoteURL(input string) (string, error) {
 	if trimmed == "" {
 		return "", fmt.Errorf("repository URL is required")
 	}
+	return classifiedRemoteURL(trimmed), nil
+}
 
+func classifiedRemoteURL(trimmed string) string {
 	switch {
 	case strings.Contains(trimmed, "://"):
-		return trimmed, nil
+		return trimmed
 	case strings.HasPrefix(trimmed, "git@"):
-		return trimmed, nil
+		return trimmed
 	case strings.HasPrefix(trimmed, "github.com:"):
-		return "git@" + trimmed, nil
+		return "git@" + trimmed
 	case strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, "."):
-		return trimmed, nil
+		return trimmed
 	case strings.HasPrefix(trimmed, "~"):
-		return trimmed, nil
+		return trimmed
 	case looksLikeSSHShorthand(trimmed):
-		return trimmed, nil
+		return trimmed
 	default:
-		if short, ok := parseGitHubShortForm(trimmed); ok {
-			return "git@github.com:" + short, nil
-		}
-		return "https://github.com/" + strings.TrimPrefix(trimmed, "/"), nil
+		return githubRemoteURL(trimmed)
 	}
+}
+
+func githubRemoteURL(trimmed string) string {
+	if short, ok := parseGitHubShortForm(trimmed); ok {
+		return "git@github.com:" + short
+	}
+	return "https://github.com/" + strings.TrimPrefix(trimmed, "/")
 }
 
 func looksLikeSSHShorthand(input string) bool {
@@ -126,35 +133,50 @@ func defaultRepoNameFromRemote(remoteURL string) (string, error) {
 		return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
 	}
 	if strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, ".") || strings.HasPrefix(trimmed, "~") {
-		name := strings.TrimSuffix(path.Base(strings.TrimSuffix(trimmed, "/")), bareRepoSuffix)
-		if isReservedPathName(name) {
-			return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
-		}
-		return name, nil
+		return localRepoName(trimmed, remoteURL)
 	}
+	repoPath, err := hostedRepoPath(trimmed, remoteURL)
+	if err != nil {
+		return "", err
+	}
+	return cleanRepoName(repoPath, remoteURL)
+}
 
-	var repoPath string
+func localRepoName(trimmed, remoteURL string) (string, error) {
+	name := strings.TrimSuffix(path.Base(strings.TrimSuffix(trimmed, "/")), bareRepoSuffix)
+	if isReservedPathName(name) {
+		return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
+	}
+	return name, nil
+}
+
+func hostedRepoPath(trimmed, remoteURL string) (string, error) {
 	switch {
 	case strings.HasPrefix(trimmed, "git@"):
 		_, remainder, found := strings.Cut(trimmed, ":")
 		if !found {
 			return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
 		}
-		repoPath = remainder
+		return remainder, nil
 	case strings.Contains(trimmed, "://"):
 		parsed, err := url.Parse(trimmed)
 		if err != nil || isEmpty(parsed.Path) {
 			return "", fmt.Errorf("could not derive repository name from %q", remoteURL)
 		}
-		repoPath = parsed.Path
+		return parsed.Path, nil
 	default:
-		if _, remainder, found := strings.Cut(trimmed, ":"); found {
-			repoPath = remainder
-		} else {
-			repoPath = trimmed
-		}
+		return scpRepoPath(trimmed), nil
 	}
+}
 
+func scpRepoPath(trimmed string) string {
+	if _, remainder, found := strings.Cut(trimmed, ":"); found {
+		return remainder
+	}
+	return trimmed
+}
+
+func cleanRepoName(repoPath, remoteURL string) (string, error) {
 	name := strings.TrimSuffix(strings.Trim(repoPath, "/"), bareRepoSuffix)
 	name = strings.Trim(name, "/")
 	if isReservedPathName(name) {

@@ -86,21 +86,9 @@ func (x *repositoryRenamePlan) collectWorktrees() error {
 			return err
 		}
 
-		renamedPath := worktree.Path
-		branchName := worktree.branchName()
-		if branchName != "" {
-			expectedSource := x.runtime.managedWorktreePath(x.sourceRepo.Name, branchName)
-			managed, err := samePath(worktree.Path, expectedSource)
-			if err != nil {
-				return err
-			}
-			if managed {
-				renamedPath = x.runtime.managedWorktreePath(x.destinationRepo.Name, branchName)
-				x.worktreeMoves = append(x.worktreeMoves, worktreePathMove{
-					Source:      worktree.Path,
-					Destination: renamedPath,
-				})
-			}
+		renamedPath, err := renamedWorktreePath(x, worktree)
+		if err != nil {
+			return err
 		}
 
 		x.linkedWorktrees = append(x.linkedWorktrees, linkedWorktreePath{
@@ -254,4 +242,26 @@ func originalLinkedPaths(worktrees []linkedWorktreePath) []string {
 		paths = append(paths, worktree.Original)
 	}
 	return paths
+}
+
+func renamedWorktreePath(x *repositoryRenamePlan, worktree porcelainWorktree) (string, error) {
+	renamedPath := worktree.Path
+	branchName := worktree.branchName()
+	if branchName == "" {
+		return renamedPath, nil
+	}
+	expectedSource := x.runtime.managedWorktreePath(x.sourceRepo.Name, branchName)
+	managed, err := samePath(worktree.Path, expectedSource)
+	if err != nil {
+		return "", err
+	}
+	if !managed {
+		return renamedPath, nil
+	}
+	renamedPath = x.runtime.managedWorktreePath(x.destinationRepo.Name, branchName)
+	x.worktreeMoves = append(x.worktreeMoves, worktreePathMove{
+		Source:      worktree.Path,
+		Destination: renamedPath,
+	})
+	return renamedPath, nil
 }

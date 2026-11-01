@@ -81,35 +81,8 @@ func (a Attempt) validate() error {
 	if !slices.Contains([]string{"reviewing", "approved", "feedback", "incomplete", "addressed", "auto_reviewed"}, a.Status) {
 		return fmt.Errorf("invalid attempt status %q", a.Status)
 	}
-	switch a.ApprovalSource {
-	case "", "user-command":
-		if a.Automatic != nil {
-			return fmt.Errorf("automatic evidence requires a model review source")
-		}
-		if a.Status == "auto_reviewed" {
-			return fmt.Errorf("recorded model review requires a model review source")
-		}
-	case "model":
-		if a.Automatic == nil {
-			return fmt.Errorf("model review requires recorded evidence")
-		}
-		if err := a.Automatic.validate(); err != nil {
-			return err
-		}
-		switch a.Status {
-		case "approved":
-			if a.Automatic.Decision != "approve" {
-				return fmt.Errorf("model approval requires an approve decision")
-			}
-		case "auto_reviewed":
-			if a.Automatic.Decision == "approve" {
-				return fmt.Errorf("recorded model review must not approve")
-			}
-		default:
-			return fmt.Errorf("model review requires approved or auto_reviewed status")
-		}
-	default:
-		return fmt.Errorf("invalid approval source")
+	if err := validateApprovalSource(a); err != nil {
+		return err
 	}
 	if a.Replacement != nil {
 		if err := a.Replacement.validate(); err != nil {
@@ -127,6 +100,53 @@ type AutomaticReview struct {
 	ResponseID    string   `json:"responseId"`
 	Reason        string   `json:"reason"`
 	Evidence      []string `json:"evidence"`
+}
+
+func validateApprovalSource(a Attempt) error {
+	switch a.ApprovalSource {
+	case "", "user-command":
+		return validateUserApproval(a)
+	case "model":
+		return validateModelApproval(a)
+	default:
+		return fmt.Errorf("invalid approval source")
+	}
+}
+
+func validateUserApproval(a Attempt) error {
+	if a.Automatic != nil {
+		return fmt.Errorf("automatic evidence requires a model review source")
+	}
+	if a.Status == "auto_reviewed" {
+		return fmt.Errorf("recorded model review requires a model review source")
+	}
+	return nil
+}
+
+func validateModelApproval(a Attempt) error {
+	if a.Automatic == nil {
+		return fmt.Errorf("model review requires recorded evidence")
+	}
+	if err := a.Automatic.validate(); err != nil {
+		return err
+	}
+	return validateModelStatus(a)
+}
+
+func validateModelStatus(a Attempt) error {
+	switch a.Status {
+	case "approved":
+		if a.Automatic.Decision != "approve" {
+			return fmt.Errorf("model approval requires an approve decision")
+		}
+	case "auto_reviewed":
+		if a.Automatic.Decision == "approve" {
+			return fmt.Errorf("recorded model review must not approve")
+		}
+	default:
+		return fmt.Errorf("model review requires approved or auto_reviewed status")
+	}
+	return nil
 }
 
 func (a AutomaticReview) validate() error {

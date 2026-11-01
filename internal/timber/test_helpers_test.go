@@ -348,55 +348,43 @@ func createTestRepositoryFixture() (testRepositoryFixture, error) {
 		}
 	}()
 
-	runGit := func(cwd string, args ...string) error {
-		_, err := runGitCommandResult(cwd, args...)
-		if err != nil {
-			return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-		}
-		return nil
-	}
-
 	remotePath := filepath.Join(root, "remote.git")
-	if err := runGit(root, "init", "--bare", remotePath); err != nil {
+	if err := fixtureGit(root, "init", "--bare", remotePath); err != nil {
 		return testRepositoryFixture{}, err
 	}
 
 	seedPath := filepath.Join(root, "seed")
-	if err := runGit(root, "clone", remotePath, seedPath); err != nil {
+	if err := fixtureGit(root, "clone", remotePath, seedPath); err != nil {
 		return testRepositoryFixture{}, err
 	}
 	if err := os.WriteFile(filepath.Join(seedPath, "README.md"), []byte("initial\n"), 0o644); err != nil {
 		return testRepositoryFixture{}, err
 	}
-	for _, args := range [][]string{
+	if err := seedFixtureGit(seedPath, [][]string{
 		{"add", "README.md"},
 		{"commit", "-m", "initial"},
 		{"branch", "-M", "main"},
 		{"push", "-u", remoteName, "main"},
-	} {
-		if err := runGit(seedPath, args...); err != nil {
-			return testRepositoryFixture{}, err
-		}
+	}); err != nil {
+		return testRepositoryFixture{}, err
 	}
 	// git init --bare leaves HEAD at init.defaultBranch (often master). Point it at
 	// the branch we actually pushed so clones and remote set-head --auto work on CI.
-	if err := runGit(remotePath, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
+	if err := fixtureGit(remotePath, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
 		return testRepositoryFixture{}, err
 	}
 
 	barePath := filepath.Join(root, "bare.git")
-	if err := runGit(root, "clone", "--bare", remotePath, barePath); err != nil {
+	if err := fixtureGit(root, "clone", "--bare", remotePath, barePath); err != nil {
 		return testRepositoryFixture{}, err
 	}
-	for _, args := range [][]string{
+	if err := seedFixtureGit(barePath, [][]string{
 		{"remote", "remove", remoteName},
 		{"remote", "add", remoteName, remotePath},
 		{"fetch", remoteName},
 		{"remote", "set-head", remoteName, "main"},
-	} {
-		if err := runGit(barePath, args...); err != nil {
-			return testRepositoryFixture{}, err
-		}
+	}); err != nil {
+		return testRepositoryFixture{}, err
 	}
 
 	removeRoot = false
@@ -495,6 +483,23 @@ func runTUICreate(
 
 	err := options.runtime.RunTUI(t.Context(), &bytes.Buffer{}, &stderr, &stdout, options.herdr, options.noHerdr, options.noTitle, prompter, testCreateReporters())
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
+}
+
+func fixtureGit(cwd string, args ...string) error {
+	_, err := runGitCommandResult(cwd, args...)
+	if err != nil {
+		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return nil
+}
+
+func seedFixtureGit(cwd string, commands [][]string) error {
+	for _, args := range commands {
+		if err := fixtureGit(cwd, args...); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runGitCommand(t *testing.T, cwd string, args ...string) string {

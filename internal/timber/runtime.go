@@ -19,11 +19,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-github/v91/github"
-	"github.com/samber/lo"
 	"github.com/zalando/go-keyring"
 	"gopkg.in/yaml.v3"
 
-	"github.com/nnutter/timber/internal/terminal"
 	coreconfig "github.com/nnutter/timber/internal/timber/config"
 	repomodel "github.com/nnutter/timber/internal/timber/repo"
 	"github.com/nnutter/timber/internal/timber/review"
@@ -108,43 +106,17 @@ func (runtime Runtime) AddRepo(source, name, alias string) (string, string, erro
 	if err != nil {
 		return "", "", err
 	}
-
-	repoName := normalizeRepoName(name)
-	if repoName == "" {
-		repoName, err = defaultRepoNameFromRemote(remoteURL)
-		if err != nil {
-			return "", "", err
-		}
-	}
-	if err := validateRepoName(repoName); err != nil {
+	repoName, err := repoNameForAdd(name, remoteURL)
+	if err != nil {
 		return "", "", err
 	}
-
 	targetPath := runtime.bareRepoPath(repoName)
-	if _, err := os.Stat(targetPath); err == nil {
-		return "", "", fmt.Errorf("repository %q already exists at %s", repoName, targetPath)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", "", fmt.Errorf("inspect repository path %q: %w", targetPath, err)
-	}
-
-	if err := ensureDirectory(filepath.Dir(targetPath)); err != nil {
+	if err := rejectExistingRepo(targetPath, repoName); err != nil {
 		return "", "", err
 	}
-
-	if _, err := gitOutput(runtime, runtime.CurrentDirectory, "clone", "--bare", remoteURL, targetPath); err != nil {
+	if err := cloneBareRepo(runtime, remoteURL, targetPath, alias); err != nil {
 		return "", "", err
 	}
-
-	if err := configureBareOriginTracking(runtime, targetPath); err != nil {
-		return "", "", err
-	}
-
-	if alias != "" {
-		if _, err := gitOutput(runtime, targetPath, "config", "--local", "timber.alias", alias); err != nil {
-			return "", "", err
-		}
-	}
-
 	return repoName, targetPath, nil
 }
 
@@ -193,127 +165,24 @@ func (runtime Runtime) ConfigureWorktreeHooks(worktreePath string) error {
 // hasExplicitPath selects a custom location; otherwise the managed layout
 // is used. An empty explicit path is an error, matching CLI validation.
 func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reader, output io.Writer, repoName, raw, explicitPath string, hasExplicitPath bool, upstream string, herdr, noHerdr bool, reporters CreateReporters) (string, bool, error) {
-	if reporters.Created == nil {
-		return "", false, errors.New("create requires a worktree creation reporter")
+	if err := validateCreateReporters(runtime, herdr, noHerdr, reporters); err != nil {
+		return "", false, err
 	}
-	if (herdr || (!noHerdr && isSame(runtime.HerdrEnvironment, true))) && isNilFunc(reporters.HerdrOpened) {
-		return "", false, errors.New("create requires a Herdr opening reporter")
-	}
-	qualified, err := runtime.parseQualifiedName(raw)
+	created, err := createWorktreeCheckout(runtime, input, repoName, raw, explicitPath, hasExplicitPath, upstream)
 	if err != nil {
 		return "", false, err
 	}
-	if err := ValidateWorktreeName(qualified.Name); err != nil {
+	if err := reporters.Created(output, created.path); err != nil {
 		return "", false, err
 	}
-	if qualified.Repo != "" {
-		repoName = qualified.Repo
-	}
-
-	selection := repoSelection{runtime: runtime, RepoName: repoName}
-	repo, repository, err := selection.resolve(input)
-	if err != nil {
-		return "", false, err
-	}
-
-	branchName, err := runtime.resolveCreateWorktreeName(repo.Name, qualified.Name)
-	if err != nil {
-		return "", false, err
-	}
-
-	worktreePath := runtime.managedWorktreePath(repo.Name, branchName)
-	if hasExplicitPath {
-		if explicitPath == "" {
-			return "", false, errors.New("worktree path must not be empty")
-		}
-		worktreePath, err = runtime.absolutePath(explicitPath)
-		if err != nil {
-			return "", false, err
-		}
-	}
-	if err := rejectNonEmptyWorktreeDirectory(worktreePath); err != nil {
-		return "", false, err
-	}
-	worktrees, err := runtime.managedWorktreesFromRepository(repository, repo.Name)
-	if err != nil {
-		return "", false, err
-	}
-	if _, err := managedWorktreeByName(worktrees, branchName); err == nil {
-		return "", false, fmt.Errorf("worktree %q already exists", branchName)
-	}
-
-	if err := repository.fetchOrigin(); err != nil {
-		return "", false, err
-	}
-
-	upstreamBranch := upstream
-	if upstreamBranch == "" {
-		resolvedUpstream, err := repository.remoteHeadBranch()
-		if err != nil {
-			return "", false, err
-		}
-		upstreamBranch = resolvedUpstream
-	}
-
-	branchExists, err := repository.branchExists(branchName)
-	if err != nil {
-		return "", false, err
-	}
-	if err := ensureWorktreeDirectory(worktreePath); err != nil {
-		return "", false, err
-	}
-	if branchExists {
-		if _, err := repository.git("worktree", "add", worktreePath, branchName); err != nil {
-			return "", false, err
-		}
-	} else {
-		if _, err := repository.git("worktree", "add", "-b", branchName, worktreePath, upstreamBranch); err != nil {
-			return "", false, err
-		}
-	}
-
-	if err := repository.setBranchUpstream(branchName, upstreamBranch); err != nil {
-		return "", false, err
-	}
-	if hasExplicitPath {
-		gitDir, err := runtime.worktreeGitDir(worktreePath)
-		if err != nil {
-			return "", false, err
-		}
-		if err := os.WriteFile(filepath.Join(gitDir, worktreeNameFile), []byte(branchName+"\n"), 0o600); err != nil {
-			return "", false, fmt.Errorf("record worktree name: %w", err)
-		}
-	}
-
-	if err := reporters.Created(output, worktreePath); err != nil {
-		return "", false, err
-	}
-
-	runtime.autoTrustMise(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt, reporters.SetupWarning)
-	runtime.autoInstallHKHooks(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt, reporters.SetupWarning)
-
+	runtime.autoTrustMise(ctx, input, output, created.repository, created.upstream, created.path, reporters.SetupPrompt, reporters.SetupWarning)
+	runtime.autoInstallHKHooks(ctx, input, output, created.repository, created.upstream, created.path, reporters.SetupPrompt, reporters.SetupWarning)
 	// Run after hook installation so the worktree hooks directory keeps the
 	// hooks a hook manager just installed.
-	if err := runtime.ConfigureWorktreeHooks(worktreePath); err != nil {
+	if err := runtime.ConfigureWorktreeHooks(created.path); err != nil {
 		return "", false, err
 	}
-
-	if !(herdr || (!noHerdr && isSame(runtime.HerdrEnvironment, true))) {
-		return worktreePath, false, nil
-	}
-
-	worktree := managedWorktree{
-		Repo: repo.Name,
-		Name: branchName,
-		Path: worktreePath,
-	}
-	if err := runtime.openHerdrSpace(ctx, worktree); err != nil {
-		return "", false, err
-	}
-	if err := reporters.HerdrOpened(output, branchName); err != nil {
-		return "", false, err
-	}
-	return worktreePath, true, nil
+	return openCreatedHerdr(ctx, runtime, output, created, herdr, noHerdr, reporters)
 }
 
 // CreatePullRequest opens a GitHub pull request for a managed worktree and
@@ -550,22 +419,10 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 	}
 	sortBy.sort(worktrees)
 	runtime.enrichListedWorktreesWithReviews(ctx, worktrees)
-	if pullRequests {
-		if err := runtime.enrichListedWorktreesWithPullRequests(ctx, worktrees); err != nil {
-			return err
-		}
+	if err := attachPullRequests(runtime, ctx, worktrees, pullRequests); err != nil {
+		return err
 	}
-
-	if jsonOutput {
-		if renderers.JSON == nil {
-			return errors.New("list JSON renderer is not configured")
-		}
-		return renderers.JSON(stdout, worktreesToListJSON(worktrees))
-	}
-	if renderers.Table == nil {
-		return errors.New("list table renderer is not configured")
-	}
-	return renderers.Table(stdout, runtime.worktreesToListTable(worktrees, location), pullRequests, location)
+	return renderWorktreeList(runtime, stdout, worktrees, pullRequests, location, jsonOutput, renderers)
 }
 
 // LoadConfig loads the persistent Timber settings.
@@ -589,87 +446,18 @@ func (x Runtime) OpenHerdrSpace(ctx context.Context, repo, name, path string) er
 // A non-nil prompter is required when prompt is true.
 // All progress is written to output, preserving CLI reporting order.
 func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool, prompter WorktreePrompter, reporters PruneReporters) error {
-	if prompter == nil && isTrue(prompt) {
-		return errors.New("prune prompt requires a worktree prompter")
+	if err := validatePruneReporters(prompt, dryRun, prompter, reporters); err != nil {
+		return err
 	}
-	if dryRun && isNilFunc(reporters.DryRun) {
-		return errors.New("prune dry run requires a reporter")
-	}
-	if !dryRun && isNilFunc(reporters.Removal) {
-		return errors.New("prune removal requires a reporter")
-	}
-
-	selection := repoSelection{runtime: runtime}
-	if repoArg != "" {
-		repo, err := runtime.parseRepoOnlyArg(repoArg)
-		if err != nil {
-			return err
-		}
-		selection.RepoName = repo
-	}
-
-	repos, err := selection.reposToConsider()
+	enrichedWorktrees, err := pruneCandidates(runtime, repoArg)
 	if err != nil {
 		return err
 	}
-
-	enrichedWorktrees, err := runtime.collectManagedWorktrees(repos)
+	selectedWorktrees, err := selectPruneWorktrees(input, output, enrichedWorktrees, prompt, prompter)
 	if err != nil {
 		return err
 	}
-
-	var selectedWorktrees []managedWorktree
-	if prompter != nil && isTrue(prompt) {
-		refs := make([]WorktreeRef, 0, len(enrichedWorktrees))
-		for _, worktree := range enrichedWorktrees {
-			refs = append(refs, worktree.ref())
-		}
-		selectedRefs, err := prompter.Prompt(input, output, refs)
-		if err != nil {
-			return err
-		}
-		for _, ref := range selectedRefs {
-			worktree, err := managedWorktreeByKey(enrichedWorktrees, worktreeRefKey(ref))
-			if err != nil {
-				return err
-			}
-			selectedWorktrees = append(selectedWorktrees, worktree)
-		}
-	} else {
-		selectedWorktrees = lo.Filter(enrichedWorktrees, func(worktree managedWorktree, _ int) bool {
-			return worktree.Clean && isSame(worktree.Merged, true)
-		})
-	}
-
-	if dryRun {
-		for _, worktree := range selectedWorktrees {
-			if err := reporters.DryRun(output, worktree.Name, worktree.Repo, runtime.displayHomePath(worktree.Path)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	for _, worktree := range selectedWorktrees {
-		if !prompt && (!worktree.Clean || !isSame(worktree.Merged, true)) {
-			continue
-		}
-		// Removing a checkout can shorten other directory-derived names.
-		// Use the selected identity rather than resolving its name again.
-		repository, _, err := runtime.openRegisteredRepository(worktree.Repo)
-		if err != nil {
-			return err
-		}
-		result, err := runtime.removeResolvedWorktree(repository, worktree, true)
-		if err != nil {
-			return err
-		}
-		if err := reporters.Removal(output, result.worktree.Name, result.worktree.shortCommitHash(), result.worktree.Path, result.removingCurrentDirectory); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return finishPrune(runtime, output, selectedWorktrees, prompt, dryRun, reporters)
 }
 
 // QueryRegisteredRepoNames lists registered repository names with the
@@ -780,23 +568,9 @@ func (runtime Runtime) RemoveRepo(repoName string) error {
 	}
 
 	// Also refuse if git still has any non-bare linked worktrees (unmanaged).
-	porcelain, err := repository.listPorcelainWorktrees()
+	linked, err := linkedWorktreeCount(repository, repo.BarePath)
 	if err != nil {
 		return err
-	}
-	linked := 0
-	for _, worktree := range porcelain {
-		if worktree.Bare {
-			continue
-		}
-		same, err := samePath(worktree.Path, repo.BarePath)
-		if err != nil {
-			return err
-		}
-		if same {
-			continue
-		}
-		linked++
 	}
 	if linked > 0 {
 		return fmt.Errorf("repository %q still has %d linked worktree(s); remove them first", repoName, linked)
@@ -950,24 +724,9 @@ func (runtime Runtime) ResolveSwitchWorktree(input io.Reader, raw, repoName stri
 		}
 	}
 
-	repository, _, err := runtime.openRegisteredRepository(repoName)
+	path, err = switchWorktreePath(runtime, repoName, name)
 	if err != nil {
 		return "", "", false, err
-	}
-	worktrees, err := runtime.managedWorktreesFromRepository(repository, repoName)
-	if err != nil {
-		return "", "", false, err
-	}
-	worktree, err := managedWorktreeByName(worktrees, name)
-	if err != nil {
-		return "", "", false, fmt.Errorf("worktree %s not found in repository %s", name, repoName)
-	}
-	path = worktree.Path
-	if _, err := os.Stat(path); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", "", false, fmt.Errorf("worktree %s not found at %s", name, path)
-		}
-		return "", "", false, fmt.Errorf("inspect worktree directory %q: %w", path, err)
 	}
 
 	same, err := samePath(runtime.CurrentDirectory, path)
@@ -1067,136 +826,11 @@ func (x Runtime) absolutePath(path string) (string, error) {
 }
 
 func (x Runtime) autoInstallHKHooks(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string, prompter SetupPrompter, reportWarning func(io.Writer, SetupKind, error) error) {
-	warn := func(err error) {
-		if reportWarning != nil {
-			_ = reportWarning(output, SetupHKInstall, err)
-		}
-	}
-	settings, err := x.loadConfig()
-	if err != nil {
-		warn(err)
-		return
-	}
-	if !settings.AutoHKInstall && (settings.AutoHKInstallDecided || !terminal.IsInteractive(input)) {
-		return
-	}
-	regular, err := regularRootFile(filepath.Join(worktreePath, "hk.pkl"))
-	if err != nil {
-		warn(err)
-		return
-	}
-	if !regular {
-		return
-	}
-	identity, owned, err := x.githubOwnedWorktree(ctx, repository, upstream)
-	if err != nil {
-		warn(err)
-		return
-	}
-	if !owned {
-		return
-	}
-	if !settings.AutoHKInstall {
-		if prompter == nil {
-			warn(errors.New("automatic setup prompt is not configured"))
-			return
-		}
-		enabled, err := prompter.Choose(input, output, SetupHKInstall, SetupIdentity{Username: identity.Username, Organizations: identity.Organizations})
-		if err != nil {
-			warn(err)
-			return
-		}
-		settings.AutoHKInstall = enabled
-		settings.AutoHKInstallDecided = true
-		if err := writeConfig(x.configPath(), settings); err != nil {
-			warn(fmt.Errorf("save hk install choice: %w", err))
-			return
-		}
-		if !enabled {
-			if err := prompter.ReportDisabled(output, SetupHKInstall); err != nil {
-				warn(err)
-			}
-			return
-		}
-	}
-	args := []string{"install"}
-	hasMise, err := regularRootFile(filepath.Join(worktreePath, "mise.toml"))
-	if err != nil {
-		warn(err)
-		return
-	}
-	if hasMise {
-		args = append(args, "--mise")
-	}
-	install := x.command(ctx, "hk", args...)
-	install.Dir = worktreePath
-	combined, err := install.CombinedOutput()
-	if err != nil {
-		warn(fmt.Errorf("hk install failed: %w: %s", err, strings.TrimSpace(string(combined))))
-	}
+	reportSetupWarning(output, reportWarning, SetupHKInstall, installHKHooks(x, ctx, input, output, repository, upstream, worktreePath, prompter))
 }
 
 func (x Runtime) autoTrustMise(ctx context.Context, input io.Reader, output io.Writer, repository *Repository, upstream, worktreePath string, prompter SetupPrompter, reportWarning func(io.Writer, SetupKind, error) error) {
-	warn := func(err error) {
-		if reportWarning != nil {
-			_ = reportWarning(output, SetupMiseTrust, err)
-		}
-	}
-	settings, err := x.loadConfig()
-	if err != nil {
-		warn(err)
-		return
-	}
-	if !settings.AutoMiseTrust && (settings.AutoMiseTrustDecided || !terminal.IsInteractive(input)) {
-		return
-	}
-	configPath := filepath.Join(worktreePath, "mise.toml")
-	regular, err := regularRootFile(configPath)
-	if err != nil {
-		warn(err)
-		return
-	}
-	// Do not trust a symlink that can point outside the new checkout.
-	if !regular {
-		return
-	}
-	identity, owned, err := x.githubOwnedWorktree(ctx, repository, upstream)
-	if err != nil {
-		warn(err)
-		return
-	}
-	if !owned {
-		return
-	}
-	if !settings.AutoMiseTrust {
-		if prompter == nil {
-			warn(errors.New("automatic setup prompt is not configured"))
-			return
-		}
-		enabled, err := prompter.Choose(input, output, SetupMiseTrust, SetupIdentity{Username: identity.Username, Organizations: identity.Organizations})
-		if err != nil {
-			warn(err)
-			return
-		}
-		settings.AutoMiseTrust = enabled
-		settings.AutoMiseTrustDecided = true
-		if err := writeConfig(x.configPath(), settings); err != nil {
-			warn(fmt.Errorf("save mise trust choice: %w", err))
-			return
-		}
-		if !enabled {
-			if err := prompter.ReportDisabled(output, SetupMiseTrust); err != nil {
-				warn(err)
-			}
-			return
-		}
-	}
-	trust := x.command(ctx, "mise", "trust", configPath)
-	trust.Dir = worktreePath
-	combined, err := trust.CombinedOutput()
-	if err != nil {
-		warn(fmt.Errorf("mise trust failed: %w: %s", err, strings.TrimSpace(string(combined))))
-	}
+	reportSetupWarning(output, reportWarning, SetupMiseTrust, trustMiseConfig(x, ctx, input, output, repository, upstream, worktreePath, prompter))
 }
 
 // bareRepoPath returns <worktree-root>/<repo-name>/.git.
@@ -1208,89 +842,11 @@ func (x Runtime) bareRepoPath(repoName string) string {
 }
 
 func (x Runtime) buildImportPlan(sourcePath string, requestedName string) (importPlan, error) {
-	sourceRepository, err := openRepository(x, sourcePath)
-	if err != nil {
-		bare, bareErr := pathIsBareRepository(x, sourcePath)
-		if bare && isSame(bareErr, nil) {
-			display := x.displayHomePath(sourcePath)
-			return importPlan{}, fmt.Errorf("%s is a bare repository; use 'timber repo add %s' instead", display, display)
-		}
-		return importPlan{}, fmt.Errorf("open repository at %s: %w", x.displayHomePath(sourcePath), err)
-	}
-
-	commonDir, err := sourceRepository.commonGitDir()
+	sourceRepository, err := openImportSource(x, sourcePath)
 	if err != nil {
 		return importPlan{}, err
 	}
-
-	if err := rejectRegisteredSource(x, commonDir); err != nil {
-		return importPlan{}, err
-	}
-
-	porcelainWorktrees, err := sourceRepository.listPorcelainWorktrees()
-	if err != nil {
-		return importPlan{}, err
-	}
-	if len(porcelainWorktrees) == 0 {
-		return importPlan{}, errors.New("repository has no worktrees")
-	}
-
-	// A bare repository with linked worktrees lists itself first. When the
-	// Git directory is named .git, that path is the parent, not commonDir.
-	mainEntry := porcelainWorktrees[0]
-	bareMain := mainEntry.Bare
-	if !bareMain {
-		var err error
-		bareMain, err = samePath(mainEntry.Path, commonDir)
-		if err != nil {
-			return importPlan{}, err
-		}
-	}
-	if bareMain {
-		display := x.displayHomePath(mainEntry.Path)
-		return importPlan{}, fmt.Errorf("%s is a bare repository; use 'timber repo add %s' instead", display, display)
-	}
-	mainPath := mainEntry.Path
-
-	// Resolve the canonical main checkout so subdirectory or linked-worktree
-	// arguments still import the whole repository.
-	sourceRepository, err = openRepository(x, mainPath)
-	if err != nil {
-		return importPlan{}, err
-	}
-
-	repoName := requestedName
-	if repoName == "" {
-		repoName = defaultRepoNameForImport(sourceRepository, mainPath)
-	}
-	if err := validateRepoName(repoName); err != nil {
-		return importPlan{}, err
-	}
-
-	barePath := x.bareRepoPath(repoName)
-	if _, err := os.Stat(barePath); err == nil {
-		return importPlan{}, fmt.Errorf("repository %q already exists at %s", repoName, barePath)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return importPlan{}, fmt.Errorf("inspect repository path %q: %w", barePath, err)
-	}
-
-	plan := importPlan{
-		runtime:  x,
-		source:   sourceRepository,
-		repoName: repoName,
-		barePath: barePath,
-		mainPath: mainPath,
-	}
-	if err := plan.collectWorktrees(porcelainWorktrees); err != nil {
-		return importPlan{}, err
-	}
-	if err := plan.validateTargets(); err != nil {
-		return importPlan{}, err
-	}
-	if err := x.validateTrashCommand(); err != nil {
-		return importPlan{}, err
-	}
-	return plan, nil
+	return importPlanForRepository(x, sourceRepository, requestedName)
 }
 
 func (x Runtime) buildRepositoryRenamePlan(oldName string, requestedNewName string) (repositoryRenamePlan, error) {
@@ -1948,36 +1504,15 @@ func (x Runtime) listLegacyRepos() ([]registeredRepo, error) {
 		return nil, fmt.Errorf("read legacy repos directory %q: %w", directory, err)
 	}
 
-	repos := make([]registeredRepo, 0)
-	walkErr := filepath.WalkDir(directory, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || !entry.IsDir() || isSame(path, directory) {
-			return nil
-		}
-		if !strings.HasSuffix(entry.Name(), bareRepoSuffix) {
-			return nil
-		}
-		bare, bareErr := pathIsBareRepository(x, path)
-		if !bare || !isSame(bareErr, nil) {
-			return filepath.SkipDir
-		}
-		relative, relErr := filepath.Rel(directory, path)
-		if relErr != nil {
-			return filepath.SkipDir
-		}
-		repoName := filepath.ToSlash(strings.TrimSuffix(relative, bareRepoSuffix))
-		if err := validateRepoName(repoName); err != nil {
-			return filepath.SkipDir
-		}
-		repos = append(repos, registeredRepo{Name: repoName, BarePath: path})
-		return filepath.SkipDir
-	})
+	walk := legacyRepoWalk{runtime: x, directory: directory}
+	walkErr := filepath.WalkDir(directory, walk.visit)
 	if walkErr != nil {
 		return nil, fmt.Errorf("read legacy repos directory %q: %w", directory, walkErr)
 	}
-	slices.SortFunc(repos, func(left, right registeredRepo) int {
+	slices.SortFunc(walk.repos, func(left, right registeredRepo) int {
 		return strings.Compare(left.Name, right.Name)
 	})
-	return repos, nil
+	return walk.repos, nil
 }
 
 func (x Runtime) listRegisteredRepos() ([]registeredRepo, error) {
@@ -2127,43 +1662,11 @@ func (x Runtime) moveLegacyRepo(repo registeredRepo) (bool, error) {
 // movedInternalWorktree recognizes a checkout that moved with a legacy bare
 // repository. Both old links must agree before Git can repair either one.
 func (x Runtime) movedInternalWorktree(repo registeredRepo, oldPath string) (string, error) {
-	oldBare := filepath.Join(x.legacyReposDirectory(), filepath.FromSlash(repo.Name)+bareRepoSuffix)
-	rel, err := filepath.Rel(oldBare, oldPath)
-	if err != nil || isSame(rel, ".") || !pathIsWithin(oldBare, oldPath) {
-		return "", nil
-	}
-	path := filepath.Join(repo.BarePath, rel)
-	info, err := os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
+	path, ok, err := relocatedWorktreePath(x, repo, oldPath)
+	if err != nil || !isTrue(ok) {
 		return "", err
 	}
-	if !info.IsDir() || isSymlink(info) {
-		return "", nil
-	}
-	content, err := os.ReadFile(filepath.Join(path, ".git"))
-	if err != nil {
-		return "", nil
-	}
-	gitdir, ok := strings.CutPrefix(strings.TrimSpace(string(content)), "gitdir: ")
-	if !ok {
-		return "", nil
-	}
-	oldAdmin := filepath.Join(oldBare, "worktrees")
-	adminRel, err := filepath.Rel(oldAdmin, filepath.Clean(gitdir))
-	if err != nil || isSame(adminRel, ".") || isSame(adminRel, "..") || !isSame(filepath.Base(adminRel), adminRel) {
-		return "", nil
-	}
-	backlink, err := os.ReadFile(filepath.Join(repo.BarePath, "worktrees", adminRel, "gitdir"))
-	if err != nil || !isSame(filepath.Clean(strings.TrimSpace(string(backlink))), filepath.Join(oldPath, ".git")) {
-		return "", nil
-	}
-	if _, err := os.Lstat(oldPath); !errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	return path, nil
+	return matchingMovedGitDir(x, repo, oldPath, path)
 }
 
 // newGitHubClient builds the API client. The token is passed straight to the
@@ -2286,18 +1789,7 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 		return pullRequestTarget{}, fmt.Errorf("worktree %q has a detached HEAD; a pull request needs a branch", worktree.Name)
 	}
 
-	remote, err := repository.pullRequestRemote(head)
-	if err != nil {
-		return pullRequestTarget{}, err
-	}
-	remoteURL, configured, err := repository.gitConfigValue("remote." + remote + ".url")
-	if err != nil {
-		return pullRequestTarget{}, err
-	}
-	if !configured || isEmpty(remoteURL) {
-		return pullRequestTarget{}, fmt.Errorf("repository %s has no %s remote; a pull request needs a GitHub remote", worktree.Repo, remote)
-	}
-	owner, repo, err := githubRepositoryFromRemoteURL(remoteURL)
+	remote, owner, repo, err := pullRequestRemoteParts(repository, worktree, head)
 	if err != nil {
 		return pullRequestTarget{}, err
 	}
@@ -2409,26 +1901,9 @@ func (runtime Runtime) removeResolvedWorktree(repository *Repository, worktree m
 		return worktreeRemovalResult{}, err
 	}
 
-	if !force {
-		if err := repository.fetchOrigin(); err != nil {
-			return worktreeRemovalResult{}, err
-		}
-	}
-
-	if !force {
-		worktree, err = runtime.enrichManagedWorktree(repository, worktree)
-		if err != nil {
-			return worktreeRemovalResult{}, err
-		}
-		if !worktree.Clean {
-			return worktreeRemovalResult{}, fmt.Errorf("worktree %q is not clean", name)
-		}
-		if worktree.UpstreamRef == "" {
-			return worktreeRemovalResult{}, fmt.Errorf("branch %q has no upstream branch; use --force to remove it", worktree.branchName())
-		}
-		if !worktree.Merged {
-			return worktreeRemovalResult{}, fmt.Errorf("branch %q is not merged to %s", worktree.branchName(), shortReference(worktree.UpstreamRef))
-		}
+	worktree, err = refuseUnsafeRemoval(runtime, repository, worktree, name, force)
+	if err != nil {
+		return worktreeRemovalResult{}, err
 	}
 
 	currentDirectory := runtime.CurrentDirectory
@@ -2448,14 +1923,8 @@ func (runtime Runtime) removeResolvedWorktree(repository *Repository, worktree m
 		}
 	}
 
-	branchExists, err := repository.branchStillExists(worktree.BranchReference)
-	if err != nil {
+	if err := deleteRemovedBranch(repository, worktree, force); err != nil {
 		return worktreeRemovalResult{}, err
-	}
-	if branchExists {
-		if _, err := repository.git("branch", branchDeleteFlag(force), worktree.branchName()); err != nil {
-			return worktreeRemovalResult{}, err
-		}
 	}
 
 	return worktreeRemovalResult{worktree: worktree, removingCurrentDirectory: removingCurrentDirectory}, nil
@@ -2471,28 +1940,9 @@ func (x Runtime) repairStaleWorktrees(repo registeredRepo) (bool, error) {
 		return false, err
 	}
 
-	stale := make([]string, 0)
-	for _, worktree := range worktrees {
-		if worktree.Bare {
-			continue
-		}
-		if worktree.Prunable != "" {
-			path, err := x.movedInternalWorktree(repo, worktree.Path)
-			if err != nil {
-				return false, err
-			}
-			if path != "" {
-				stale = append(stale, path)
-			}
-			continue
-		}
-		needsRepair, err := worktreeGitDirIsStale(worktree.Path, repo.BarePath)
-		if err != nil {
-			return false, err
-		}
-		if needsRepair {
-			stale = append(stale, worktree.Path)
-		}
+	stale, err := collectStaleWorktrees(x, repo, worktrees)
+	if err != nil {
+		return false, err
 	}
 	if len(stale) == 0 {
 		return false, nil

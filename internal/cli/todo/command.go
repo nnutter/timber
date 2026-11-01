@@ -41,40 +41,15 @@ type todoCommandOptions struct {
 
 func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) error {
 	if x.installSkill {
-		if len(args) > 0 {
-			return fmt.Errorf("install-skill takes no arguments")
-		}
-		return x.installTodoSkill(command)
+		return installTodoOnly(x, command, args)
 	}
-
-	resolveGitDir := x.deps.ResolveGitDir
-	if x.repo {
-		resolveGitDir = x.deps.ResolveRepoGitDir
-	}
-	gitDir, err := resolveGitDir(command.InOrStdin(), args)
+	todoPath, err := ensureTodoFile(x, command, args)
 	if err != nil {
 		return err
 	}
 
-	todoPath := tododata.Path(gitDir)
-	if x.repo {
-		todoPath = filepath.Join(gitDir, "TODO.repo.md")
-	}
-	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
-	if err != nil {
-		return fmt.Errorf("create TODO file: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("create TODO file: %w", err)
-	}
-
-	if x.pathOnly {
-		_, err := fmt.Fprintln(command.OutOrStdout(), todoPath)
+	if handled, err := reportTodoCommand(x, command, todoPath); handled || hasError(err) {
 		return err
-	}
-
-	if x.jsonOutput {
-		return x.reportTodoJSON(command, todoPath)
 	}
 
 	editorLine, err := editorCommandLine(x.deps.Environment)
@@ -202,4 +177,45 @@ func lookupFallbackEditor(pathEnv string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func installTodoOnly(x *todoCommandOptions, command *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("install-skill takes no arguments")
+	}
+	return x.installTodoSkill(command)
+}
+
+func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string) (string, error) {
+	resolveGitDir := x.deps.ResolveGitDir
+	if x.repo {
+		resolveGitDir = x.deps.ResolveRepoGitDir
+	}
+	gitDir, err := resolveGitDir(command.InOrStdin(), args)
+	if err != nil {
+		return "", err
+	}
+	todoPath := tododata.Path(gitDir)
+	if x.repo {
+		todoPath = filepath.Join(gitDir, "TODO.repo.md")
+	}
+	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
+	if err != nil {
+		return "", fmt.Errorf("create TODO file: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return "", fmt.Errorf("create TODO file: %w", err)
+	}
+	return todoPath, nil
+}
+
+func reportTodoCommand(x *todoCommandOptions, command *cobra.Command, todoPath string) (bool, error) {
+	if x.pathOnly {
+		_, err := fmt.Fprintln(command.OutOrStdout(), todoPath)
+		return true, err
+	}
+	if x.jsonOutput {
+		return true, x.reportTodoJSON(command, todoPath)
+	}
+	return false, nil
 }

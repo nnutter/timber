@@ -47,6 +47,25 @@ func (c commitContext) Search(ctx context.Context, revision, query string) (stri
 	if err != nil {
 		return "", err
 	}
+	filtered, err := filterSearchLines(text)
+	if err != nil {
+		return "", err
+	}
+	return filtered, nil
+}
+
+func (c commitContext) revision(label string) (string, error) {
+	switch label {
+	case "base":
+		return c.base, nil
+	case "tip":
+		return c.tip, nil
+	default:
+		return "", fmt.Errorf("context revision must be base or tip")
+	}
+}
+
+func filterSearchLines(text string) (string, error) {
 	var filtered strings.Builder
 	scanner := bufio.NewScanner(strings.NewReader(text))
 	scanner.Buffer(make([]byte, 0, 4096), autoContextLimit)
@@ -65,17 +84,6 @@ func (c commitContext) Search(ctx context.Context, revision, query string) (stri
 		return "", fmt.Errorf("read automatic review search: %w", err)
 	}
 	return filtered.String(), nil
-}
-
-func (c commitContext) revision(label string) (string, error) {
-	switch label {
-	case "base":
-		return c.base, nil
-	case "tip":
-		return c.tip, nil
-	default:
-		return "", fmt.Errorf("context revision must be base or tip")
-	}
 }
 
 // Obvious credential paths are never sent to a provider. This is not a secret scanner.

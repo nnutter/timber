@@ -43,24 +43,13 @@ func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	resolved := coreconfig.Resolved{}
-	if len(models.Providers) > 0 {
-		resolved, err = models.Resolve(selector)
-		if err != nil {
-			return err
-		}
-		if err := resolved.Validate(); err != nil {
-			return err
-		}
+	resolved, err := resolveAutoModel(models, selector)
+	if err != nil {
+		return err
 	}
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		if apiKey, err = coreconfig.Value(resolved.APIKey); err != nil {
-			return fmt.Errorf("api key: %w", err)
-		}
-	}
-	if apiKey == "" {
-		return fmt.Errorf("auto requires OPENAI_API_KEY or a provider apiKey in the models file")
+	apiKey, err := autoAPIKey(resolved)
+	if err != nil {
+		return err
 	}
 	headers, err := coreconfig.Values(resolved.Headers)
 	if err != nil {
@@ -83,11 +72,7 @@ func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	asJSON := false
-	if flag, err := cmd.Flags().GetBool("json"); err == nil {
-		asJSON = flag
-	}
-	return display.WriteAuto(c.Output, asJSON, result)
+	return display.WriteAuto(c.Output, autoJSON(cmd), result)
 }
 
 func (c *Command) models() (coreconfig.Models, error) {
@@ -95,6 +80,40 @@ func (c *Command) models() (coreconfig.Models, error) {
 		return coreconfig.Models{}, nil
 	}
 	return c.LoadModels()
+}
+
+func resolveAutoModel(models coreconfig.Models, selector string) (coreconfig.Resolved, error) {
+	if len(models.Providers) == 0 {
+		return coreconfig.Resolved{}, nil
+	}
+	resolved, err := models.Resolve(selector)
+	if err != nil {
+		return coreconfig.Resolved{}, err
+	}
+	if err := resolved.Validate(); err != nil {
+		return coreconfig.Resolved{}, err
+	}
+	return resolved, nil
+}
+
+func autoAPIKey(resolved coreconfig.Resolved) (string, error) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = coreconfig.Value(resolved.APIKey)
+		if err != nil {
+			return "", fmt.Errorf("api key: %w", err)
+		}
+	}
+	if apiKey == "" {
+		return "", fmt.Errorf("auto requires OPENAI_API_KEY or a provider apiKey in the models file")
+	}
+	return apiKey, nil
+}
+
+func autoJSON(cmd *cobra.Command) bool {
+	flag, err := cmd.Flags().GetBool("json")
+	return err == nil && isTrue(flag)
 }
 
 // New builds a noninteractive automatic refactor assessment command.

@@ -270,31 +270,11 @@ func (x *Repository) listPorcelainWorktrees() ([]porcelainWorktree, error) {
 
 	worktrees := make([]porcelainWorktree, 0)
 	for block := range strings.SplitSeq(strings.TrimSpace(result.stdout), "\n\n") {
-		if strings.TrimSpace(block) == "" {
+		worktree, ok := parsePorcelainBlock(block)
+		if !ok {
 			continue
 		}
-
-		var worktree porcelainWorktree
-		for line := range strings.SplitSeq(block, "\n") {
-			switch {
-			case strings.HasPrefix(line, "worktree "):
-				worktree.Path = strings.TrimPrefix(line, "worktree ")
-			case strings.HasPrefix(line, "branch "):
-				worktree.BranchRef = strings.TrimPrefix(line, "branch ")
-			case strings.HasPrefix(line, "HEAD "):
-				worktree.CommitHash = strings.TrimPrefix(line, "HEAD ")
-			case line == "detached":
-				worktree.Detached = true
-			case line == "bare":
-				worktree.Bare = true
-			case strings.HasPrefix(line, "prunable "):
-				worktree.Prunable = strings.TrimPrefix(line, "prunable ")
-			}
-		}
-
-		if worktree.Path != "" {
-			worktrees = append(worktrees, worktree)
-		}
+		worktrees = append(worktrees, worktree)
 	}
 
 	return worktrees, nil
@@ -474,12 +454,7 @@ func (x *Repository) upstreamRemoteURL(upstream string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var selected string
-	for remote := range strings.SplitSeq(remotes.stdout, "\n") {
-		if remote != "" && strings.HasPrefix(ref, remoteRefPrefix+remote+"/") && isLess(len(selected), len(remote)) {
-			selected = remote
-		}
-	}
+	selected := longestRemotePrefix(remotes.stdout, ref)
 	if selected == "" {
 		return "", nil
 	}
@@ -488,6 +463,16 @@ func (x *Repository) upstreamRemoteURL(upstream string) (string, error) {
 		return "", fmt.Errorf("resolve upstream remote for mise trust: %w", err)
 	}
 	return remoteURL.stdout, nil
+}
+
+func longestRemotePrefix(remotes, ref string) string {
+	var selected string
+	for remote := range strings.SplitSeq(remotes, "\n") {
+		if remote != "" && strings.HasPrefix(ref, remoteRefPrefix+remote+"/") && isLess(len(selected), len(remote)) {
+			selected = remote
+		}
+	}
+	return selected
 }
 
 type listStatus struct {

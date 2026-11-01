@@ -1,15 +1,8 @@
 package cli
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/nnutter/timber/internal/timber"
 )
@@ -17,23 +10,7 @@ import (
 func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 	parent := t
 	var timberBin string
-	for _, test := range []struct {
-		name            string
-		remote          string
-		enabled         bool
-		miseFile        bool
-		cache           string
-		miseFails       bool
-		localStart      bool
-		symlink         bool
-		wantTrust       bool
-		wantWarn        string
-		interactive     bool
-		answer          string
-		wantPrompt      bool
-		explicitDisable bool
-		noOrganizations bool
-	}{
+	for _, test := range []miseTrustCase{
 		{name: "prompt yes", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, answer: "yes", wantPrompt: true, wantTrust: true},
 		{name: "prompt without organizations", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, answer: "yes", wantPrompt: true, wantTrust: true, noOrganizations: true},
 		{name: "prompt no", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, answer: "no", wantPrompt: true},
@@ -62,129 +39,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 		{name: "mise failure", remote: "git@github.com:alice/project", enabled: true, miseFile: true, miseFails: true, wantTrust: true, wantWarn: "mise trust failed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if test.interactive {
-				shellSkipIfNoPty(t)
-				if timberBin == "" {
-					timberBin = buildTestTimberBinary(parent)
-				}
-			}
-			repository := newTestRepository(t)
-			if test.miseFile {
-				seed := filepath.Join(resolvedTempDir(t), "seed")
-				runGitCommand(t, repository.home, "clone", repository.remotePath, seed)
-				runGitCommand(t, seed, "config", "user.name", "Test User")
-				runGitCommand(t, seed, "config", "user.email", "test@example.com")
-				if test.symlink {
-					require.NoError(t, os.Symlink("README.md", filepath.Join(seed, "mise.toml")))
-				} else {
-					require.NoError(t, os.WriteFile(filepath.Join(seed, "mise.toml"), []byte("[tools]\n"), 0o600))
-				}
-				runGitCommand(t, seed, "add", "mise.toml")
-				runGitCommand(t, seed, "commit", "-m", "add mise config")
-				runGitCommand(t, seed, "push")
-			}
-			// Fetch locally. The selected upstream belongs to a different remote,
-			// so trusting origin by mistake would not pass the positive cases.
-			runGitCommand(t, repository.barePath, "fetch", "origin")
-			runGitCommand(t, repository.barePath, "remote", "add", "source", test.remote)
-			runGitCommand(t, repository.barePath, "update-ref", "refs/remotes/source/main", "refs/remotes/origin/main")
-			runtime := repository.runtime
-			runtime.GhExecutable = filepath.Join(resolvedTempDir(t), "missing-gh")
-			if test.enabled {
-				result := runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust")
-				require.NoError(t, result.err)
-			}
-			if test.explicitDisable {
-				result := runTimberCommandWithRuntime(t, runtime, "config", "--no-auto-mise-trust")
-				require.NoError(t, result.err)
-			}
-			if test.cache == "refresh" {
-				runtime = installIdentityGh(t, withTestEnvironment(runtime, "GH_TEST_LOG="+filepath.Join(resolvedTempDir(t), "gh.log")))
-			}
-			if test.cache != "missing" && !isSame(test.cache, "refresh") {
-				fetchedAt := time.Now().UTC()
-				if test.cache == "expired" {
-					fetchedAt = fetchedAt.Add(-25 * time.Hour)
-				}
-				organizations := `["first-org","second-org"]`
-				if test.noOrganizations {
-					organizations = `[]`
-				}
-				cache := fmt.Sprintf(`{"username":"alice","organizations":%s,"fetched_at":%q}`, organizations, fetchedAt.Format(time.RFC3339Nano))
-				if test.cache == "corrupt" {
-					cache = "{"
-				}
-				writeIdentityCache(t, runtime, cache)
-			}
-			bin := resolvedTempDir(t)
-			logPath := filepath.Join(bin, "mise.log")
-			script := fmt.Sprintf("#!/bin/sh\n[ -f .git ] && [ -f mise.toml ] || exit 2\nprintf '%%s\\n' \"$PWD\" \"$@\" > %q\n", logPath)
-			if test.miseFails {
-				script += "echo 'trust refused' >&2\nexit 1\n"
-			}
-			require.NoError(t, os.WriteFile(filepath.Join(bin, "mise"), []byte(script), 0o700))
-			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-			runtime = withTestEnvironment(runtime, "PATH="+os.Getenv("PATH"))
-			upstream := "source/main"
-			if test.localStart {
-				runGitCommand(t, repository.barePath, "branch", "--track", "local-start", "source/main")
-				upstream = "local-start"
-			}
-			var result commandResult
-			if test.interactive {
-				result = interactiveCreate(t, runtime, timberBin, test.answer, "feature")
-			} else {
-				result = runTimberCommandWithRuntime(t, runtime, "create", "--upstream", upstream, at(testRepoName, "feature"))
-			}
-			require.NoError(t, result.err)
-			assert.FileExists(t, filepath.Join(repository.worktreePath("feature"), ".git"))
-			if test.miseFile {
-				assert.FileExists(t, filepath.Join(repository.worktreePath("feature"), "mise.toml"))
-			}
-			if test.wantWarn != "" {
-				assert.Contains(t, result.stderr, "warning: automatic mise trust skipped:")
-				assert.Contains(t, result.stderr, test.wantWarn)
-			} else {
-				assert.NotContains(t, result.stderr, "warning:")
-			}
-			if test.wantTrust {
-				contents, err := os.ReadFile(logPath)
-				require.NoError(t, err)
-				path := repository.worktreePath("feature")
-				assert.Equal(t, path+"\ntrust\n"+filepath.Join(path, "mise.toml")+"\n", string(contents))
-			} else {
-				assert.NoFileExists(t, logPath)
-			}
-			if test.wantPrompt {
-				assert.Contains(t, result.stderr, "permits code execution")
-				assert.Contains(t, result.stderr, "[y/N]")
-				assert.Contains(t, result.stderr, "GitHub username: alice")
-				organizations := "GitHub organizations: first-org, second-org"
-				if test.noOrganizations {
-					organizations = "GitHub organizations: none"
-				}
-				assert.Contains(t, result.stderr, organizations)
-				assert.Less(t, strings.Index(result.stderr, organizations), strings.Index(result.stderr, "[y/N]"))
-				settings, err := runtime.LoadConfig()
-				require.NoError(t, err)
-				assert.True(t, settings.AutoMiseTrustDecided)
-				assert.Equal(t, test.wantTrust, settings.AutoMiseTrust)
-				if !test.wantTrust {
-					assert.Contains(t, result.stderr, "Enable it later with: timber config --auto-mise-trust")
-				}
-				again := interactiveCreate(t, runtime, timberBin, test.answer, "second")
-				require.NoError(t, again.err)
-				assert.NotContains(t, again.stderr, "[y/N]")
-				if !test.wantTrust {
-					assert.NoFileExists(t, logPath)
-					// The documented command can reverse a saved refusal.
-					require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust").err)
-					require.NoError(t, runTimberCommandWithRuntime(t, runtime, "create", "--upstream", "source/main", at(testRepoName, "third")).err)
-					assert.FileExists(t, logPath)
-				}
-			} else {
-				assert.NotContains(t, result.stderr, "[y/N]")
-			}
+			runMiseTrustCase(t, parent, &timberBin, test)
 		})
 	}
 }

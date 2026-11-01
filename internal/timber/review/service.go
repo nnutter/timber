@@ -5,10 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"os"
-	"slices"
 	"strings"
-	"time"
 
 	"github.com/nnutter/timber/internal/timber/review/autoreview"
 )
@@ -125,95 +122,19 @@ func (s Service) ApproveAll(ctx context.Context) (Result, error) {
 
 // Auto evaluates captured stacks. It never lets the evaluator mutate review state.
 func (s Service) Auto(ctx context.Context, evaluator autoreview.Evaluator, options AutoOptions) (result AutoResult, err error) {
-	if evaluator == nil {
-		return result, fmt.Errorf("automatic review requires a model evaluator")
-	}
-	if options.Timeout < 0 {
-		return result, fmt.Errorf("automatic review timeout must not be negative")
-	}
-	if options.Timeout == 0 {
-		options.Timeout = 3 * time.Minute
+	if err = validateAutoEvaluator(evaluator, &options); err != nil {
+		return result, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, options.Timeout)
 	defer cancel()
-	path, err := WorktreePath(s.Repository.Dir)
-	if err != nil {
-		return result, err
-	}
-	// A dry run reads committed content and review state only, so it must not
-	// hold the lock that an interactive review needs.
-	var lock *os.File
-	if !options.DryRun {
-		lock, err = lockWorktree(path)
-		if err != nil {
-			return result, err
-		}
-		defer func() { err = errors.Join(err, lock.Close()) }()
-	}
-	view, state, err := s.snapshotState(ctx)
+	lock, err := autoLock(s, options)
 	if err != nil {
 		return result, err
 	}
 	if lock != nil {
-		if err := lock.Truncate(0); err != nil {
-			return result, err
-		}
-		if _, err := lock.WriteString("refs/heads/" + view.Branch); err != nil {
-			return result, err
-		}
+		defer func() { err = errors.Join(err, lock.Close()) }()
 	}
-	if len(activeAttempts(state)) != 0 {
-		return result, fmt.Errorf("recover or replace the active review before automatic approval")
-	}
-	selected, err := (Reviewer{Service: s}).bounds(ctx, view, options.Start, options.End)
-	if err != nil {
-		return result, err
-	}
-	result = AutoResult{
-		Version:       1,
-		Command:       "auto",
-		Status:        "complete",
-		DryRun:        options.DryRun,
-		PolicyVersion: autoreview.PolicyVersion,
-		View:          view,
-		Entries:       []AutoEntry{},
-	}
-	if options.DryRun {
-		result.Status = "dry-run"
-	}
-	recorded := 0
-	for i, stack := range selected {
-		var report func()
-		if options.Progress != nil {
-			report = func() {
-				options.Progress(AutoProgress{
-					Index: i + 1,
-					Total: len(selected),
-					Stack: stack,
-				})
-			}
-		}
-		entry, err := s.evaluateAuto(ctx, evaluator, stack, state, report)
-		if err != nil {
-			return result, resumeError(err, recorded)
-		}
-		if !options.DryRun && !isSame(entry.Evaluation, nil) {
-			// Record each result as it completes so a later failure keeps the
-			// provider work already paid for.
-			if err := s.recordAutomatic(ctx, view, &entry); err != nil {
-				return result, resumeError(err, recorded)
-			}
-			recorded++
-		}
-		result.Entries = append(result.Entries, entry)
-	}
-	if err := ctx.Err(); err != nil {
-		return result, resumeError(err, recorded)
-	}
-	if err := s.unchanged(ctx, view); err != nil {
-		return result, resumeError(err, recorded)
-	}
-	return result, nil
+	return runAuto(ctx, s, evaluator, options, lock)
 }
 
 // Feedback reads saved commit and file feedback without changing either store.
@@ -285,67 +206,23 @@ func (s Service) evaluateAuto(ctx context.Context, evaluator autoreview.Evaluato
 		entry.Reason = alreadyReviewed(previous)
 		return entry, nil
 	}
-	messages := make([]string, 0, len(stack.Commits))
-	for _, sha := range stack.Commits {
-		message, err := s.Repository.autoGit(ctx, 16*1024, "show", "--no-patch", "--format=%B", sha, "--")
-		if err != nil {
-			return entry, err
-		}
-		messages = append(messages, message)
+	messages, err := autoCommitMessages(ctx, s.Repository, stack)
+	if err != nil {
+		return entry, err
 	}
 	subject, _, _ := strings.Cut(messages[0], "\n")
 	if !strings.HasPrefix(subject, "Refactor:") {
 		entry.Reason = "Original subject does not start with the literal Refactor: prefix"
 		return entry, nil
 	}
-	// Check names before producing a diff so obvious credentials are not sent.
-	names, err := s.Repository.autoGit(ctx, autoContextLimit, "diff", "--name-only", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-relative", stack.Base, stack.Tip, "--")
-	if err != nil {
-		return entry, err
-	}
-	for name := range strings.SplitSeq(strings.TrimSuffix(names, "\n"), "\n") {
-		if strings.HasPrefix(name, "\"") || sensitiveAutoPath(name) {
+	if skipped, err := sensitiveAutoNames(ctx, s.Repository, stack); err != nil || isTrue(skipped) {
+		if skipped {
 			entry.Reason = "Changed paths require human review"
 			return entry, nil
 		}
-	}
-	diff, err := s.Repository.autoGit(ctx, autoreview.MaxInputBytes, slices.Concat(diffOptions, []string{stack.Base, stack.Tip, "--"})...)
-	if err != nil {
 		return entry, err
 	}
-	if strings.Contains(diff, "GIT binary patch") || strings.Contains(diff, "Subproject commit ") {
-		entry.Reason = "Binary or submodule changes require human review"
-		return entry, nil
-	}
-	input := autoreview.Input{
-		Subject:  subject,
-		Messages: messages,
-		Diff:     diff,
-	}
-	encoded, err := json.Marshal(input)
-	if err != nil {
-		return entry, err
-	}
-	if len(encoded) > autoreview.MaxInputBytes {
-		return entry, fmt.Errorf("automatic review input exceeds %d bytes", autoreview.MaxInputBytes)
-	}
-	if report != nil {
-		report()
-	}
-	verdict, err := evaluator.Evaluate(ctx, input, commitContext{
-		repository: s.Repository,
-		base:       stack.Base,
-		tip:        stack.Tip,
-	})
-	if err != nil {
-		return entry, fmt.Errorf("evaluate stack %s: %w", stack.Key, err)
-	}
-	if err := verdict.Validate(); err != nil {
-		return entry, err
-	}
-	entry.Evaluation = &verdict
-	entry.Reason = verdict.Reason
-	return entry, nil
+	return finishAutoEvaluation(ctx, s, evaluator, stack, entry, subject, messages, report)
 }
 
 // File annotation does not require an upstream or linear commit history.

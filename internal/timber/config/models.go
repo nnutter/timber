@@ -58,16 +58,41 @@ func (m Models) Only() (string, bool) {
 // one provider offers.
 func (m Models) Resolve(selector string) (Resolved, error) {
 	if name, id, ok := strings.Cut(selector, "/"); ok {
-		if provider, found := m.Providers[name]; found {
-			for _, model := range provider.Models {
-				if model.ID == id {
-					return resolveModel(name, provider, model), nil
-				}
-			}
-			return Resolved{}, fmt.Errorf("models file has no model %q for provider %q", id, name)
+		resolved, found, err := resolveProviderModel(m, name, id)
+		if err != nil || isTrue(found) {
+			return resolved, err
 		}
 	}
-	matches := []Resolved{}
+	return resolveUniqueModel(m, selector)
+}
+
+func resolveProviderModel(m Models, name, id string) (Resolved, bool, error) {
+	provider, found := m.Providers[name]
+	if !found {
+		return Resolved{}, false, nil
+	}
+	for _, model := range provider.Models {
+		if model.ID == id {
+			return resolveModel(name, provider, model), true, nil
+		}
+	}
+	return Resolved{}, false, fmt.Errorf("models file has no model %q for provider %q", id, name)
+}
+
+func resolveUniqueModel(m Models, selector string) (Resolved, error) {
+	matches := modelsNamed(m, selector)
+	switch len(matches) {
+	case 0:
+		return Resolved{}, fmt.Errorf("models file has no model %q", selector)
+	case 1:
+		return matches[0], nil
+	default:
+		return Resolved{}, fmt.Errorf("model %q is offered by providers %s; select it as provider/model", selector, providerNames(matches))
+	}
+}
+
+func modelsNamed(m Models, selector string) []Resolved {
+	var matches []Resolved
 	for _, name := range slices.Sorted(maps.Keys(m.Providers)) {
 		provider := m.Providers[name]
 		for _, model := range provider.Models {
@@ -76,18 +101,15 @@ func (m Models) Resolve(selector string) (Resolved, error) {
 			}
 		}
 	}
-	switch len(matches) {
-	case 0:
-		return Resolved{}, fmt.Errorf("models file has no model %q", selector)
-	case 1:
-		return matches[0], nil
-	default:
-		providers := make([]string, 0, len(matches))
-		for _, match := range matches {
-			providers = append(providers, match.Provider)
-		}
-		return Resolved{}, fmt.Errorf("model %q is offered by providers %s; select it as provider/model", selector, strings.Join(providers, ", "))
+	return matches
+}
+
+func providerNames(matches []Resolved) string {
+	providers := make([]string, 0, len(matches))
+	for _, match := range matches {
+		providers = append(providers, match.Provider)
 	}
+	return strings.Join(providers, ", ")
 }
 
 // Provider describes one model provider.
@@ -200,44 +222,60 @@ func Value(value string) (string, error) {
 	}
 	var expanded strings.Builder
 	for i := 0; i < len(value); {
-		if value[i] != '$' {
-			expanded.WriteByte(value[i])
-			i++
-			continue
-		}
-		if i+1 < len(value) && (value[i+1] == '$' || isSame(value[i+1], '!')) {
-			expanded.WriteByte(value[i+1])
-			i += 2
-			continue
-		}
-		end := i + 1
-		name := ""
-		if i+1 < len(value) && isSame(value[i+1], '{') {
-			close := strings.IndexByte(value[i+2:], '}')
-			if close < 0 {
-				return "", fmt.Errorf("unterminated variable in %q", value)
-			}
-			name = value[i+2 : i+2+close]
-			end = i + 2 + close + 1
-		} else {
-			for end < len(value) && isVariableByte(value[end], end == i+1) {
-				end++
-			}
-			if end == i+1 {
-				expanded.WriteByte('$')
-				i++
-				continue
-			}
-			name = value[i+1 : end]
-		}
-		environment, err := variable(name)
+		next, fragment, err := expandValueAt(value, i)
 		if err != nil {
 			return "", err
 		}
-		expanded.WriteString(environment)
-		i = end
+		expanded.WriteString(fragment)
+		i = next
 	}
 	return expanded.String(), nil
+}
+
+func expandValueAt(value string, i int) (int, string, error) {
+	if value[i] != '$' {
+		return i + 1, string(value[i]), nil
+	}
+	if next, literal, ok := escapedDollar(value, i); ok {
+		return next, literal, nil
+	}
+	name, end, bare, err := variableName(value, i)
+	if err != nil {
+		return 0, "", err
+	}
+	if bare {
+		return i + 1, "$", nil
+	}
+	environment, err := variable(name)
+	if err != nil {
+		return 0, "", err
+	}
+	return end, environment, nil
+}
+
+func escapedDollar(value string, i int) (int, string, bool) {
+	if i+1 < len(value) && (value[i+1] == '$' || isSame(value[i+1], '!')) {
+		return i + 2, string(value[i+1]), true
+	}
+	return 0, "", false
+}
+
+func variableName(value string, i int) (string, int, bool, error) {
+	end := i + 1
+	if i+1 < len(value) && isSame(value[i+1], '{') {
+		close := strings.IndexByte(value[i+2:], '}')
+		if close < 0 {
+			return "", 0, false, fmt.Errorf("unterminated variable in %q", value)
+		}
+		return value[i+2 : i+2+close], i + 2 + close + 1, false, nil
+	}
+	for end < len(value) && isVariableByte(value[end], end == i+1) {
+		end++
+	}
+	if end == i+1 {
+		return "", end, true, nil
+	}
+	return value[i+1 : end], end, false, nil
 }
 
 func isVariableByte(b byte, first bool) bool {
@@ -290,42 +328,85 @@ func securityOutput(value, rest string) (string, error) {
 // and backslash escapes. It never interprets command substitution, globs, or
 // redirections, so every argument stays a literal.
 func splitSecurityArgs(rest string) ([]string, error) {
-	var args []string
-	var current strings.Builder
-	var inSingle, inDouble, escaped, hasContent bool
-	flush := func() {
-		if hasContent {
-			args = append(args, current.String())
-			current.Reset()
-			hasContent = false
-		}
-	}
+	var splitter securityArgSplitter
 	for _, r := range rest {
-		switch {
-		case escaped:
-			current.WriteRune(r)
-			escaped = false
-		case r == '\\' && isFalse(inSingle):
-			escaped = true
-			hasContent = true
-		case r == '\'' && isFalse(inDouble):
-			inSingle = !inSingle
-			hasContent = true
-		case r == '"' && isFalse(inSingle):
-			inDouble = !inDouble
-			hasContent = true
-		case inSingle || isTrue(inDouble):
-			current.WriteRune(r)
-		case r == ' ' || isSame(r, '\t') || isSame(r, '\n'):
-			flush()
-		default:
-			current.WriteRune(r)
-			hasContent = true
-		}
+		splitter.accept(r)
 	}
-	if escaped || isTrue(inSingle) || isTrue(inDouble) {
-		return nil, fmt.Errorf("unterminated quote in \"!security%s\"", rest)
+	if err := splitter.finish(rest); err != nil {
+		return nil, err
 	}
-	flush()
-	return args, nil
+	return splitter.args, nil
+}
+
+type securityArgSplitter struct {
+	args       []string
+	current    strings.Builder
+	inSingle   bool
+	inDouble   bool
+	escaped    bool
+	hasContent bool
+}
+
+func (splitter *securityArgSplitter) accept(r rune) {
+	switch {
+	case splitter.escaped:
+		splitter.writeEscaped(r)
+	case splitter.startsEscape(r):
+		splitter.escaped = true
+		splitter.hasContent = true
+	case splitter.togglesSingle(r):
+		splitter.inSingle = !splitter.inSingle
+		splitter.hasContent = true
+	case splitter.togglesDouble(r):
+		splitter.inDouble = !splitter.inDouble
+		splitter.hasContent = true
+	case splitter.inQuote():
+		splitter.current.WriteRune(r)
+	case splitter.isSeparator(r):
+		splitter.flush()
+	default:
+		splitter.current.WriteRune(r)
+		splitter.hasContent = true
+	}
+}
+
+func (splitter *securityArgSplitter) finish(rest string) error {
+	if splitter.escaped || isTrue(splitter.inSingle) || isTrue(splitter.inDouble) {
+		return fmt.Errorf("unterminated quote in \"!security%s\"", rest)
+	}
+	splitter.flush()
+	return nil
+}
+
+func (splitter *securityArgSplitter) flush() {
+	if splitter.hasContent {
+		splitter.args = append(splitter.args, splitter.current.String())
+		splitter.current.Reset()
+		splitter.hasContent = false
+	}
+}
+
+func (splitter *securityArgSplitter) inQuote() bool {
+	return splitter.inSingle || isTrue(splitter.inDouble)
+}
+
+func (splitter *securityArgSplitter) isSeparator(r rune) bool {
+	return r == ' ' || isSame(r, '\t') || isSame(r, '\n')
+}
+
+func (splitter *securityArgSplitter) startsEscape(r rune) bool {
+	return r == '\\' && isFalse(splitter.inSingle)
+}
+
+func (splitter *securityArgSplitter) togglesDouble(r rune) bool {
+	return r == '"' && isFalse(splitter.inSingle)
+}
+
+func (splitter *securityArgSplitter) togglesSingle(r rune) bool {
+	return r == '\'' && isFalse(splitter.inDouble)
+}
+
+func (splitter *securityArgSplitter) writeEscaped(r rune) {
+	splitter.current.WriteRune(r)
+	splitter.escaped = false
 }
