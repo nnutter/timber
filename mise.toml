@@ -12,11 +12,10 @@ uv = "latest"
 #####################
 
 [tasks.all]
-description = "Run fixers, tests, and linters"
+description = "Run fixes, tests, and checks"
 run = [{ task = "fix" }, { task = "test" }, { task = "check" }]
 
 [tasks.ci-test]
-alias = "ci-tests"
 description = "Require shell test dependencies and run the full suite"
 run = '''
 #!/usr/bin/env bash
@@ -52,11 +51,10 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 go tool gitleaks git --redact --pre-commit --staged
-mise run fixers "$@"
+mise run fix "$@"
 '''
 
 [tasks.test]
-alias = "tests"
 description = "Run tests (with the race detector)"
 run = "go test -cover ./..."
 
@@ -65,7 +63,6 @@ run = "go test -cover ./..."
 #############
 
 [tasks.fix]
-alias = "fixers"
 description = "Fix selected files safely, or run all-files writers"
 run = '''
 #!/usr/bin/env bash
@@ -86,8 +83,25 @@ fi
 '''
 
 [tasks.check]
-description = "Run checks, scan for secrets, and validate skills"
-run = ["hk check --all", "mise run lint-gitleaks", "mise run lint-skills"]
+alias = "static-analysis"
+description = "Run checks, linters, scan for secrets, and validate skills"
+run = [
+  "hk check --all",
+  { task = "lint-constable" },
+  # TODO: Failing after Go upgrade
+  # { task = "lint-errcheck" },
+  { task = "lint-gitleaks" },
+  { task = "lint-go-check-sumtype" },
+  { task = "lint-go-vet" },
+  { task = "lint-gosec" },
+  { task = "lint-govulncheck" },
+  { task = "lint-nilaway" },
+  { task = "lint-skills" },
+  # TODO: Failing after Go upgrade
+  # { task = "lint-staticcheck" },
+  # TODO: Failing after Go upgrade
+  # { task = "lint-testifylint" },
+]
 
 [tasks.fix-gofumpt]
 description = "Run code formatting tools"
@@ -191,25 +205,6 @@ go tool testifylint "${dirs[@]}"
 # Lint Tasks #
 ##############
 
-[tasks.linters]
-alias = "static-analysis"
-run = [
-  { task = "lint-constable" },
-  # TODO: Failing after Go upgrade
-  # { task = "lint-errcheck" },
-  { task = "lint-gitleaks" },
-  { task = "lint-go-check-sumtype" },
-  { task = "lint-go-vet" },
-  { task = "lint-gosec" },
-  { task = "lint-govulncheck" },
-  { task = "lint-nilaway" },
-  { task = "lint-skills" },
-  # TODO: Failing after Go upgrade
-  # { task = "lint-staticcheck" },
-  # TODO: Failing after Go upgrade
-  # { task = "lint-testifylint" },
-]
-
 [tasks.lint-constable]
 description = "Checks nonmutating directives"
 run = "go tool constable ./..."
@@ -269,11 +264,11 @@ run = "go tool testifylint ./..."
 #####################
 
 [tasks.on-start]
-description = "Pi mise-hooks: run fixers, tests, and linters before agent starts"
+description = "Pi mise-hooks: run fixes, tests, and checks before agent starts"
 run = [{ task = "all" }]
 
 [tasks.on-stop]
-description = "Pi mise-hooks: fix edited files, then test and lint"
+description = "Pi mise-hooks: fix edited files, then test and check"
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
