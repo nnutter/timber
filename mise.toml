@@ -1,3 +1,6 @@
+[settings]
+minimum_release_age = "0"
+
 [tools]
 go = "latest"
 hk = "2.8.0"
@@ -6,6 +9,18 @@ tombi = "latest"
 yamlfmt = "latest"
 "github:nnutter/mdlint" = "latest"
 uv = "latest"
+gofumpt = "latest"
+staticcheck = "latest"
+gitleaks = "latest"
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+"go:golang.org/x/vuln/cmd/govulncheck" = "latest"
+"go:github.com/securego/gosec/v2/cmd/gosec" = "latest"
+"go:github.com/kisielk/errcheck" = "latest"
+"go:github.com/alecthomas/go-check-sumtype/cmd/go-check-sumtype" = "latest"
+"go:go.uber.org/nilaway/cmd/nilaway" = "latest"
+"go:github.com/nnutter/constable/cmd/constable" = "latest"
+"go:github.com/nnutter/timber" = "latest"
+"go:github.com/nnutter/testifylint" = "latest"
 
 #####################
 # Development Tasks #
