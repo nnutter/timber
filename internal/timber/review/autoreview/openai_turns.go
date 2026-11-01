@@ -9,6 +9,7 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 )
@@ -223,7 +224,8 @@ func appendToolResult(ctx context.Context, reader ContextReader, p *responses.Re
 	if *contextBytes > MaxContextBytes {
 		return errors.New("context budget exceeded")
 	}
-	output := responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, result)
+	output := responses.ResponseInputItemParamOfFunctionCallOutput(result)
+	output.OfFunctionCallOutput.CallID = param.NewOpt(call.CallID)
 	p.Input.OfInputItemList = append(p.Input.OfInputItemList, output)
 	return nil
 }
