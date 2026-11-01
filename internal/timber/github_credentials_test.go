@@ -163,6 +163,6 @@ func TestLookupGitHubKeyringReturnsResult(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(keyringTimeout + time.Second):
-		t.Fatal("keyring lookup did not settle")
+		require.Fail(t, "keyring lookup did not settle")
 	}
 }

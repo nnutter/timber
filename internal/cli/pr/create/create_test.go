@@ -40,7 +40,7 @@ func TestCreatePassesFlagsAndReportsURL(t *testing.T) {
 func TestCreateRequiresTitle(t *testing.T) {
 	command := New(Dependencies{
 		Create: func(context.Context, io.Reader, string, Draft) (string, error) {
-			t.Fatal("create must not run without a title")
+			require.Fail(t, "create must not run without a title")
 			return "", nil
 		},
 		Complete: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {

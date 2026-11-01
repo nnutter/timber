@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/x/term"
 	"github.com/creack/pty"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nnutter/timber/internal/timber/review"
@@ -71,7 +72,7 @@ func TestPromptChoiceUsesUnderlyingTerminal(t *testing.T) {
 		select {
 		case <-done:
 		case <-time.After(4 * time.Second):
-			t.Error("recovery prompt did not stop after cancellation")
+			assert.Fail(t, "recovery prompt did not stop after cancellation")
 		}
 	}()
 
