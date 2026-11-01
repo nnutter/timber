@@ -33,7 +33,8 @@ func TestReportJSONEmptyWorktrees(t *testing.T) {
 	for _, worktrees := range [][]timber.ListJSONWorktree{nil, {}} {
 		var output bytes.Buffer
 		require.NoError(t, ReportJSON(&output, worktrees))
-		assert.Equal(t, "[]\n", output.String())
+		assert.JSONEq(t, "[]", output.String())
+		assert.True(t, bytes.HasSuffix(output.Bytes(), []byte("\n")))
 	}
 }
 
