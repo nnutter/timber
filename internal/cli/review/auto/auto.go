@@ -30,32 +30,6 @@ type Command struct {
 	Options     review.AutoOptions
 }
 
-// New builds a noninteractive automatic refactor assessment command.
-func New(svc review.Service, out io.Writer, loadModels func() (coreconfig.Models, error)) *cobra.Command {
-	c := &Command{
-		Service:    svc,
-		Output:     out,
-		LoadModels: loadModels,
-	}
-	cmd := &cobra.Command{
-		Use: "auto", Short: "Assess Refactor: stacks with a model and approve qualifying changes",
-		Long: "Delegate approval of behavior-preserving Refactor: stacks to an OpenAI model.\nReads $XDG_CONFIG_HOME/timber/model.json for the endpoint, key, headers, and output budget of a model.\nUses committed content only. Other changes and uncertain assessments remain unapproved.\nUse --dry-run to assess without recording approval. Source context is sent to the API.",
-		Args: cobra.NoArgs, RunE: c.RunE,
-	}
-	cmd.Flags().StringVar(&c.Model, "model", "", "Model or provider/model from the models file (or set TIMBER_REVIEW_MODEL)")
-	cmd.Flags().BoolVar(&c.Options.DryRun, "dry-run", false, "Assess without changing review approval state")
-	cmd.Flags().StringVar(&c.Options.Start, "start", "", "First commit to assess, including its complete stack")
-	cmd.Flags().StringVar(&c.Options.End, "end", "", "Last commit to assess, including its complete stack")
-	cmd.Flags().DurationVar(&c.Options.Timeout, "timeout", 3*time.Minute, "Time limit for the entire automatic review run")
-	cmd.Flags().IntVar(&c.MaxRequests, "max-requests", autoreview.DefaultMaxRequests, "Maximum model requests per stack (SDK retries disabled)")
-	return cmd
-}
-
-// Install adds the automatic assessment command to parent.
-func Install(parent *cobra.Command, svc review.Service, out io.Writer, loadModels func() (coreconfig.Models, error)) {
-	parent.AddCommand(New(svc, out, loadModels))
-}
-
 // RunE resolves the model and its provider before sending committed source.
 func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 	if c.Options.Timeout <= 0 || c.MaxRequests <= 0 {
@@ -121,6 +95,32 @@ func (c *Command) models() (coreconfig.Models, error) {
 		return coreconfig.Models{}, nil
 	}
 	return c.LoadModels()
+}
+
+// New builds a noninteractive automatic refactor assessment command.
+func New(svc review.Service, out io.Writer, loadModels func() (coreconfig.Models, error)) *cobra.Command {
+	c := &Command{
+		Service:    svc,
+		Output:     out,
+		LoadModels: loadModels,
+	}
+	cmd := &cobra.Command{
+		Use: "auto", Short: "Assess Refactor: stacks with a model and approve qualifying changes",
+		Long: "Delegate approval of behavior-preserving Refactor: stacks to an OpenAI model.\nReads $XDG_CONFIG_HOME/timber/model.json for the endpoint, key, headers, and output budget of a model.\nUses committed content only. Other changes and uncertain assessments remain unapproved.\nUse --dry-run to assess without recording approval. Source context is sent to the API.",
+		Args: cobra.NoArgs, RunE: c.RunE,
+	}
+	cmd.Flags().StringVar(&c.Model, "model", "", "Model or provider/model from the models file (or set TIMBER_REVIEW_MODEL)")
+	cmd.Flags().BoolVar(&c.Options.DryRun, "dry-run", false, "Assess without changing review approval state")
+	cmd.Flags().StringVar(&c.Options.Start, "start", "", "First commit to assess, including its complete stack")
+	cmd.Flags().StringVar(&c.Options.End, "end", "", "Last commit to assess, including its complete stack")
+	cmd.Flags().DurationVar(&c.Options.Timeout, "timeout", 3*time.Minute, "Time limit for the entire automatic review run")
+	cmd.Flags().IntVar(&c.MaxRequests, "max-requests", autoreview.DefaultMaxRequests, "Maximum model requests per stack (SDK retries disabled)")
+	return cmd
+}
+
+// Install adds the automatic assessment command to parent.
+func Install(parent *cobra.Command, svc review.Service, out io.Writer, loadModels func() (coreconfig.Models, error)) {
+	parent.AddCommand(New(svc, out, loadModels))
 }
 
 // selectModel prefers the flag, then the environment, then the only model the

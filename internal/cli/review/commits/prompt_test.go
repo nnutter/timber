@@ -19,19 +19,20 @@ import (
 type promptReader struct{ file *os.File }
 
 func (r promptReader) Read(p []byte) (int, error) { return r.file.Read(p) }
-func (r promptReader) UnwrapReader() io.Reader    { return r.file }
+
+func (r promptReader) UnwrapReader() io.Reader { return r.file }
 
 type promptWriter struct {
 	file   *os.File
 	writes atomic.Int64
 }
 
+func (w *promptWriter) UnwrapWriter() io.Writer { return w.file }
+
 func (w *promptWriter) Write(p []byte) (int, error) {
 	w.writes.Add(1)
 	return w.file.Write(p)
 }
-
-func (w *promptWriter) UnwrapWriter() io.Writer { return w.file }
 
 func TestPromptChoiceUsesUnderlyingTerminal(t *testing.T) {
 	t.Skip("terminal dependency shutdown races under the race detector")

@@ -12,7 +12,3 @@ type RepoRef struct {
 type RepoPrompter interface {
 	Prompt(io.Reader, []RepoRef) (RepoRef, error)
 }
-
-func (x registeredRepo) ref() RepoRef {
-	return RepoRef(x)
-}

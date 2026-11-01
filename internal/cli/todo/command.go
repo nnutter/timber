@@ -2,6 +2,7 @@ package todo
 
 import (
 	"context"
+	json "encoding/json/v2"
 	"fmt"
 	"io"
 	"os"
@@ -36,26 +37,6 @@ type todoCommandOptions struct {
 	force        bool
 	jsonOutput   bool
 	repo         bool
-}
-
-func New(deps Dependencies) *cobra.Command {
-	options := &todoCommandOptions{deps: deps}
-
-	command := &cobra.Command{
-		Use:               "todo [name[@repo]]",
-		Short:             "Open the worktree or repository TODO list",
-		Args:              cobra.MaximumNArgs(1),
-		RunE:              options.Execute,
-		ValidArgsFunction: deps.Complete,
-	}
-	command.Flags().BoolVar(&options.repo, "repo", false, "Use the repository TODO list instead of the worktree list")
-	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO list path instead of opening it")
-	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
-	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
-	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO items as JSON instead of opening the file")
-	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
-	command.MarkFlagsMutuallyExclusive("repo", "install-skill")
-	return command
 }
 
 func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) error {
@@ -135,6 +116,39 @@ func (x *todoCommandOptions) installTodoSkill(command *cobra.Command) error {
 
 	_, err := fmt.Fprintf(command.ErrOrStderr(), "%s\n", x.deps.RenderStatus("installed timber-todo skill to "+destination))
 	return err
+}
+
+func (x *todoCommandOptions) reportTodoJSON(command *cobra.Command, path string) error {
+	output, err := readTodoJSON(path)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return fmt.Errorf("encode TODO.md as JSON: %w", err)
+	}
+	_, err = fmt.Fprintln(command.OutOrStdout(), string(encoded))
+	return err
+}
+
+func New(deps Dependencies) *cobra.Command {
+	options := &todoCommandOptions{deps: deps}
+
+	command := &cobra.Command{
+		Use:               "todo [name[@repo]]",
+		Short:             "Open the worktree or repository TODO list",
+		Args:              cobra.MaximumNArgs(1),
+		RunE:              options.Execute,
+		ValidArgsFunction: deps.Complete,
+	}
+	command.Flags().BoolVar(&options.repo, "repo", false, "Use the repository TODO list instead of the worktree list")
+	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO list path instead of opening it")
+	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
+	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
+	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO items as JSON instead of opening the file")
+	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
+	command.MarkFlagsMutuallyExclusive("repo", "install-skill")
+	return command
 }
 
 func editorCommandLine(environment []string) (string, error) {

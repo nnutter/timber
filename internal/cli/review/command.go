@@ -57,17 +57,19 @@ func New(directory, homeDirectory, skillContent string, loadModels func() (corec
 type reviewInput struct{ command **cobra.Command }
 
 func (r reviewInput) Read(p []byte) (int, error) { return r.UnwrapReader().Read(p) }
-func (r reviewInput) UnwrapReader() io.Reader    { return (*r.command).InOrStdin() }
+
+func (r reviewInput) UnwrapReader() io.Reader { return (*r.command).InOrStdin() }
 
 type reviewOutput struct {
 	command  **cobra.Command
 	terminal bool
 }
 
-func (w reviewOutput) Write(p []byte) (int, error) { return w.UnwrapWriter().Write(p) }
 func (w reviewOutput) UnwrapWriter() io.Writer {
 	if w.terminal {
 		return (*w.command).ErrOrStderr()
 	}
 	return (*w.command).OutOrStdout()
 }
+
+func (w reviewOutput) Write(p []byte) (int, error) { return w.UnwrapWriter().Write(p) }

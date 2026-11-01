@@ -12,12 +12,6 @@ import (
 // listSort implements pflag.Value for the list command's sort modes.
 type listSort string
 
-const (
-	listSortRecency  listSort = "recency"
-	listSortRepo     listSort = "repo"
-	listSortWorktree listSort = "worktree"
-)
-
 func (x *listSort) Set(value string) error {
 	switch listSort(value) {
 	case listSortRecency, listSortRepo, listSortWorktree:
@@ -29,7 +23,30 @@ func (x *listSort) Set(value string) error {
 }
 
 func (x *listSort) String() string { return string(*x) }
-func (x *listSort) Type() string   { return "sort" }
+
+func (x *listSort) Type() string { return "sort" }
+
+func (x listSort) sort(worktrees []managedWorktree) {
+	slices.SortFunc(worktrees, func(left, right managedWorktree) int {
+		if x == listSortRecency {
+			if order := right.CommitTime.Compare(left.CommitTime); order != 0 {
+				return order
+			}
+		}
+		if x == listSortWorktree {
+			if order := cmp.Compare(left.Name, right.Name); order != 0 {
+				return order
+			}
+		}
+		return compareManagedWorktrees(left, right)
+	})
+}
+
+const (
+	listSortRecency  listSort = "recency"
+	listSortRepo     listSort = "repo"
+	listSortWorktree listSort = "worktree"
+)
 
 // Read the recorded HEAD from the bare repository, not the checkout: even a
 // missing worktree can be ordered. An unborn HEAD has no commit timestamp.
@@ -46,20 +63,4 @@ func enrichWorktreeForSort(runtime Runtime, repository *Repository, worktree man
 		worktree.CommitTime = time.Unix(seconds, 0)
 	}
 	return runtime.enrichWorktreeForList(repository, worktree)
-}
-
-func (x listSort) sort(worktrees []managedWorktree) {
-	slices.SortFunc(worktrees, func(left, right managedWorktree) int {
-		if x == listSortRecency {
-			if order := right.CommitTime.Compare(left.CommitTime); order != 0 {
-				return order
-			}
-		}
-		if x == listSortWorktree {
-			if order := cmp.Compare(left.Name, right.Name); order != 0 {
-				return order
-			}
-		}
-		return compareManagedWorktrees(left, right)
-	})
 }

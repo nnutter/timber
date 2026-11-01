@@ -23,69 +23,6 @@ type createWizardModel struct {
 	cancelled bool
 }
 
-type wizardWorktreeItem struct {
-	worktree timber.WorktreeRef
-}
-
-func (x wizardWorktreeItem) FilterValue() string {
-	return wizardWorktreeValue(x.worktree)
-}
-
-func (x wizardWorktreeItem) Title() string {
-	return wizardWorktreeValue(x.worktree)
-}
-
-func (x wizardWorktreeItem) Description() string {
-	return "open existing worktree"
-}
-
-type wizardCreateWorktreeItem struct {
-	worktreeName string
-	repoName     string
-}
-
-func (x wizardCreateWorktreeItem) FilterValue() string {
-	return x.Title()
-}
-
-func (x wizardCreateWorktreeItem) Title() string {
-	return x.worktreeName + "@" + x.repoName
-}
-
-func (x wizardCreateWorktreeItem) Description() string {
-	return "create new worktree"
-}
-
-func newCreateWizardModel(repos []timber.RepoRef, worktrees []timber.WorktreeRef, showTitle bool) *createWizardModel {
-	input := textinput.New()
-	input.Prompt = ""
-	input.Placeholder = "type worktree@repo"
-	input.CharLimit = tuiWorktreeInputMaxLength
-	input.Focus()
-
-	delegate := list.NewDefaultDelegate()
-	delegate.SetHeight(2)
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Bold(true)
-	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Italic(true)
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Italic(true)
-
-	worktreeList := list.New(wizardItemsForTerm(repos, worktrees, ""), delegate, 0, 0)
-	worktreeList.SetShowTitle(false)
-	worktreeList.SetShowFilter(false)
-	worktreeList.SetShowStatusBar(false)
-	worktreeList.SetShowHelp(false)
-	worktreeList.SetShowPagination(false)
-	worktreeList.SetFilteringEnabled(false)
-
-	return &createWizardModel{
-		repos:     repos,
-		worktrees: worktrees,
-		showTitle: showTitle,
-		input:     input,
-		list:      worktreeList,
-	}
-}
-
 func (m *createWizardModel) Init() tea.Cmd {
 	return m.input.Focus()
 }
@@ -184,6 +121,69 @@ func (m *createWizardModel) selectionForEnter() (timber.WizardSelection, error) 
 		RepoName:     repoName,
 		WorktreeName: worktreeName,
 	}, nil
+}
+
+type wizardWorktreeItem struct {
+	worktree timber.WorktreeRef
+}
+
+func (x wizardWorktreeItem) Description() string {
+	return "open existing worktree"
+}
+
+func (x wizardWorktreeItem) FilterValue() string {
+	return wizardWorktreeValue(x.worktree)
+}
+
+func (x wizardWorktreeItem) Title() string {
+	return wizardWorktreeValue(x.worktree)
+}
+
+type wizardCreateWorktreeItem struct {
+	worktreeName string
+	repoName     string
+}
+
+func (x wizardCreateWorktreeItem) Description() string {
+	return "create new worktree"
+}
+
+func (x wizardCreateWorktreeItem) FilterValue() string {
+	return x.Title()
+}
+
+func (x wizardCreateWorktreeItem) Title() string {
+	return x.worktreeName + "@" + x.repoName
+}
+
+func newCreateWizardModel(repos []timber.RepoRef, worktrees []timber.WorktreeRef, showTitle bool) *createWizardModel {
+	input := textinput.New()
+	input.Prompt = ""
+	input.Placeholder = "type worktree@repo"
+	input.CharLimit = tuiWorktreeInputMaxLength
+	input.Focus()
+
+	delegate := list.NewDefaultDelegate()
+	delegate.SetHeight(2)
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Bold(true)
+	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Italic(true)
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Italic(true)
+
+	worktreeList := list.New(wizardItemsForTerm(repos, worktrees, ""), delegate, 0, 0)
+	worktreeList.SetShowTitle(false)
+	worktreeList.SetShowFilter(false)
+	worktreeList.SetShowStatusBar(false)
+	worktreeList.SetShowHelp(false)
+	worktreeList.SetShowPagination(false)
+	worktreeList.SetFilteringEnabled(false)
+
+	return &createWizardModel{
+		repos:     repos,
+		worktrees: worktrees,
+		showTitle: showTitle,
+		input:     input,
+		list:      worktreeList,
+	}
 }
 
 func wizardItemsForTerm(repos []timber.RepoRef, worktrees []timber.WorktreeRef, term string) []list.Item {

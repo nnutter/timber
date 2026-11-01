@@ -21,24 +21,6 @@ type Command struct {
 	Verbose     bool
 }
 
-// New builds the status sub-command. Callers install it onto the parent
-// with Install.
-func New(svc review.Service, out io.Writer) *cobra.Command {
-	c := &Command{Service: svc, Output: out}
-	cmd := &cobra.Command{Use: "status", Short: "Show all feature stacks and their review states", Args: cobra.NoArgs, RunE: c.RunE}
-	cmd.Flags().BoolVarP(&c.Verbose, "verbose", "v", false, "Show saved review details before the table")
-	cmd.Flags().BoolVar(&c.NeedsReview, "needs-review", false, "Show unresolved stacks and active review attempts")
-	cmd.Flags().BoolVar(&c.IsReviewing, "is-reviewing", false, "Check whether a review is running for the current branch")
-	cmd.MarkFlagsMutuallyExclusive("needs-review", "is-reviewing")
-	cmd.MarkFlagsMutuallyExclusive("verbose", "is-reviewing")
-	return cmd
-}
-
-// Install adds the status sub-command to parent.
-func Install(parent *cobra.Command, svc review.Service, out io.Writer) {
-	parent.AddCommand(New(svc, out))
-}
-
 // RunE runs the status workflow.
 func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 	asJSON := false
@@ -65,4 +47,22 @@ func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	return reviewdisplay.Write(c.Output, asJSON, result, c.Verbose)
+}
+
+// New builds the status sub-command. Callers install it onto the parent
+// with Install.
+func New(svc review.Service, out io.Writer) *cobra.Command {
+	c := &Command{Service: svc, Output: out}
+	cmd := &cobra.Command{Use: "status", Short: "Show all feature stacks and their review states", Args: cobra.NoArgs, RunE: c.RunE}
+	cmd.Flags().BoolVarP(&c.Verbose, "verbose", "v", false, "Show saved review details before the table")
+	cmd.Flags().BoolVar(&c.NeedsReview, "needs-review", false, "Show unresolved stacks and active review attempts")
+	cmd.Flags().BoolVar(&c.IsReviewing, "is-reviewing", false, "Check whether a review is running for the current branch")
+	cmd.MarkFlagsMutuallyExclusive("needs-review", "is-reviewing")
+	cmd.MarkFlagsMutuallyExclusive("verbose", "is-reviewing")
+	return cmd
+}
+
+// Install adds the status sub-command to parent.
+func Install(parent *cobra.Command, svc review.Service, out io.Writer) {
+	parent.AddCommand(New(svc, out))
 }

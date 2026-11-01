@@ -22,19 +22,6 @@ type Dependencies struct {
 
 type gitCommandOptions struct{ Dependencies }
 
-// New constructs the Git pass-through command.
-func New(dependencies Dependencies) *cobra.Command {
-	options := &gitCommandOptions{Dependencies: dependencies}
-	return &cobra.Command{
-		Use:                "git [worktree[@repo]|@repo] [-- git-args...]",
-		Short:              "Run git with --git-dir set to a managed worktree or repository",
-		Args:               cobra.ArbitraryArgs,
-		DisableFlagParsing: true,
-		RunE:               options.Execute,
-		ValidArgsFunction:  options.completeSelector,
-	}
-}
-
 func (x *gitCommandOptions) Execute(command *cobra.Command, args []string) error {
 	targetDirectory := x.CurrentDirectory
 	explicitGitDir := ""
@@ -93,4 +80,17 @@ func (x *gitCommandOptions) completeSelector(command *cobra.Command, args []stri
 	worktrees, _ := x.CompleteWorktrees(command, args, toComplete)
 	repos, _ := x.CompleteRepoSuffix("", strings.TrimPrefix(toComplete, "@"), false)
 	return append(worktrees, repos...), cobra.ShellCompDirectiveNoFileComp
+}
+
+// New constructs the Git pass-through command.
+func New(dependencies Dependencies) *cobra.Command {
+	options := &gitCommandOptions{Dependencies: dependencies}
+	return &cobra.Command{
+		Use:                "git [worktree[@repo]|@repo] [-- git-args...]",
+		Short:              "Run git with --git-dir set to a managed worktree or repository",
+		Args:               cobra.ArbitraryArgs,
+		DisableFlagParsing: true,
+		RunE:               options.Execute,
+		ValidArgsFunction:  options.completeSelector,
+	}
 }

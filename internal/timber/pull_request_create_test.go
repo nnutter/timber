@@ -23,24 +23,17 @@ type fakeGitHub struct {
 	handlers map[string]http.HandlerFunc
 }
 
-type recordedRequest struct {
-	method string
-	path   string
-	auth   string
-	body   map[string]any
+func (x *fakeGitHub) recorded() []recordedRequest {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	return append([]recordedRequest(nil), x.requests...)
 }
 
-func newFakeGitHub(t *testing.T) (*fakeGitHub, *httptest.Server) {
-	t.Helper()
-	github := &fakeGitHub{
-		handlers: map[string]http.HandlerFunc{
-			"GET /repos/owner/timber/branches/feature/pull": branchHandler(""),
-			"POST /repos/owner/timber/pulls":                createdPullRequestHandler("https://github.com/owner/timber/pull/7"),
-		},
-	}
-	server := httptest.NewServer(http.HandlerFunc(github.serve))
-	t.Cleanup(server.Close)
-	return github, server
+// replaceHandler overrides one endpoint for a test.
+func (x *fakeGitHub) replaceHandler(key string, handler http.HandlerFunc) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	x.handlers[key] = handler
 }
 
 func (x *fakeGitHub) serve(writer http.ResponseWriter, request *http.Request) {
@@ -61,17 +54,24 @@ func (x *fakeGitHub) serve(writer http.ResponseWriter, request *http.Request) {
 	handler(writer, request)
 }
 
-func (x *fakeGitHub) recorded() []recordedRequest {
-	x.mu.Lock()
-	defer x.mu.Unlock()
-	return append([]recordedRequest(nil), x.requests...)
+type recordedRequest struct {
+	method string
+	path   string
+	auth   string
+	body   map[string]any
 }
 
-// replaceHandler overrides one endpoint for a test.
-func (x *fakeGitHub) replaceHandler(key string, handler http.HandlerFunc) {
-	x.mu.Lock()
-	defer x.mu.Unlock()
-	x.handlers[key] = handler
+func newFakeGitHub(t *testing.T) (*fakeGitHub, *httptest.Server) {
+	t.Helper()
+	github := &fakeGitHub{
+		handlers: map[string]http.HandlerFunc{
+			"GET /repos/owner/timber/branches/feature/pull": branchHandler(""),
+			"POST /repos/owner/timber/pulls":                createdPullRequestHandler("https://github.com/owner/timber/pull/7"),
+		},
+	}
+	server := httptest.NewServer(http.HandlerFunc(github.serve))
+	t.Cleanup(server.Close)
+	return github, server
 }
 
 // branchHandler answers a branch lookup with sha. An empty sha reports a

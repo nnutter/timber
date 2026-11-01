@@ -20,20 +20,6 @@ type Command struct {
 	All     bool
 }
 
-// New builds the approve sub-command. Callers install it onto the parent
-// with Install.
-func New(svc review.Service, out io.Writer) *cobra.Command {
-	c := &Command{Service: svc, Output: out}
-	cmd := &cobra.Command{Use: "approve [<start_commit>] [<end_commit>]", Aliases: []string{"confirm"}, Short: "Record explicit user approval of complete stacks", Long: "Record user approval without launching tuicr. Endpoints are inclusive and\nmust include complete stacks, including all attached feedback commits.\nUse --all to approve every stack in the feature range.", Args: cobra.RangeArgs(0, 2), RunE: c.RunE}
-	cmd.Flags().BoolVar(&c.All, "all", false, "Approve every stack in the feature range")
-	return cmd
-}
-
-// Install adds the approve sub-command to parent.
-func Install(parent *cobra.Command, svc review.Service, out io.Writer) {
-	parent.AddCommand(New(svc, out))
-}
-
 // RunE runs the approval workflow.
 func (c *Command) RunE(cmd *cobra.Command, args []string) error {
 	asJSON := false
@@ -61,4 +47,18 @@ func (c *Command) RunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	return display.Write(c.Output, asJSON, result, false)
+}
+
+// New builds the approve sub-command. Callers install it onto the parent
+// with Install.
+func New(svc review.Service, out io.Writer) *cobra.Command {
+	c := &Command{Service: svc, Output: out}
+	cmd := &cobra.Command{Use: "approve [<start_commit>] [<end_commit>]", Aliases: []string{"confirm"}, Short: "Record explicit user approval of complete stacks", Long: "Record user approval without launching tuicr. Endpoints are inclusive and\nmust include complete stacks, including all attached feedback commits.\nUse --all to approve every stack in the feature range.", Args: cobra.RangeArgs(0, 2), RunE: c.RunE}
+	cmd.Flags().BoolVar(&c.All, "all", false, "Approve every stack in the feature range")
+	return cmd
+}
+
+// Install adds the approve sub-command to parent.
+func Install(parent *cobra.Command, svc review.Service, out io.Writer) {
+	parent.AddCommand(New(svc, out))
 }

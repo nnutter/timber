@@ -9,10 +9,7 @@ import (
 	"io/fs"
 	"os/exec"
 	"path"
-	"slices"
 	"strings"
-	"time"
-	"unicode/utf8"
 )
 
 const autoContextLimit = 64 * 1024
@@ -22,17 +19,6 @@ type commitContext struct {
 	repository Repository
 	base       string
 	tip        string
-}
-
-func (c commitContext) revision(label string) (string, error) {
-	switch label {
-	case "base":
-		return c.base, nil
-	case "tip":
-		return c.tip, nil
-	default:
-		return "", fmt.Errorf("context revision must be base or tip")
-	}
 }
 
 func (c commitContext) ReadFile(ctx context.Context, revision, name string) (string, error) {
@@ -81,6 +67,17 @@ func (c commitContext) Search(ctx context.Context, revision, query string) (stri
 	return filtered.String(), nil
 }
 
+func (c commitContext) revision(label string) (string, error) {
+	switch label {
+	case "base":
+		return c.base, nil
+	case "tip":
+		return c.tip, nil
+	default:
+		return "", fmt.Errorf("context revision must be base or tip")
+	}
+}
+
 // Obvious credential paths are never sent to a provider. This is not a secret scanner.
 var sensitiveAutoPatterns = []string{
 	".env*",
@@ -126,34 +123,11 @@ type autoDiagnostics struct {
 	limit  int
 }
 
+func (b *autoDiagnostics) String() string { return b.buffer.String() }
+
 func (b *autoDiagnostics) Write(data []byte) (int, error) {
 	if room := b.limit - b.buffer.Len(); room > 0 {
 		b.buffer.Write(data[:min(len(data), room)])
 	}
 	return len(data), nil
-}
-
-func (b *autoDiagnostics) String() string { return b.buffer.String() }
-
-// autoGit bounds output in memory and disables interactive Git behavior.
-func (r Repository) autoGit(ctx context.Context, limit int, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = r.Dir
-	cmd.Env = append(slices.Clone(r.environment()), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0", "GIT_NO_REPLACE_OBJECTS=1")
-	out := autoOutput{limit: limit}
-	diagnostics := autoDiagnostics{limit: 4096}
-	cmd.Stdout, cmd.Stderr = &out, &diagnostics
-	if err := cmd.Run(); err != nil {
-		// Report Git's own reason, as other review commands do.
-		if message := strings.TrimSpace(diagnostics.String()); message != "" {
-			return "", fmt.Errorf("read automatic review context: %w: %s", err, message)
-		}
-		return "", fmt.Errorf("read automatic review context: %w", err)
-	}
-	if !utf8.Valid(out.buffer.Bytes()) || bytes.IndexByte(out.buffer.Bytes(), 0) >= 0 {
-		return "", fmt.Errorf("automatic review requires UTF-8 text context")
-	}
-	return out.buffer.String(), nil
 }

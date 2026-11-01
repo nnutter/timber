@@ -22,6 +22,13 @@ type ReviewOptions struct {
 	End     string
 }
 
+func (options ReviewOptions) hasBounds() bool {
+	if options.Start != "" {
+		return true
+	}
+	return options.End != ""
+}
+
 // Reviewer runs tuicr directly, keeping its terminal output separate from results.
 type Reviewer struct {
 	Service  Service
@@ -30,15 +37,6 @@ type Reviewer struct {
 	Terminal io.Writer
 	// Choose resolves recovery decisions while the review lock remains held.
 	Choose func(context.Context, *Decision) (string, error)
-}
-
-type reviewPlan struct {
-	view      Snapshot
-	state     State
-	stack     *Stack
-	prior     *Attempt
-	automatic bool
-	exhausted bool
 }
 
 // Review continues automatic reviews after completed attempts, retaining feedback.
@@ -411,6 +409,22 @@ func (r Reviewer) runAttempt(ctx context.Context, path string, plan reviewPlan, 
 	return result, nil
 }
 
+type reviewPlan struct {
+	view      Snapshot
+	state     State
+	stack     *Stack
+	prior     *Attempt
+	automatic bool
+	exhausted bool
+}
+
+func (plan reviewPlan) rangeComplete() bool {
+	if !plan.automatic {
+		return false
+	}
+	return plan.exhausted
+}
+
 func resumeAttempt(path string, prior Attempt) (Attempt, error) {
 	var attempt Attempt
 	err := (Store{Path: path}).Update(func(state *State) error {
@@ -556,20 +570,6 @@ func replacementStack(plan reviewPlan) (Stack, error) {
 		}
 	}
 	return Stack{}, fmt.Errorf("interrupted stack is no longer current; select its replacement with timber review commits <commit>")
-}
-
-func (options ReviewOptions) hasBounds() bool {
-	if options.Start != "" {
-		return true
-	}
-	return options.End != ""
-}
-
-func (plan reviewPlan) rangeComplete() bool {
-	if !plan.automatic {
-		return false
-	}
-	return plan.exhausted
 }
 
 func rangeApproved(stacks []Stack, state State) bool {

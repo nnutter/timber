@@ -26,14 +26,6 @@ type stubPrompter struct {
 	err      error
 }
 
-type stubCreateWizardPrompter struct {
-	selection WizardSelection
-	err       error
-	repos     []RepoRef
-	worktrees []WorktreeRef
-	showTitle bool
-}
-
 func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []WorktreeRef) ([]WorktreeRef, error) {
 	if x.err != nil {
 		return nil, x.err
@@ -47,6 +39,14 @@ func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []Work
 		}
 	}
 	return selected, nil
+}
+
+type stubCreateWizardPrompter struct {
+	selection WizardSelection
+	err       error
+	repos     []RepoRef
+	worktrees []WorktreeRef
+	showTitle bool
 }
 
 func (x *stubCreateWizardPrompter) Prompt(
@@ -263,6 +263,50 @@ type testRepository struct {
 	worktreeRoot string
 }
 
+func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
+	t.Helper()
+	command := testCommand(t, "git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+	err := command.Run()
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
+		return
+	}
+	if err == nil {
+		require.Fail(t, fmt.Sprintf("expected branch %s to be missing", branchName))
+	}
+	require.Fail(t, fmt.Sprintf("unexpected error checking branch %s: %v", branchName, err))
+}
+
+func (x testRepository) assertPathMissing(t *testing.T, path string) {
+	t.Helper()
+	_, err := os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist, "expected path %s to be missing", path)
+}
+
+func (x testRepository) assertPathPresent(t *testing.T, path string) {
+	t.Helper()
+	_, err := os.Stat(path)
+	require.NoError(t, err, "expected path %s to be present", path)
+}
+
+func (x testRepository) commitFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
+	t.Helper()
+	path := x.worktreePath(branchName)
+	x.writeFileInWorktree(t, branchName, fileName, contents)
+	runGitCommand(t, path, "add", fileName)
+	runGitCommand(t, path, "commit", "-m", "change")
+}
+
+func (x testRepository) worktreePath(branchName string) string {
+	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
+}
+
+func (x testRepository) writeFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
+	t.Helper()
+	path := filepath.Join(x.worktreePath(branchName), fileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
+}
+
 type testRepositoryFixture struct {
 	root       string
 	remotePath string
@@ -416,10 +460,6 @@ func replaceGitRemotePath(barePath string, oldPath string, newPath string) error
 	return os.WriteFile(configPath, updated, 0o644)
 }
 
-func (x testRepository) worktreePath(branchName string) string {
-	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
-}
-
 func testCreateReporters() CreateReporters {
 	return CreateReporters{
 		Created: func(output io.Writer, path string) error {
@@ -455,46 +495,6 @@ func runTUICreate(
 
 	err := options.runtime.RunTUI(t.Context(), &bytes.Buffer{}, &stderr, &stdout, options.herdr, options.noHerdr, options.noTitle, prompter, testCreateReporters())
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
-}
-
-func (x testRepository) commitFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
-	t.Helper()
-	path := x.worktreePath(branchName)
-	x.writeFileInWorktree(t, branchName, fileName, contents)
-	runGitCommand(t, path, "add", fileName)
-	runGitCommand(t, path, "commit", "-m", "change")
-}
-
-func (x testRepository) writeFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
-	t.Helper()
-	path := filepath.Join(x.worktreePath(branchName), fileName)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
-}
-
-func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
-	t.Helper()
-	command := testCommand(t, "git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
-	err := command.Run()
-	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
-		return
-	}
-	if err == nil {
-		require.Fail(t, fmt.Sprintf("expected branch %s to be missing", branchName))
-	}
-	require.Fail(t, fmt.Sprintf("unexpected error checking branch %s: %v", branchName, err))
-}
-
-func (x testRepository) assertPathMissing(t *testing.T, path string) {
-	t.Helper()
-	_, err := os.Stat(path)
-	require.ErrorIs(t, err, os.ErrNotExist, "expected path %s to be missing", path)
-}
-
-func (x testRepository) assertPathPresent(t *testing.T, path string) {
-	t.Helper()
-	_, err := os.Stat(path)
-	require.NoError(t, err, "expected path %s to be present", path)
 }
 
 func runGitCommand(t *testing.T, cwd string, args ...string) string {

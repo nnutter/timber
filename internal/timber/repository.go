@@ -92,16 +92,6 @@ func (x *Repository) branchMergedToUpstream(branchName string, branchRef referen
 	return false, err
 }
 
-// isDefaultUpstream reports whether ref is the remote-tracking ref of the
-// repository's default branch (for example refs/remotes/origin/main).
-func (x *Repository) isDefaultUpstream(ref referenceName) bool {
-	defaultBranch, err := x.remoteHeadBranch()
-	if err != nil {
-		return false
-	}
-	return string(ref) == remoteRefPrefix+defaultBranch
-}
-
 func (x *Repository) branchStillExists(branchRef referenceName) (bool, error) {
 	_, err := x.git("show-ref", "--verify", "--quiet", string(branchRef))
 	if err == nil {
@@ -115,6 +105,112 @@ func (x *Repository) branchStillExists(branchRef referenceName) (bool, error) {
 	return false, err
 }
 
+func (x *Repository) commonGitDir() (string, error) {
+	result, err := x.git("rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", fmt.Errorf("resolve common git dir: %w", err)
+	}
+	return filepath.Clean(result.stdout), nil
+}
+
+func (x *Repository) configuredUpstreamReference(branchName string) (referenceName, error) {
+	mergeRef, mergeConfigured, err := x.gitConfigValue("branch." + branchName + ".merge")
+	if err != nil {
+		return "", err
+	}
+	if !mergeConfigured {
+		return "", fmt.Errorf("branch %q has no upstream branch", branchName)
+	}
+
+	remote, remoteConfigured, err := x.gitConfigValue("branch." + branchName + ".remote")
+	if err != nil {
+		return "", err
+	}
+	if !remoteConfigured || remote == "." {
+		return referenceName(mergeRef), nil
+	}
+
+	return x.mappedUpstreamReference(branchName, referenceName(mergeRef), remote)
+}
+
+// createEmptyCommit records an empty commit on branch so the branch exists and
+// worktrees can attach to it.
+func (x *Repository) createEmptyCommit(branchName string) error {
+	// mktree reads the tree entries from stdin. No entries means the empty
+	// tree, which is the only content an initial commit needs.
+	tree, err := x.git("mktree")
+	if err != nil {
+		return fmt.Errorf("create empty tree: %w", err)
+	}
+	// commit-tree takes the author and committer from Git configuration, so a
+	// missing identity reports Git's own guidance.
+	commit, err := x.git("commit-tree", tree.stdout, "-m", initialCommitMessage)
+	if err != nil {
+		return fmt.Errorf("create initial commit: %w", err)
+	}
+	if _, err := x.git("update-ref", branchRefPrefix+branchName, commit.stdout); err != nil {
+		return fmt.Errorf("record initial commit: %w", err)
+	}
+	return nil
+}
+
+func (x *Repository) ensureOriginRemoteTracking() error {
+	hasOrigin, err := x.hasOriginRemote()
+	if err != nil {
+		return err
+	}
+	if !hasOrigin {
+		return fmt.Errorf("remote %q is not configured", remoteName)
+	}
+	return configureBareOriginTracking(x.Runtime, x.GitDir)
+}
+
+// fetchOrigin updates the remote-tracking refs from origin. A repository
+// without an origin, such as one created by `timber repo init`, has nothing
+// to fetch.
+func (x *Repository) fetchOrigin() error {
+	hasOrigin, err := x.hasOriginRemote()
+	if err != nil {
+		return err
+	}
+	if !hasOrigin {
+		return nil
+	}
+	if _, err := x.git("fetch", remoteName); err != nil {
+		return fmt.Errorf("fetch %s: %w", remoteName, err)
+	}
+	return nil
+}
+
+func (x *Repository) firstExistingLocalBranch(branchNames ...string) (string, error) {
+	for _, branchName := range branchNames {
+		exists, err := x.branchExists(branchName)
+		if err != nil {
+			return "", err
+		}
+		if exists {
+			return branchName, nil
+		}
+	}
+
+	return "", nil
+}
+
+func (x *Repository) firstExistingRemoteBranch(branchNames ...string) (string, error) {
+	for _, branchName := range branchNames {
+		remoteBranch := remoteName + "/" + branchName
+		exists, err := x.branchStillExists(referenceName(remoteRefPrefix + remoteBranch))
+		if err != nil {
+			return "", err
+		}
+		if exists {
+			return remoteBranch, nil
+		}
+	}
+
+	return "", nil
+}
+
 func (x Repository) git(args ...string) (gitCommandResult, error) {
 	allArgs := []string{"--git-dir", x.GitDir}
 	if x.WorkTree != "" {
@@ -125,12 +221,26 @@ func (x Repository) git(args ...string) (gitCommandResult, error) {
 	return gitOutput(x.Runtime, directory, allArgs...)
 }
 
-func (x *Repository) commonGitDir() (string, error) {
-	result, err := x.git("rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil {
-		return "", fmt.Errorf("resolve common git dir: %w", err)
+func (x *Repository) gitConfigValue(key string) (string, bool, error) {
+	result, err := x.git("config", "--get", key)
+	if err == nil {
+		return result.stdout, true, nil
 	}
-	return filepath.Clean(result.stdout), nil
+
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
+		return "", false, nil
+	}
+
+	return "", false, fmt.Errorf("read Git config %q: %w", key, err)
+}
+
+// hasOriginRemote reports whether an origin URL is configured.
+func (x *Repository) hasOriginRemote() (bool, error) {
+	url, configured, err := x.gitConfigValue("remote." + remoteName + ".url")
+	if err != nil {
+		return false, err
+	}
+	return configured && url != "", nil
 }
 
 func (x Repository) isClean() (bool, error) {
@@ -142,51 +252,14 @@ func (x Repository) isClean() (bool, error) {
 	return strings.TrimSpace(result.stdout) == "", nil
 }
 
-func (x Repository) status() (string, error) {
-	result, err := x.git("status", "-sb")
+// isDefaultUpstream reports whether ref is the remote-tracking ref of the
+// repository's default branch (for example refs/remotes/origin/main).
+func (x *Repository) isDefaultUpstream(ref referenceName) bool {
+	defaultBranch, err := x.remoteHeadBranch()
 	if err != nil {
-		return "", err
+		return false
 	}
-
-	statusLine, _, _ := strings.Cut(result.stdout, "\n")
-	return strings.TrimPrefix(statusLine, "## "), nil
-}
-
-type listStatus struct {
-	Upstream string
-	Ahead    int
-	Behind   int
-}
-
-func parsePorcelainStatus(output string) (listStatus, bool, error) {
-	var status listStatus
-	clean := true
-
-	for line := range strings.SplitSeq(output, "\n") {
-		switch {
-		case strings.HasPrefix(line, "# branch.upstream "):
-			status.Upstream = strings.TrimPrefix(line, "# branch.upstream ")
-		case strings.HasPrefix(line, "# branch.ab "):
-			fields := strings.Fields(line)
-			if len(fields) != 4 {
-				return listStatus{}, false, fmt.Errorf("unexpected branch divergence line %q", line)
-			}
-
-			var err error
-			status.Ahead, err = strconv.Atoi(strings.TrimPrefix(fields[2], "+"))
-			if err != nil {
-				return listStatus{}, false, fmt.Errorf("parse ahead count: %w", err)
-			}
-			status.Behind, err = strconv.Atoi(strings.TrimPrefix(fields[3], "-"))
-			if err != nil {
-				return listStatus{}, false, fmt.Errorf("parse behind count: %w", err)
-			}
-		case line != "" && !strings.HasPrefix(line, "# "):
-			clean = false
-		}
-	}
-
-	return status, clean, nil
+	return string(ref) == remoteRefPrefix+defaultBranch
 }
 
 func (x *Repository) listPorcelainWorktrees() ([]porcelainWorktree, error) {
@@ -225,6 +298,70 @@ func (x *Repository) listPorcelainWorktrees() ([]porcelainWorktree, error) {
 	}
 
 	return worktrees, nil
+}
+
+func (x *Repository) localHeadBranch() (string, error) {
+	result, err := x.git("symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("resolve HEAD: %w", err)
+	}
+	// HEAD survives the deletion of its branch and then names a branch that
+	// cannot start a worktree, so report only a branch that exists.
+	exists, err := x.branchExists(result.stdout)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return "", fmt.Errorf("HEAD branch %q does not exist", result.stdout)
+	}
+	return result.stdout, nil
+}
+
+func (x *Repository) mappedUpstreamReference(branchName string, mergeRef referenceName, remote string) (referenceName, error) {
+	result, err := x.git("rev-parse", "--symbolic-full-name", branchName+"@{upstream}")
+	if err != nil {
+		return "", fmt.Errorf(
+			"branch %q tracks %q at %q, which does not map to a known fetch refspec: %w",
+			branchName,
+			mergeRef,
+			remote,
+			err,
+		)
+	}
+
+	return referenceName(result.stdout), nil
+}
+
+// pullRequestBase derives the merge base from the branch's upstream, so every
+// request names a base branch and GitHub never picks one.
+func (x *Repository) pullRequestBase(branchName string, remote string) (string, error) {
+	upstreamRef, err := x.upstreamReference(branchName)
+	if err != nil {
+		return "", fmt.Errorf("branch %q needs an upstream or --base to name the pull request base: %w", branchName, err)
+	}
+	remoteBranch, found := strings.CutPrefix(string(upstreamRef), remoteRefPrefix+remote+"/")
+	if !found {
+		return "", fmt.Errorf("branch %q tracks %s, which is not a branch on %s; use --base to name the base branch", branchName, shortReference(upstreamRef), remote)
+	}
+	if remoteBranch == branchName {
+		return "", fmt.Errorf("branch %q tracks %s/%s, so it needs --base to name the branch it merges into", branchName, remote, remoteBranch)
+	}
+	return remoteBranch, nil
+}
+
+// pullRequestRemote names the remote that holds the branch's upstream, and so
+// the repository the pull request belongs to. A branch with no upstream remote
+// falls back to origin, which keeps --base usable on its own.
+func (x *Repository) pullRequestRemote(branchName string) (string, error) {
+	remote, configured, err := x.gitConfigValue("branch." + branchName + ".remote")
+	if err != nil {
+		return "", err
+	}
+	// A "." remote names a local branch, which holds no repository.
+	if !configured || remote == "" || remote == "." {
+		return remoteName, nil
+	}
+	return remote, nil
 }
 
 func (x *Repository) remoteHeadBranch() (string, error) {
@@ -274,87 +411,23 @@ func (x *Repository) resolvedRemoteHeadBranch() (string, error) {
 	return "", fmt.Errorf("remote head branch not found")
 }
 
-// fetchOrigin updates the remote-tracking refs from origin. A repository
-// without an origin, such as one created by `timber repo init`, has nothing
-// to fetch.
-func (x *Repository) fetchOrigin() error {
-	hasOrigin, err := x.hasOriginRemote()
-	if err != nil {
-		return err
-	}
-	if !hasOrigin {
+func (x *Repository) setBranchUpstream(branchName string, upstreamBranch string) error {
+	// Local start points (e.g. bare-repo fallback to "main") are not valid --set-upstream-to targets.
+	if !strings.Contains(upstreamBranch, "/") {
 		return nil
 	}
-	if _, err := x.git("fetch", remoteName); err != nil {
-		return fmt.Errorf("fetch %s: %w", remoteName, err)
-	}
-	return nil
+	_, err := x.git("branch", "--set-upstream-to", upstreamBranch, branchName)
+	return err
 }
 
-// hasOriginRemote reports whether an origin URL is configured.
-func (x *Repository) hasOriginRemote() (bool, error) {
-	url, configured, err := x.gitConfigValue("remote." + remoteName + ".url")
-	if err != nil {
-		return false, err
-	}
-	return configured && url != "", nil
-}
-
-func (x *Repository) ensureOriginRemoteTracking() error {
-	hasOrigin, err := x.hasOriginRemote()
-	if err != nil {
-		return err
-	}
-	if !hasOrigin {
-		return fmt.Errorf("remote %q is not configured", remoteName)
-	}
-	return configureBareOriginTracking(x.Runtime, x.GitDir)
-}
-
-func (x *Repository) localHeadBranch() (string, error) {
-	result, err := x.git("symbolic-ref", "--quiet", "--short", "HEAD")
-	if err != nil {
-		return "", fmt.Errorf("resolve HEAD: %w", err)
-	}
-	// HEAD survives the deletion of its branch and then names a branch that
-	// cannot start a worktree, so report only a branch that exists.
-	exists, err := x.branchExists(result.stdout)
+func (x Repository) status() (string, error) {
+	result, err := x.git("status", "-sb")
 	if err != nil {
 		return "", err
 	}
-	if !exists {
-		return "", fmt.Errorf("HEAD branch %q does not exist", result.stdout)
-	}
-	return result.stdout, nil
-}
 
-func (x *Repository) firstExistingRemoteBranch(branchNames ...string) (string, error) {
-	for _, branchName := range branchNames {
-		remoteBranch := remoteName + "/" + branchName
-		exists, err := x.branchStillExists(referenceName(remoteRefPrefix + remoteBranch))
-		if err != nil {
-			return "", err
-		}
-		if exists {
-			return remoteBranch, nil
-		}
-	}
-
-	return "", nil
-}
-
-func (x *Repository) firstExistingLocalBranch(branchNames ...string) (string, error) {
-	for _, branchName := range branchNames {
-		exists, err := x.branchExists(branchName)
-		if err != nil {
-			return "", err
-		}
-		if exists {
-			return branchName, nil
-		}
-	}
-
-	return "", nil
+	statusLine, _, _ := strings.Cut(result.stdout, "\n")
+	return strings.TrimPrefix(statusLine, "## "), nil
 }
 
 func (x *Repository) upstreamReference(branchName string) (referenceName, error) {
@@ -379,61 +452,79 @@ func (x *Repository) upstreamReference(branchName string) (referenceName, error)
 	return "", fmt.Errorf("branch %q does not exist", branchName)
 }
 
-func (x *Repository) configuredUpstreamReference(branchName string) (referenceName, error) {
-	mergeRef, mergeConfigured, err := x.gitConfigValue("branch." + branchName + ".merge")
+// Resolve the selected start point, including local branches that track a remote.
+// Never substitute origin when the selected upstream has no remote provenance.
+func (x *Repository) upstreamRemoteURL(upstream string) (string, error) {
+	result, err := x.git("rev-parse", "--verify", "--symbolic-full-name", "--end-of-options", upstream)
+	if err != nil {
+		return "", fmt.Errorf("resolve upstream for mise trust: %w", err)
+	}
+	ref := result.stdout
+	if branch, local := strings.CutPrefix(ref, branchRefPrefix); local {
+		tracked, err := x.upstreamReference(branch)
+		if err != nil {
+			return "", nil
+		}
+		ref = string(tracked)
+	}
+	if !strings.HasPrefix(ref, remoteRefPrefix) {
+		return "", nil
+	}
+	remotes, err := x.git("remote")
 	if err != nil {
 		return "", err
 	}
-	if !mergeConfigured {
-		return "", fmt.Errorf("branch %q has no upstream branch", branchName)
+	var selected string
+	for remote := range strings.SplitSeq(remotes.stdout, "\n") {
+		if remote != "" && strings.HasPrefix(ref, remoteRefPrefix+remote+"/") && len(remote) > len(selected) {
+			selected = remote
+		}
 	}
-
-	remote, remoteConfigured, err := x.gitConfigValue("branch." + branchName + ".remote")
+	if selected == "" {
+		return "", nil
+	}
+	remoteURL, err := x.git("remote", "get-url", "--", selected)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("resolve upstream remote for mise trust: %w", err)
 	}
-	if !remoteConfigured || remote == "." {
-		return referenceName(mergeRef), nil
-	}
-
-	return x.mappedUpstreamReference(branchName, referenceName(mergeRef), remote)
+	return remoteURL.stdout, nil
 }
 
-func (x *Repository) mappedUpstreamReference(branchName string, mergeRef referenceName, remote string) (referenceName, error) {
-	result, err := x.git("rev-parse", "--symbolic-full-name", branchName+"@{upstream}")
-	if err != nil {
-		return "", fmt.Errorf(
-			"branch %q tracks %q at %q, which does not map to a known fetch refspec: %w",
-			branchName,
-			mergeRef,
-			remote,
-			err,
-		)
-	}
-
-	return referenceName(result.stdout), nil
+type listStatus struct {
+	Upstream string
+	Ahead    int
+	Behind   int
 }
 
-func (x *Repository) setBranchUpstream(branchName string, upstreamBranch string) error {
-	// Local start points (e.g. bare-repo fallback to "main") are not valid --set-upstream-to targets.
-	if !strings.Contains(upstreamBranch, "/") {
-		return nil
-	}
-	_, err := x.git("branch", "--set-upstream-to", upstreamBranch, branchName)
-	return err
-}
+func parsePorcelainStatus(output string) (listStatus, bool, error) {
+	var status listStatus
+	clean := true
 
-func (x *Repository) gitConfigValue(key string) (string, bool, error) {
-	result, err := x.git("config", "--get", key)
-	if err == nil {
-		return result.stdout, true, nil
+	for line := range strings.SplitSeq(output, "\n") {
+		switch {
+		case strings.HasPrefix(line, "# branch.upstream "):
+			status.Upstream = strings.TrimPrefix(line, "# branch.upstream ")
+		case strings.HasPrefix(line, "# branch.ab "):
+			fields := strings.Fields(line)
+			if len(fields) != 4 {
+				return listStatus{}, false, fmt.Errorf("unexpected branch divergence line %q", line)
+			}
+
+			var err error
+			status.Ahead, err = strconv.Atoi(strings.TrimPrefix(fields[2], "+"))
+			if err != nil {
+				return listStatus{}, false, fmt.Errorf("parse ahead count: %w", err)
+			}
+			status.Behind, err = strconv.Atoi(strings.TrimPrefix(fields[3], "-"))
+			if err != nil {
+				return listStatus{}, false, fmt.Errorf("parse behind count: %w", err)
+			}
+		case line != "" && !strings.HasPrefix(line, "# "):
+			clean = false
+		}
 	}
 
-	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
-		return "", false, nil
-	}
-
-	return "", false, fmt.Errorf("read Git config %q: %w", key, err)
+	return status, clean, nil
 }
 
 func branchReference(branchName string) referenceName {

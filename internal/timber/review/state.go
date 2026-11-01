@@ -32,145 +32,6 @@ type Attempt struct {
 	Extra          map[string]jsontext.Value `json:",inline"`
 }
 
-// AutomaticReview records the evidence and provenance of a model review.
-type AutomaticReview struct {
-	PolicyVersion string   `json:"policyVersion"`
-	Decision      string   `json:"decision"`
-	Model         string   `json:"model"`
-	ResponseID    string   `json:"responseId"`
-	Reason        string   `json:"reason"`
-	Evidence      []string `json:"evidence"`
-}
-
-// State retains the version-1 attempt format.
-type State struct {
-	Version  int                       `json:"version"`
-	Attempts []Attempt                 `json:"attempts"`
-	Extra    map[string]jsontext.Value `json:",inline"`
-}
-
-// Store serializes writers with an exclusive lock and atomic file replacement.
-type Store struct{ Path string }
-
-// Load treats only an absent state file as an empty review history.
-func (s Store) Load() (State, error) {
-	data, err := os.ReadFile(s.Path)
-	if errors.Is(err, os.ErrNotExist) {
-		return State{Version: 1, Attempts: []Attempt{}}, nil
-	}
-	if err != nil {
-		return State{}, err
-	}
-	var state State
-	if err := json.Unmarshal(data, &state); err != nil {
-		return state, fmt.Errorf("read review state %s: %w", s.Path, err)
-	}
-	if err := state.validate(); err != nil {
-		return state, fmt.Errorf("read review state %s: %w", s.Path, err)
-	}
-	return state, nil
-}
-
-// Update locks a read-modify-write, not the lifetime of an interactive review.
-func (s Store) Update(action func(*State) error) (err error) {
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0o700); err != nil {
-		return err
-	}
-	lockPath := s.Path + ".lock"
-	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if errors.Is(err, os.ErrExist) {
-		return fmt.Errorf("review state is locked: %s; remove the lock only after confirming no writer is running", lockPath)
-	}
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, lock.Close(), os.Remove(lockPath)) }()
-	state, err := s.Load()
-	if err != nil {
-		return err
-	}
-	if err := action(&state); err != nil {
-		return err
-	}
-	if err := state.validate(); err != nil {
-		return err
-	}
-	data, err := json.Marshal(state, jsontext.WithIndent("  "))
-	if err != nil {
-		return err
-	}
-	return s.replace(append(data, '\n'))
-}
-
-func (s Store) replace(data []byte) (err error) {
-	file, err := os.CreateTemp(filepath.Dir(s.Path), ".review-*.tmp")
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, removeIfPresent(file.Name())) }()
-	_, writeErr := file.Write(data)
-	syncErr := file.Sync()
-	closeErr := file.Close()
-	if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
-		return err
-	}
-	return os.Rename(file.Name(), s.Path)
-}
-
-func (s State) latest(stack Stack) *Attempt {
-	var result *Attempt
-	for i := range s.Attempts {
-		attempt := &s.Attempts[i]
-		if attempt.resets(stack) {
-			result = nil
-			continue
-		}
-		if attempt.Status == "addressed" {
-			continue
-		}
-		if attempt.matches(stack) {
-			result = attempt
-		} else if samePatch(attempt.Stack, stack) {
-			// A newer unfinished attempt must not expose an older approval.
-			result = nil
-		}
-	}
-	return result
-}
-
-func (s State) previous(stack Stack) *Attempt {
-	for i := len(s.Attempts) - 1; i >= 0; i-- {
-		attempt := &s.Attempts[i]
-		if attempt.matches(stack) {
-			continue
-		}
-		if sharesLineage(attempt.Stack, stack) {
-			return attempt
-		}
-	}
-	return nil
-}
-
-func (s State) validate() error {
-	if s.Version != 1 {
-		return fmt.Errorf("unsupported review state version %d", s.Version)
-	}
-	if s.Attempts == nil {
-		return fmt.Errorf("review state requires an attempts array")
-	}
-	ids := map[string]bool{}
-	for _, a := range s.Attempts {
-		if err := a.validate(); err != nil {
-			return err
-		}
-		if ids[a.ID] {
-			return fmt.Errorf("duplicate review attempt %s", a.ID)
-		}
-		ids[a.ID] = true
-	}
-	return nil
-}
-
 // matches transfers only completed outcomes. Saved sessions and interrupted
 // attempts retain their original commit scope for recovery.
 func (a Attempt) matches(stack Stack) bool {
@@ -258,6 +119,16 @@ func (a Attempt) validate() error {
 	return a.Stack.validate()
 }
 
+// AutomaticReview records the evidence and provenance of a model review.
+type AutomaticReview struct {
+	PolicyVersion string   `json:"policyVersion"`
+	Decision      string   `json:"decision"`
+	Model         string   `json:"model"`
+	ResponseID    string   `json:"responseId"`
+	Reason        string   `json:"reason"`
+	Evidence      []string `json:"evidence"`
+}
+
 func (a AutomaticReview) validate() error {
 	for _, value := range []string{a.PolicyVersion, a.Decision, a.Model, a.ResponseID, a.Reason} {
 		if strings.TrimSpace(value) == "" {
@@ -279,6 +150,135 @@ func (a AutomaticReview) validate() error {
 		}
 	}
 	return nil
+}
+
+// State retains the version-1 attempt format.
+type State struct {
+	Version  int                       `json:"version"`
+	Attempts []Attempt                 `json:"attempts"`
+	Extra    map[string]jsontext.Value `json:",inline"`
+}
+
+func (s State) latest(stack Stack) *Attempt {
+	var result *Attempt
+	for i := range s.Attempts {
+		attempt := &s.Attempts[i]
+		if attempt.resets(stack) {
+			result = nil
+			continue
+		}
+		if attempt.Status == "addressed" {
+			continue
+		}
+		if attempt.matches(stack) {
+			result = attempt
+		} else if samePatch(attempt.Stack, stack) {
+			// A newer unfinished attempt must not expose an older approval.
+			result = nil
+		}
+	}
+	return result
+}
+
+func (s State) previous(stack Stack) *Attempt {
+	for i := len(s.Attempts) - 1; i >= 0; i-- {
+		attempt := &s.Attempts[i]
+		if attempt.matches(stack) {
+			continue
+		}
+		if sharesLineage(attempt.Stack, stack) {
+			return attempt
+		}
+	}
+	return nil
+}
+
+func (s State) validate() error {
+	if s.Version != 1 {
+		return fmt.Errorf("unsupported review state version %d", s.Version)
+	}
+	if s.Attempts == nil {
+		return fmt.Errorf("review state requires an attempts array")
+	}
+	ids := map[string]bool{}
+	for _, a := range s.Attempts {
+		if err := a.validate(); err != nil {
+			return err
+		}
+		if ids[a.ID] {
+			return fmt.Errorf("duplicate review attempt %s", a.ID)
+		}
+		ids[a.ID] = true
+	}
+	return nil
+}
+
+// Store serializes writers with an exclusive lock and atomic file replacement.
+type Store struct{ Path string }
+
+// Load treats only an absent state file as an empty review history.
+func (s Store) Load() (State, error) {
+	data, err := os.ReadFile(s.Path)
+	if errors.Is(err, os.ErrNotExist) {
+		return State{Version: 1, Attempts: []Attempt{}}, nil
+	}
+	if err != nil {
+		return State{}, err
+	}
+	var state State
+	if err := json.Unmarshal(data, &state); err != nil {
+		return state, fmt.Errorf("read review state %s: %w", s.Path, err)
+	}
+	if err := state.validate(); err != nil {
+		return state, fmt.Errorf("read review state %s: %w", s.Path, err)
+	}
+	return state, nil
+}
+
+// Update locks a read-modify-write, not the lifetime of an interactive review.
+func (s Store) Update(action func(*State) error) (err error) {
+	if err := os.MkdirAll(filepath.Dir(s.Path), 0o700); err != nil {
+		return err
+	}
+	lockPath := s.Path + ".lock"
+	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("review state is locked: %s; remove the lock only after confirming no writer is running", lockPath)
+	}
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, lock.Close(), os.Remove(lockPath)) }()
+	state, err := s.Load()
+	if err != nil {
+		return err
+	}
+	if err := action(&state); err != nil {
+		return err
+	}
+	if err := state.validate(); err != nil {
+		return err
+	}
+	data, err := json.Marshal(state, jsontext.WithIndent("  "))
+	if err != nil {
+		return err
+	}
+	return s.replace(append(data, '\n'))
+}
+
+func (s Store) replace(data []byte) (err error) {
+	file, err := os.CreateTemp(filepath.Dir(s.Path), ".review-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, removeIfPresent(file.Name())) }()
+	_, writeErr := file.Write(data)
+	syncErr := file.Sync()
+	closeErr := file.Close()
+	if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
+		return err
+	}
+	return os.Rename(file.Name(), s.Path)
 }
 
 func newAttempt(stack Stack, status string) Attempt {

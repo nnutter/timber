@@ -25,31 +25,6 @@ type Command struct {
 	Hunk           bool
 }
 
-// New builds the log sub-command. Callers install it onto the parent
-// with Install.
-func New(svc review.Service, in io.Reader, out, term io.Writer) *cobra.Command {
-	c := &Command{Service: svc, Input: in, Output: out, Terminal: term}
-	cmd := &cobra.Command{
-		Use:   "log",
-		Short: "Show commits after the upstream in oldest-first order",
-		Long:  "Run git log @{u}..HEAD --reverse with optional one-line summaries, patches, diff statistics, and whitespace filtering.\nUse --difft for Difftastic or --hunk for hunk pager. Both imply --patch.\nOutput uses Git's format and pager, not Timber's review state.",
-		Args:  cobra.NoArgs,
-		RunE:  c.RunE,
-	}
-	cmd.Flags().BoolVar(&c.Oneline, "oneline", false, "Show each commit as an abbreviated hash and subject")
-	cmd.Flags().BoolVarP(&c.Patch, "patch", "p", false, "Show the patch for each commit")
-	cmd.Flags().BoolVarP(&c.IgnoreAllSpace, "ignore-all-space", "w", false, "Ignore whitespace changes in patches")
-	cmd.Flags().BoolVar(&c.Stat, "stat", false, "Show diff statistics for each commit")
-	cmd.Flags().BoolVar(&c.Difft, "difft", false, "Show patches with difft (requires difft on PATH)")
-	cmd.Flags().BoolVar(&c.Hunk, "hunk", false, "Show patches with hunk pager (requires hunk on PATH)")
-	return cmd
-}
-
-// Install adds the log sub-command to parent.
-func Install(parent *cobra.Command, svc review.Service, in io.Reader, out, term io.Writer) {
-	parent.AddCommand(New(svc, in, out, term))
-}
-
 // RunE runs the log workflow.
 func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 	asJSON := false
@@ -95,6 +70,31 @@ func (c *Command) gitArgs() []string {
 		args = append(args, "--stat")
 	}
 	return args
+}
+
+// New builds the log sub-command. Callers install it onto the parent
+// with Install.
+func New(svc review.Service, in io.Reader, out, term io.Writer) *cobra.Command {
+	c := &Command{Service: svc, Input: in, Output: out, Terminal: term}
+	cmd := &cobra.Command{
+		Use:   "log",
+		Short: "Show commits after the upstream in oldest-first order",
+		Long:  "Run git log @{u}..HEAD --reverse with optional one-line summaries, patches, diff statistics, and whitespace filtering.\nUse --difft for Difftastic or --hunk for hunk pager. Both imply --patch.\nOutput uses Git's format and pager, not Timber's review state.",
+		Args:  cobra.NoArgs,
+		RunE:  c.RunE,
+	}
+	cmd.Flags().BoolVar(&c.Oneline, "oneline", false, "Show each commit as an abbreviated hash and subject")
+	cmd.Flags().BoolVarP(&c.Patch, "patch", "p", false, "Show the patch for each commit")
+	cmd.Flags().BoolVarP(&c.IgnoreAllSpace, "ignore-all-space", "w", false, "Ignore whitespace changes in patches")
+	cmd.Flags().BoolVar(&c.Stat, "stat", false, "Show diff statistics for each commit")
+	cmd.Flags().BoolVar(&c.Difft, "difft", false, "Show patches with difft (requires difft on PATH)")
+	cmd.Flags().BoolVar(&c.Hunk, "hunk", false, "Show patches with hunk pager (requires hunk on PATH)")
+	return cmd
+}
+
+// Install adds the log sub-command to parent.
+func Install(parent *cobra.Command, svc review.Service, in io.Reader, out, term io.Writer) {
+	parent.AddCommand(New(svc, in, out, term))
 }
 
 func wantsPatch(patch, difft, hunk bool) bool {

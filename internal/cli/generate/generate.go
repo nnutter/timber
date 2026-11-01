@@ -8,6 +8,10 @@ import (
 
 type generateCommandOptions struct{}
 
+func (x *generateCommandOptions) Execute(command *cobra.Command, args []string) error {
+	return command.Help()
+}
+
 func New(dataHome string) *cobra.Command {
 	options := &generateCommandOptions{}
 
@@ -22,8 +26,4 @@ func New(dataHome string) *cobra.Command {
 	command.AddCommand(zsh.New(dataHome))
 
 	return command
-}
-
-func (x *generateCommandOptions) Execute(command *cobra.Command, args []string) error {
-	return command.Help()
 }

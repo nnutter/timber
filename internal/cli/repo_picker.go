@@ -14,24 +14,6 @@ import (
 
 type bubbleteaRepoPrompter struct{}
 
-func newRepoPickerModel(repos []timber.RepoRef) repoPickerModel {
-	items := make([]list.Item, 0, len(repos))
-	for _, repo := range repos {
-		items = append(items, repoListItem{repo: repo})
-	}
-
-	delegate := list.NewDefaultDelegate()
-	delegate.ShowDescription = false
-
-	repoList := list.New(items, delegate, 0, 0)
-	repoList.Title = "Select repository"
-	repoList.SetShowStatusBar(false)
-	repoList.SetFilteringEnabled(true)
-	repoList.Styles.Title = lipgloss.NewStyle().Bold(true)
-
-	return repoPickerModel{list: repoList}
-}
-
 func (x bubbleteaRepoPrompter) Prompt(input io.Reader, repos []timber.RepoRef) (timber.RepoRef, error) {
 	model := newRepoPickerModel(repos)
 	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
@@ -55,13 +37,33 @@ func (x bubbleteaRepoPrompter) Prompt(input io.Reader, repos []timber.RepoRef) (
 	return result.choice, nil
 }
 
+func newRepoPickerModel(repos []timber.RepoRef) repoPickerModel {
+	items := make([]list.Item, 0, len(repos))
+	for _, repo := range repos {
+		items = append(items, repoListItem{repo: repo})
+	}
+
+	delegate := list.NewDefaultDelegate()
+	delegate.ShowDescription = false
+
+	repoList := list.New(items, delegate, 0, 0)
+	repoList.Title = "Select repository"
+	repoList.SetShowStatusBar(false)
+	repoList.SetFilteringEnabled(true)
+	repoList.Styles.Title = lipgloss.NewStyle().Bold(true)
+
+	return repoPickerModel{list: repoList}
+}
+
 type repoListItem struct {
 	repo timber.RepoRef
 }
 
-func (x repoListItem) FilterValue() string { return x.repo.Name }
-func (x repoListItem) Title() string       { return x.repo.Name }
 func (x repoListItem) Description() string { return x.repo.BarePath }
+
+func (x repoListItem) FilterValue() string { return x.repo.Name }
+
+func (x repoListItem) Title() string { return x.repo.Name }
 
 type repoPickerModel struct {
 	list      list.Model

@@ -30,56 +30,6 @@ type Models struct {
 	Providers map[string]Provider `json:"providers"`
 }
 
-// Provider describes one model provider.
-type Provider struct {
-	Name    string            `json:"name,omitempty"`
-	BaseURL string            `json:"baseUrl,omitempty"`
-	APIKey  string            `json:"apiKey,omitempty"`
-	API     string            `json:"api,omitempty"`
-	OAuth   string            `json:"oauth,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
-	Models  []Model           `json:"models,omitempty"`
-}
-
-// Model describes one model of a provider.
-type Model struct {
-	ID        string            `json:"id"`
-	API       string            `json:"api,omitempty"`
-	BaseURL   string            `json:"baseUrl,omitempty"`
-	Headers   map[string]string `json:"headers,omitempty"`
-	MaxTokens int               `json:"maxTokens,omitempty"`
-}
-
-// Resolved is the merged provider and model configuration for one selector.
-// Values that resolve like an API key stay unexpanded until the caller picks
-// them over the environment.
-type Resolved struct {
-	Provider  string
-	Model     string
-	BaseURL   string
-	APIKey    string
-	API       string
-	OAuth     string
-	MaxTokens int
-	Headers   map[string]string
-}
-
-// LoadModels reads a models file. A missing file describes no models.
-func LoadModels(path string) (Models, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return Models{}, nil
-	}
-	if err != nil {
-		return Models{}, fmt.Errorf("read models file: %w", err)
-	}
-	var models Models
-	if err := json.Unmarshal(data, &models); err != nil {
-		return Models{}, fmt.Errorf("read models file %s: %w", path, err)
-	}
-	return models, nil
-}
-
 // Count reports how many models the file describes.
 func (m Models) Count() int {
 	count := 0
@@ -140,6 +90,70 @@ func (m Models) Resolve(selector string) (Resolved, error) {
 	}
 }
 
+// Provider describes one model provider.
+type Provider struct {
+	Name    string            `json:"name,omitempty"`
+	BaseURL string            `json:"baseUrl,omitempty"`
+	APIKey  string            `json:"apiKey,omitempty"`
+	API     string            `json:"api,omitempty"`
+	OAuth   string            `json:"oauth,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Models  []Model           `json:"models,omitempty"`
+}
+
+// Model describes one model of a provider.
+type Model struct {
+	ID        string            `json:"id"`
+	API       string            `json:"api,omitempty"`
+	BaseURL   string            `json:"baseUrl,omitempty"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	MaxTokens int               `json:"maxTokens,omitempty"`
+}
+
+// Resolved is the merged provider and model configuration for one selector.
+// Values that resolve like an API key stay unexpanded until the caller picks
+// them over the environment.
+type Resolved struct {
+	Provider  string
+	Model     string
+	BaseURL   string
+	APIKey    string
+	API       string
+	OAuth     string
+	MaxTokens int
+	Headers   map[string]string
+}
+
+// Validate rejects a provider this review cannot call.
+func (r Resolved) Validate() error {
+	if r.OAuth != "" {
+		return fmt.Errorf("provider %q uses the %q OAuth flow; an automatic review requires an API key", r.Provider, r.OAuth)
+	}
+	if r.API != ResponseAPI {
+		return fmt.Errorf("model %s/%s uses api %q; an automatic review requires %q", r.Provider, r.Model, r.API, ResponseAPI)
+	}
+	if r.MaxTokens < 0 {
+		return fmt.Errorf("model %s/%s has a negative maxTokens", r.Provider, r.Model)
+	}
+	return nil
+}
+
+// LoadModels reads a models file. A missing file describes no models.
+func LoadModels(path string) (Models, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return Models{}, nil
+	}
+	if err != nil {
+		return Models{}, fmt.Errorf("read models file: %w", err)
+	}
+	var models Models
+	if err := json.Unmarshal(data, &models); err != nil {
+		return Models{}, fmt.Errorf("read models file %s: %w", path, err)
+	}
+	return models, nil
+}
+
 func resolveModel(name string, provider Provider, model Model) Resolved {
 	resolved := Resolved{
 		Provider:  name,
@@ -160,20 +174,6 @@ func resolveModel(name string, provider Provider, model Model) Resolved {
 	maps.Copy(resolved.Headers, provider.Headers)
 	maps.Copy(resolved.Headers, model.Headers)
 	return resolved
-}
-
-// Validate rejects a provider this review cannot call.
-func (r Resolved) Validate() error {
-	if r.OAuth != "" {
-		return fmt.Errorf("provider %q uses the %q OAuth flow; an automatic review requires an API key", r.Provider, r.OAuth)
-	}
-	if r.API != ResponseAPI {
-		return fmt.Errorf("model %s/%s uses api %q; an automatic review requires %q", r.Provider, r.Model, r.API, ResponseAPI)
-	}
-	if r.MaxTokens < 0 {
-		return fmt.Errorf("model %s/%s has a negative maxTokens", r.Provider, r.Model)
-	}
-	return nil
 }
 
 // Values expands header values the way Value expands an API key.

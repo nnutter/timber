@@ -5,85 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
-
-// ConfigureWorktreeHooks moves one worktree to its own Git hooks directory so
-// that every worktree can carry different hooks. It copies the hooks the
-// worktree had before the split.
-//
-// Timber sets core.hooksPath only when no scope sets it already. A hooks path
-// from the person's environment, a hook manager such as hk, or an earlier
-// Timber run therefore stays in control.
-func (runtime Runtime) ConfigureWorktreeHooks(worktreePath string) error {
-	configured, err := gitSettingIsSet(runtime, worktreePath, "core.hooksPath")
-	if err != nil {
-		return err
-	}
-	if configured {
-		return nil
-	}
-
-	gitDir, err := runtime.worktreeGitDir(worktreePath)
-	if err != nil {
-		return err
-	}
-	commonDirResult, err := gitOutput(runtime, worktreePath, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil {
-		return fmt.Errorf("resolve common Git directory for %q: %w", worktreePath, err)
-	}
-	commonDir := filepath.Clean(commonDirResult.stdout)
-
-	if err := runtime.enableWorktreeConfig(commonDir); err != nil {
-		return err
-	}
-
-	hooksPath := filepath.Join(gitDir, "hooks")
-	if err := cloneHooksDirectory(filepath.Join(commonDir, "hooks"), hooksPath); err != nil {
-		return err
-	}
-	if _, err := gitOutput(runtime, worktreePath, "config", "--worktree", "core.hooksPath", hooksPath); err != nil {
-		return fmt.Errorf("set per-worktree hooks path: %w", err)
-	}
-	return nil
-}
-
-// enableWorktreeConfig turns on per-worktree configuration for a repository.
-//
-// Git stops special-casing core.bare once this extension is on, so a bare
-// repository must first record the bare marker in its main worktree
-// configuration and drop it from the shared configuration. Git ignores
-// config.worktree while the extension is off, so the two writes leave the
-// repository usable at every step.
-func (runtime Runtime) enableWorktreeConfig(commonDir string) error {
-	enabled, err := gitBooleanSetting(runtime, commonDir, "extensions.worktreeConfig")
-	if err != nil {
-		return err
-	}
-	if enabled {
-		return nil
-	}
-
-	bare, err := gitBooleanSetting(runtime, commonDir, "core.bare")
-	if err != nil {
-		return err
-	}
-	if bare {
-		mainWorktreeConfig := filepath.Join(commonDir, "config.worktree")
-		if _, err := gitOutput(runtime, commonDir, "config", "--file", mainWorktreeConfig, "core.bare", "true"); err != nil {
-			return fmt.Errorf("record bare repository marker: %w", err)
-		}
-		if _, err := gitOutput(runtime, commonDir, "config", "--unset", "core.bare"); err != nil {
-			return fmt.Errorf("remove shared bare repository marker: %w", err)
-		}
-	}
-
-	if _, err := gitOutput(runtime, commonDir, "config", "extensions.worktreeConfig", "true"); err != nil {
-		return fmt.Errorf("enable per-worktree configuration: %w", err)
-	}
-	return nil
-}
 
 // cloneHooksDirectory copies hooks into a worktree hooks directory. The copy
 // keeps the hooks the worktree used before it had its own directory.

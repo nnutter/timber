@@ -63,24 +63,48 @@ func (x *importPlan) collectWorktrees(porcelainWorktrees []porcelainWorktree) er
 	return nil
 }
 
-// validateTargets fails before anything is touched when two worktrees would
-// collide or a target path already exists.
-func (x *importPlan) validateTargets() error {
-	targets := make(map[string]string, len(x.worktrees))
-	for _, worktree := range x.worktrees {
-		targetPath := filepath.Clean(worktree.TargetPath)
-		if existingName, ok := targets[targetPath]; ok {
-			return fmt.Errorf("worktrees %q and %q share target path %q", existingName, worktree.Name, worktree.TargetPath)
-		}
-		targets[targetPath] = worktree.Name
+func (x *importPlan) createWorktree(bareRepository *Repository, worktree *importWorktree) error {
+	var err error
+	if worktree.Detached {
+		_, err = bareRepository.git("worktree", "add", "--detach", worktree.TargetPath, worktree.CommitHash)
+	} else {
+		_, err = bareRepository.git("worktree", "add", worktree.TargetPath, worktree.BranchName)
+	}
+	if err != nil {
+		return fmt.Errorf("create worktree %q: %w", worktree.TargetPath, err)
+	}
 
+	if worktree.Detached {
+		return nil
+	}
+	return ensureBranchUpstream(bareRepository, worktree.BranchName)
+}
+
+// rollbackCreated removes worktrees freshly created under the managed layout
+// plus the bare clone so a failed import can simply be retried. The source
+// worktrees are still on disk at this point, and removals go to the system
+// trash, so nothing is lost.
+func (x *importPlan) rollbackCreated(bareRepository *Repository, created []*importWorktree) error {
+	var rollbackErrors []error
+	for _, worktree := range created {
+		if _, err := os.Stat(worktree.TargetPath); errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if _, err := bareRepository.git("worktree", "remove", "--force", worktree.TargetPath); err != nil {
+			rollbackErrors = append(rollbackErrors, err)
+		}
 		if _, err := os.Stat(worktree.TargetPath); err == nil {
-			return fmt.Errorf("worktree directory %q already exists", worktree.TargetPath)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("inspect worktree directory %q: %w", worktree.TargetPath, err)
+			if trashErr := x.runtime.trashPaths(worktree.TargetPath); trashErr != nil {
+				rollbackErrors = append(rollbackErrors, trashErr)
+			}
 		}
 	}
-	return nil
+	if _, err := os.Stat(x.barePath); err == nil {
+		if trashErr := x.runtime.trashPaths(x.barePath); trashErr != nil {
+			rollbackErrors = append(rollbackErrors, trashErr)
+		}
+	}
+	return errors.Join(rollbackErrors...)
 }
 
 // run performs the import in fail-safe order:
@@ -151,46 +175,22 @@ func (x *importPlan) run(reporter ImportReporter) error {
 	return reporter.Summary(summary)
 }
 
-func (x *importPlan) createWorktree(bareRepository *Repository, worktree *importWorktree) error {
-	var err error
-	if worktree.Detached {
-		_, err = bareRepository.git("worktree", "add", "--detach", worktree.TargetPath, worktree.CommitHash)
-	} else {
-		_, err = bareRepository.git("worktree", "add", worktree.TargetPath, worktree.BranchName)
-	}
-	if err != nil {
-		return fmt.Errorf("create worktree %q: %w", worktree.TargetPath, err)
-	}
-
-	if worktree.Detached {
-		return nil
-	}
-	return ensureBranchUpstream(bareRepository, worktree.BranchName)
-}
-
-// rollbackCreated removes worktrees freshly created under the managed layout
-// plus the bare clone so a failed import can simply be retried. The source
-// worktrees are still on disk at this point, and removals go to the system
-// trash, so nothing is lost.
-func (x *importPlan) rollbackCreated(bareRepository *Repository, created []*importWorktree) error {
-	var rollbackErrors []error
-	for _, worktree := range created {
-		if _, err := os.Stat(worktree.TargetPath); errors.Is(err, os.ErrNotExist) {
-			continue
+// validateTargets fails before anything is touched when two worktrees would
+// collide or a target path already exists.
+func (x *importPlan) validateTargets() error {
+	targets := make(map[string]string, len(x.worktrees))
+	for _, worktree := range x.worktrees {
+		targetPath := filepath.Clean(worktree.TargetPath)
+		if existingName, ok := targets[targetPath]; ok {
+			return fmt.Errorf("worktrees %q and %q share target path %q", existingName, worktree.Name, worktree.TargetPath)
 		}
-		if _, err := bareRepository.git("worktree", "remove", "--force", worktree.TargetPath); err != nil {
-			rollbackErrors = append(rollbackErrors, err)
-		}
+		targets[targetPath] = worktree.Name
+
 		if _, err := os.Stat(worktree.TargetPath); err == nil {
-			if trashErr := x.runtime.trashPaths(worktree.TargetPath); trashErr != nil {
-				rollbackErrors = append(rollbackErrors, trashErr)
-			}
+			return fmt.Errorf("worktree directory %q already exists", worktree.TargetPath)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("inspect worktree directory %q: %w", worktree.TargetPath, err)
 		}
 	}
-	if _, err := os.Stat(x.barePath); err == nil {
-		if trashErr := x.runtime.trashPaths(x.barePath); trashErr != nil {
-			rollbackErrors = append(rollbackErrors, trashErr)
-		}
-	}
-	return errors.Join(rollbackErrors...)
+	return nil
 }
