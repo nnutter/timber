@@ -66,7 +66,7 @@ func collectVerdict(ctx context.Context, o OpenAI, reader ContextReader, p respo
 	var zero Verdict
 	calls := 0
 	seen := map[string]bool{}
-	for request := 0; request < maxRequests; request++ {
+	for request := range maxRequests {
 		verdict, done, err := reviewTurn(ctx, o, reader, &p, seen, &calls, &contextBytes, maxRequests, request)
 		if err != nil {
 			return zero, err
