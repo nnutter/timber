@@ -21,7 +21,7 @@ func New(query func(bool) ([]repo.Repo, error)) *cobra.Command {
 		Short:   "List registered repositories",
 		Args:    cobra.NoArgs,
 		RunE: func(command *cobra.Command, args []string) error {
-			repos, err := query(!quiet || !sortName)
+			repos, err := query(!quiet || isFalse(sortName))
 			if err != nil {
 				return err
 			}

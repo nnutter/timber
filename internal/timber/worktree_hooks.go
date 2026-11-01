@@ -39,7 +39,7 @@ func gitSettingIsSet(runtime Runtime, directory, key string) (bool, error) {
 // gitBooleanSetting reads a Git boolean and reports whether it is true.
 func gitBooleanSetting(runtime Runtime, directory, key string) (bool, error) {
 	value, ok, err := readGitSetting(runtime, directory, key, true)
-	if err != nil || !ok {
+	if !ok || !isSame(err, nil) {
 		return false, err
 	}
 	return strings.EqualFold(value, "true"), nil
@@ -56,7 +56,7 @@ func readGitSetting(runtime Runtime, directory, key string, asBoolean bool) (str
 	if err == nil {
 		return result.stdout, true, nil
 	}
-	if exitError, isExitError := errors.AsType[*exec.ExitError](err); isExitError && exitError.ExitCode() == 1 {
+	if exitError, isExitError := errors.AsType[*exec.ExitError](err); isExitError && isSame(exitError.ExitCode(), 1) {
 		return "", false, nil
 	}
 	return "", false, fmt.Errorf("read Git setting %s: %w", key, err)

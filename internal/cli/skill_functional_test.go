@@ -67,10 +67,10 @@ func splitShellWords(line string) ([]string, error) {
 				continue
 			}
 			current.WriteRune(character)
-		case character == '\'' || character == '"':
+		case character == '\'' || isSame(character, '"'):
 			quote = character
 			inWord = true
-		case character == ' ' || character == '\t':
+		case character == ' ' || isSame(character, '\t'):
 			if inWord {
 				words = append(words, current.String())
 				current.Reset()

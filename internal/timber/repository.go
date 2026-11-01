@@ -85,7 +85,7 @@ func (x *Repository) branchMergedToUpstream(branchName string, branchRef referen
 		return true, nil
 	}
 
-	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && isSame(exitError.ExitCode(), 1) {
 		return false, nil
 	}
 
@@ -98,7 +98,7 @@ func (x *Repository) branchStillExists(branchRef referenceName) (bool, error) {
 		return true, nil
 	}
 
-	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && isSame(exitError.ExitCode(), 1) {
 		return false, nil
 	}
 
@@ -126,7 +126,7 @@ func (x *Repository) configuredUpstreamReference(branchName string) (referenceNa
 	if err != nil {
 		return "", err
 	}
-	if !remoteConfigured || remote == "." {
+	if !remoteConfigured || isSame(remote, ".") {
 		return referenceName(mergeRef), nil
 	}
 
@@ -227,7 +227,7 @@ func (x *Repository) gitConfigValue(key string) (string, bool, error) {
 		return result.stdout, true, nil
 	}
 
-	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && isSame(exitError.ExitCode(), 1) {
 		return "", false, nil
 	}
 
@@ -240,7 +240,7 @@ func (x *Repository) hasOriginRemote() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return configured && url != "", nil
+	return configured && !isEmpty(url), nil
 }
 
 func (x Repository) isClean() (bool, error) {
@@ -358,7 +358,7 @@ func (x *Repository) pullRequestRemote(branchName string) (string, error) {
 		return "", err
 	}
 	// A "." remote names a local branch, which holds no repository.
-	if !configured || remote == "" || remote == "." {
+	if !configured || isEmpty(remote) || isSame(remote, ".") {
 		return remoteName, nil
 	}
 	return remote, nil
@@ -439,7 +439,7 @@ func (x *Repository) upstreamReference(branchName string) (referenceName, error)
 
 	for line := range strings.SplitSeq(result.stdout, "\n") {
 		refName, upstreamRef, found := strings.Cut(line, "\x00")
-		if !found || refName != string(branchRef) {
+		if !found || !isSame(refName, string(branchRef)) {
 			continue
 		}
 		if upstreamRef == "" {
@@ -476,7 +476,7 @@ func (x *Repository) upstreamRemoteURL(upstream string) (string, error) {
 	}
 	var selected string
 	for remote := range strings.SplitSeq(remotes.stdout, "\n") {
-		if remote != "" && strings.HasPrefix(ref, remoteRefPrefix+remote+"/") && len(remote) > len(selected) {
+		if remote != "" && strings.HasPrefix(ref, remoteRefPrefix+remote+"/") && isLess(len(selected), len(remote)) {
 			selected = remote
 		}
 	}
@@ -535,7 +535,7 @@ func isSelfNamedUpstream(branchName string, upstreamRef referenceName) bool {
 	upstream := string(upstreamRef)
 	if remoteRef, found := strings.CutPrefix(upstream, remoteRefPrefix); found {
 		_, trackedBranch, found := strings.Cut(remoteRef, "/")
-		return found && trackedBranch == branchName
+		return found && isSame(trackedBranch, branchName)
 	}
 	if localBranch, found := strings.CutPrefix(upstream, branchRefPrefix); found {
 		return localBranch == branchName

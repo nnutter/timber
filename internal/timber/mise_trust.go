@@ -24,11 +24,11 @@ func githubRemoteOwner(remote string) string {
 	var host, repoPath string
 	if strings.Contains(remote, "://") {
 		parsed, err := url.Parse(remote)
-		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "ssh") {
+		if err != nil || !isSupportedRemoteScheme(parsed.Scheme) {
 			return ""
 		}
 		host, repoPath = parsed.Hostname(), parsed.Path
-		if strings.EqualFold(host, "ssh.github.com") && parsed.Scheme != "ssh" {
+		if strings.EqualFold(host, "ssh.github.com") && !isSame(parsed.Scheme, "ssh") {
 			return ""
 		}
 	} else {
@@ -45,7 +45,7 @@ func githubRemoteOwner(remote string) string {
 		return ""
 	}
 	owner, repo, found := strings.Cut(strings.TrimPrefix(repoPath, "/"), "/")
-	if !found || !githubLoginPattern.MatchString(owner) || repo == "" || repo == "." || repo == ".." || strings.Contains(repo, "/") {
+	if !found || !githubLoginPattern.MatchString(owner) || isReservedRepoName(repo) || strings.Contains(repo, "/") {
 		return ""
 	}
 	return owner

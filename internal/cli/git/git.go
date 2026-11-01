@@ -26,7 +26,7 @@ func (x *gitCommandOptions) Execute(command *cobra.Command, args []string) error
 	targetDirectory := x.CurrentDirectory
 	explicitGitDir := ""
 	gitArgs := args
-	if len(args) > 0 && args[0] == "--" {
+	if len(args) > 0 && isSame(args[0], "--") {
 		gitArgs = args[1:]
 	} else if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		selectedDir, selectedGitDir, ok, err := x.ResolveSelector(command.InOrStdin(), args[0])
@@ -37,7 +37,7 @@ func (x *gitCommandOptions) Execute(command *cobra.Command, args []string) error
 			targetDirectory = selectedDir
 			explicitGitDir = selectedGitDir
 			gitArgs = args[1:]
-			if len(gitArgs) > 0 && gitArgs[0] == "--" {
+			if len(gitArgs) > 0 && isSame(gitArgs[0], "--") {
 				gitArgs = gitArgs[1:]
 			}
 		}

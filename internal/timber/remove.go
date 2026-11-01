@@ -19,7 +19,7 @@ func removeEmptyParents(path string, stopPath string) error {
 	stopPath = canonicalPath(stopPath)
 
 	for {
-		if current == stopPath || current == string(filepath.Separator) {
+		if current == stopPath || isSame(current, string(filepath.Separator)) {
 			return nil
 		}
 		if !pathIsWithin(stopPath, current) {

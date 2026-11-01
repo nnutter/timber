@@ -63,7 +63,7 @@ func todoEntriesToJSON(entries []todo.Entry) todoJSONOutput {
 	output := todoJSONOutput{Todos: []todoJSONItem{}}
 	var stack []todo.Entry
 	for _, entry := range entries {
-		for len(stack) > 0 && stack[len(stack)-1].Indent >= entry.Indent {
+		for len(stack) > 0 && !isLess(stack[len(stack)-1].Indent, entry.Indent) {
 			stack = stack[:len(stack)-1]
 		}
 		item := todoJSONItem{

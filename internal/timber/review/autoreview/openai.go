@@ -23,8 +23,8 @@ type OpenAI struct {
 func (o OpenAI) Evaluate(ctx context.Context, input Input, reader ContextReader) (Verdict, error) {
 	var zero Verdict
 	if strings.TrimSpace(o.Model) == "" ||
-		o.MaxRequests < 0 ||
-		o.MaxOutputTokens < 0 {
+		isLess(o.MaxRequests, 0) ||
+		isLess(o.MaxOutputTokens, 0) {
 		return zero, errors.New("invalid model or request budget")
 	}
 	data, err := json.Marshal(input)
@@ -77,7 +77,7 @@ func (o OpenAI) Evaluate(ctx context.Context, input Input, reader ContextReader)
 		if resp == nil {
 			return zero, errors.New("missing response")
 		}
-		if strings.TrimSpace(resp.ID) == "" || strings.TrimSpace(string(resp.Model)) == "" {
+		if strings.TrimSpace(resp.ID) == "" || isEmpty(strings.TrimSpace(string(resp.Model))) {
 			return zero, errors.New("missing response metadata")
 		}
 		if resp.Status != "completed" {
@@ -106,7 +106,7 @@ func (o OpenAI) Evaluate(ctx context.Context, input Input, reader ContextReader)
 				param := item.AsReasoning().ToParam()
 				p.Input.OfInputItemList = append(p.Input.OfInputItemList, responses.ResponseInputItemUnionParam{OfReasoning: &param})
 			case "function_call":
-				if item.Status != "completed" || strings.TrimSpace(item.CallID) == "" || seen[item.CallID] {
+				if item.Status != "completed" || isEmpty(strings.TrimSpace(item.CallID)) || isTrue(seen[item.CallID]) {
 					return zero, errors.New("invalid or duplicate tool call")
 				}
 				seen[item.CallID] = true
@@ -116,9 +116,9 @@ func (o OpenAI) Evaluate(ctx context.Context, input Input, reader ContextReader)
 			case "message":
 				count++
 				if item.Role != "assistant" ||
-					item.Status != "completed" ||
-					len(item.Content) != 1 ||
-					item.Content[0].Type != "output_text" {
+					!isSame(item.Status, "completed") ||
+					!isSame(len(item.Content), 1) ||
+					!isSame(item.Content[0].Type, "output_text") {
 					return zero, errors.New("invalid message")
 				}
 				text = item.Content[0].Text
@@ -126,7 +126,7 @@ func (o OpenAI) Evaluate(ctx context.Context, input Input, reader ContextReader)
 				return zero, errors.New("unexpected response item")
 			}
 		}
-		if count > 0 && len(pending) > 0 {
+		if count > 0 && isLess(0, len(pending)) {
 			return zero, errors.New("mixed verdict and calls")
 		}
 		if len(pending) > 0 {
@@ -277,7 +277,7 @@ func readTool(ctx context.Context, reader ContextReader, call responses.Response
 }
 
 func toolTarget(revision, value string) error {
-	if revision != "base" && revision != "tip" {
+	if revision != "base" && !isSame(revision, "tip") {
 		return errors.New("invalid revision")
 	}
 	if strings.TrimSpace(value) == "" {

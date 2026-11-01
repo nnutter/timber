@@ -45,7 +45,7 @@ func (target pullRequestTarget) pushError(problem string) error {
 func (target pullRequestTarget) requirePushed(ctx context.Context, client *github.Client) error {
 	branch, response, err := client.Repositories.GetBranch(ctx, target.owner, target.repo, target.head, 0)
 	if err != nil {
-		if response != nil && response.StatusCode == http.StatusNotFound {
+		if response != nil && isSame(response.StatusCode, http.StatusNotFound) {
 			return target.pushError("is not on GitHub")
 		}
 		return fmt.Errorf("read branch %q from GitHub: %w", target.head, err)
@@ -84,7 +84,7 @@ func githubRepositoryFromRemoteURL(remoteURL string) (owner, repo string, err er
 	}
 	repoPath = strings.TrimSuffix(strings.Trim(repoPath, "/"), bareRepoSuffix)
 	owner, repo, found := strings.Cut(repoPath, "/")
-	if !found || owner == "" || repo == "" || strings.Contains(repo, "/") {
+	if !found || isEmpty(owner) || isEmpty(repo) || strings.Contains(repo, "/") {
 		return "", "", fmt.Errorf("remote %q does not name a repository as %s/<owner>/<repository>", remoteURL, githubHost)
 	}
 	return owner, repo, nil

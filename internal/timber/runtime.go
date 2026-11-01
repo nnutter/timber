@@ -196,7 +196,7 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 	if reporters.Created == nil {
 		return "", false, errors.New("create requires a worktree creation reporter")
 	}
-	if (herdr || (!noHerdr && runtime.HerdrEnvironment)) && reporters.HerdrOpened == nil {
+	if (herdr || (!noHerdr && isSame(runtime.HerdrEnvironment, true))) && isNilFunc(reporters.HerdrOpened) {
 		return "", false, errors.New("create requires a Herdr opening reporter")
 	}
 	qualified, err := runtime.parseQualifiedName(raw)
@@ -298,7 +298,7 @@ func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reade
 		return "", false, err
 	}
 
-	if !(herdr || (!noHerdr && runtime.HerdrEnvironment)) {
+	if !(herdr || (!noHerdr && isSame(runtime.HerdrEnvironment, true))) {
 		return worktreePath, false, nil
 	}
 
@@ -439,7 +439,7 @@ func (x Runtime) HerdrPluginDirectory() string {
 // ImportRepo converts an existing clone into a managed Timber repository.
 // Both reporter callbacks are required.
 func (runtime Runtime) ImportRepo(source, name string, reporter ImportReporter) error {
-	if reporter.Registered == nil || reporter.Summary == nil {
+	if reporter.Registered == nil || isNilFunc(reporter.Summary) {
 		return errors.New("repository import requires registration and summary reporters")
 	}
 	sourcePath, err := runtime.absolutePath(source)
@@ -589,13 +589,13 @@ func (x Runtime) OpenHerdrSpace(ctx context.Context, repo, name, path string) er
 // A non-nil prompter is required when prompt is true.
 // All progress is written to output, preserving CLI reporting order.
 func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool, prompter WorktreePrompter, reporters PruneReporters) error {
-	if prompt && prompter == nil {
+	if prompter == nil && isTrue(prompt) {
 		return errors.New("prune prompt requires a worktree prompter")
 	}
-	if dryRun && reporters.DryRun == nil {
+	if dryRun && isNilFunc(reporters.DryRun) {
 		return errors.New("prune dry run requires a reporter")
 	}
-	if !dryRun && reporters.Removal == nil {
+	if !dryRun && isNilFunc(reporters.Removal) {
 		return errors.New("prune removal requires a reporter")
 	}
 
@@ -619,7 +619,7 @@ func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg
 	}
 
 	var selectedWorktrees []managedWorktree
-	if prompt && prompter != nil {
+	if prompter != nil && isTrue(prompt) {
 		refs := make([]WorktreeRef, 0, len(enrichedWorktrees))
 		for _, worktree := range enrichedWorktrees {
 			refs = append(refs, worktree.ref())
@@ -637,7 +637,7 @@ func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg
 		}
 	} else {
 		selectedWorktrees = lo.Filter(enrichedWorktrees, func(worktree managedWorktree, _ int) bool {
-			return worktree.Clean && worktree.Merged
+			return worktree.Clean && isSame(worktree.Merged, true)
 		})
 	}
 
@@ -651,7 +651,7 @@ func (runtime Runtime) PruneWorktrees(input io.Reader, output io.Writer, repoArg
 	}
 
 	for _, worktree := range selectedWorktrees {
-		if !prompt && (!worktree.Clean || !worktree.Merged) {
+		if !prompt && (!worktree.Clean || !isSame(worktree.Merged, true)) {
 			continue
 		}
 		// Removing a checkout can shorten other directory-derived names.
@@ -1041,7 +1041,7 @@ func (runtime Runtime) RunTUI(ctx context.Context, input io.Reader, output, stdo
 		worktreeRefs = append(worktreeRefs, worktree.ref())
 	}
 	selection, err := prompter.Prompt(input, output, repoRefs, worktreeRefs, !noTitle)
-	if err != nil || selection.Cancelled {
+	if err != nil || isSame(selection.Cancelled, true) {
 		return err
 	}
 
@@ -1211,7 +1211,7 @@ func (x Runtime) buildImportPlan(sourcePath string, requestedName string) (impor
 	sourceRepository, err := openRepository(x, sourcePath)
 	if err != nil {
 		bare, bareErr := pathIsBareRepository(x, sourcePath)
-		if bareErr == nil && bare {
+		if bare && isSame(bareErr, nil) {
 			display := x.displayHomePath(sourcePath)
 			return importPlan{}, fmt.Errorf("%s is a bare repository; use 'timber repo add %s' instead", display, display)
 		}
@@ -1361,10 +1361,10 @@ func (x Runtime) collectWorktrees(repos []registeredRepo, enrich worktreeEnriche
 }
 
 func (x Runtime) command(ctx context.Context, name string, args ...string) *exec.Cmd {
-	if name == "herdr" && x.HerdrExecutable != "" {
+	if name == "herdr" && !isEmpty(x.HerdrExecutable) {
 		name = x.HerdrExecutable
 	}
-	if name == "gh" && x.GhExecutable != "" {
+	if name == "gh" && !isEmpty(x.GhExecutable) {
 		name = x.GhExecutable
 	}
 
@@ -1950,14 +1950,14 @@ func (x Runtime) listLegacyRepos() ([]registeredRepo, error) {
 
 	repos := make([]registeredRepo, 0)
 	walkErr := filepath.WalkDir(directory, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || !entry.IsDir() || path == directory {
+		if err != nil || !entry.IsDir() || isSame(path, directory) {
 			return nil
 		}
 		if !strings.HasSuffix(entry.Name(), bareRepoSuffix) {
 			return nil
 		}
 		bare, bareErr := pathIsBareRepository(x, path)
-		if bareErr != nil || !bare {
+		if !bare || !isSame(bareErr, nil) {
 			return filepath.SkipDir
 		}
 		relative, relErr := filepath.Rel(directory, path)
@@ -2129,7 +2129,7 @@ func (x Runtime) moveLegacyRepo(repo registeredRepo) (bool, error) {
 func (x Runtime) movedInternalWorktree(repo registeredRepo, oldPath string) (string, error) {
 	oldBare := filepath.Join(x.legacyReposDirectory(), filepath.FromSlash(repo.Name)+bareRepoSuffix)
 	rel, err := filepath.Rel(oldBare, oldPath)
-	if err != nil || rel == "." || !pathIsWithin(oldBare, oldPath) {
+	if err != nil || isSame(rel, ".") || !pathIsWithin(oldBare, oldPath) {
 		return "", nil
 	}
 	path := filepath.Join(repo.BarePath, rel)
@@ -2140,7 +2140,7 @@ func (x Runtime) movedInternalWorktree(repo registeredRepo, oldPath string) (str
 	if err != nil {
 		return "", err
 	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	if !info.IsDir() || isSymlink(info) {
 		return "", nil
 	}
 	content, err := os.ReadFile(filepath.Join(path, ".git"))
@@ -2153,11 +2153,11 @@ func (x Runtime) movedInternalWorktree(repo registeredRepo, oldPath string) (str
 	}
 	oldAdmin := filepath.Join(oldBare, "worktrees")
 	adminRel, err := filepath.Rel(oldAdmin, filepath.Clean(gitdir))
-	if err != nil || adminRel == "." || adminRel == ".." || filepath.Base(adminRel) != adminRel {
+	if err != nil || isSame(adminRel, ".") || isSame(adminRel, "..") || !isSame(filepath.Base(adminRel), adminRel) {
 		return "", nil
 	}
 	backlink, err := os.ReadFile(filepath.Join(repo.BarePath, "worktrees", adminRel, "gitdir"))
-	if err != nil || filepath.Clean(strings.TrimSpace(string(backlink))) != filepath.Join(oldPath, ".git") {
+	if err != nil || !isSame(filepath.Clean(strings.TrimSpace(string(backlink))), filepath.Join(oldPath, ".git")) {
 		return "", nil
 	}
 	if _, err := os.Lstat(oldPath); !errors.Is(err, os.ErrNotExist) {
@@ -2225,7 +2225,7 @@ func (runtime Runtime) openSelectedWorktree(
 	selection WizardSelection,
 	reporters CreateReporters,
 ) error {
-	if reporters.HerdrOpened == nil {
+	if isNilFunc(reporters.HerdrOpened) {
 		return errors.New("tui requires a Herdr opening reporter")
 	}
 	repository, _, err := runtime.openRegisteredRepository(selection.RepoName)
@@ -2265,7 +2265,7 @@ func (x Runtime) parseRepoOnlyArg(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if qualified.Name != "" || qualified.Repo == "" {
+	if qualified.Name != "" || isEmpty(qualified.Repo) {
 		return "", fmt.Errorf("expected @<repo>, got %q", raw)
 	}
 	return qualified.Repo, nil
@@ -2294,7 +2294,7 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 	if err != nil {
 		return pullRequestTarget{}, err
 	}
-	if !configured || remoteURL == "" {
+	if !configured || isEmpty(remoteURL) {
 		return pullRequestTarget{}, fmt.Errorf("repository %s has no %s remote; a pull request needs a GitHub remote", worktree.Repo, remote)
 	}
 	owner, repo, err := githubRepositoryFromRemoteURL(remoteURL)
@@ -2363,7 +2363,7 @@ func (x Runtime) registeredRepoAt(root string, path string) (registeredRepo, boo
 		return registeredRepo{}, false, true
 	}
 	bare, bareErr := pathIsBareRepository(x, gitDir)
-	if bareErr != nil || !bare {
+	if !bare || !isSame(bareErr, nil) {
 		return registeredRepo{}, false, true
 	}
 	relative, err := filepath.Rel(root, path)
@@ -2510,7 +2510,7 @@ func (x Runtime) repairStaleWorktrees(repo registeredRepo) (bool, error) {
 
 func (x Runtime) reportRenamedCurrentPath(path string) error {
 	pathFile := x.RenamePathFile
-	if pathFile == "" || path == "" {
+	if pathFile == "" || isEmpty(path) {
 		return nil
 	}
 	if err := x.writePathFile(pathFile, path); err != nil {
@@ -2688,7 +2688,7 @@ func (x Runtime) worktreeReviewProgress(ctx context.Context, path string) *revie
 	defer cancel()
 	service := review.Service{Repository: review.Repository{Dir: path, Environment: x.Environment}}
 	result, err := service.Status(ctx, false)
-	if err != nil || result.Version != 1 || result.Command != "status" {
+	if err != nil || !isSame(result.Version, 1) || !isSame(result.Command, "status") {
 		return nil
 	}
 	progress := new(reviewProgress)

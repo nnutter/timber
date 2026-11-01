@@ -199,7 +199,7 @@ func (r Repository) autoGit(ctx context.Context, limit int, args ...string) (str
 		}
 		return "", fmt.Errorf("read automatic review context: %w", err)
 	}
-	if !utf8.Valid(out.buffer.Bytes()) || bytes.IndexByte(out.buffer.Bytes(), 0) >= 0 {
+	if !utf8.Valid(out.buffer.Bytes()) || !isLess(bytes.IndexByte(out.buffer.Bytes(), 0), 0) {
 		return "", fmt.Errorf("automatic review requires UTF-8 text context")
 	}
 	return out.buffer.String(), nil

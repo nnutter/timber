@@ -32,7 +32,7 @@ type Command struct {
 
 // RunE resolves the model and its provider before sending committed source.
 func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
-	if c.Options.Timeout <= 0 || c.MaxRequests <= 0 {
+	if c.Options.Timeout <= 0 || !isLess(0, c.MaxRequests) {
 		return fmt.Errorf("--timeout and --max-requests must be positive")
 	}
 	models, err := c.models()

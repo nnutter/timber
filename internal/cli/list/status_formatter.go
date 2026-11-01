@@ -23,7 +23,7 @@ type listStatusFormatter struct {
 func (x listStatusFormatter) format(worktree timber.ListWorktreeView) string {
 	// Merged work needs no divergence detail; name the state instead.
 	if worktree.Merged {
-		if worktree.Upstream != "" && worktree.Upstream != worktree.DefaultUpstream {
+		if worktree.Upstream != "" && !isSame(worktree.Upstream, worktree.DefaultUpstream) {
 			return "merged [" + worktree.Upstream + "]"
 		}
 		return "merged"
@@ -45,7 +45,7 @@ func (x listStatusFormatter) format(worktree timber.ListWorktreeView) string {
 	}
 	// The default upstream (repo HEAD) is noise; only call out an
 	// upstream when the worktree tracks something else.
-	if worktree.Upstream != "" && worktree.Upstream != worktree.DefaultUpstream {
+	if worktree.Upstream != "" && !isSame(worktree.Upstream, worktree.DefaultUpstream) {
 		parts = append(parts, "["+worktree.Upstream+"]")
 	}
 	return strings.TrimRight(strings.Join(parts, " "), " ")

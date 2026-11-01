@@ -101,7 +101,7 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 			if test.cache == "refresh" {
 				runtime = installIdentityGh(t, withTestEnvironment(runtime, "GH_TEST_LOG="+filepath.Join(resolvedTempDir(t), "gh.log")))
 			}
-			if test.cache != "missing" && test.cache != "refresh" {
+			if test.cache != "missing" && !isSame(test.cache, "refresh") {
 				fetchedAt := time.Now().UTC()
 				if test.cache == "expired" {
 					fetchedAt = fetchedAt.Add(-25 * time.Hour)

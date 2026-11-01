@@ -101,7 +101,7 @@ func (x *todoCommandOptions) installTodoSkill(command *cobra.Command) error {
 	}
 
 	destination := filepath.Join(x.deps.HomeDirectory, ".agents", "skills", "timber-todo", "SKILL.md")
-	if _, err := os.Stat(destination); err == nil && !x.force {
+	if _, err := os.Stat(destination); err == nil && isFalse(x.force) {
 		return fmt.Errorf("skill already exists at %s (use --force to overwrite)", destination)
 	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("inspect skill destination %q: %w", destination, err)
@@ -155,7 +155,7 @@ func editorCommandLine(environment []string) (string, error) {
 	if environment != nil {
 		for _, entry := range environment {
 			key, value, _ := strings.Cut(entry, "=")
-			if key == "EDITOR" && value != "" {
+			if key == "EDITOR" && !isEmpty(value) {
 				return value, nil
 			}
 		}
@@ -195,7 +195,7 @@ func lookupFallbackEditor(pathEnv string) (string, bool) {
 			}
 			fullPath := filepath.Join(dir, candidate)
 			info, err := os.Stat(fullPath)
-			if err != nil || info.IsDir() || info.Mode().Perm()&0o111 == 0 {
+			if err != nil || info.IsDir() || isNotExecutable(info) {
 				continue
 			}
 			return candidate, true

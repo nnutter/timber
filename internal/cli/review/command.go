@@ -37,7 +37,7 @@ func New(directory, homeDirectory, skillContent string, loadModels func() (corec
 			return fmt.Errorf("timber-review skill content is not available")
 		}
 		destination := filepath.Join(homeDirectory, ".agents", "skills", "timber-review", "SKILL.md")
-		if _, err := os.Stat(destination); err == nil && !force {
+		if _, err := os.Stat(destination); err == nil && isFalse(force) {
 			return fmt.Errorf("skill already exists at %s (use --force to overwrite)", destination)
 		} else if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("inspect skill destination %q: %w", destination, err)

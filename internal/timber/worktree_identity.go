@@ -26,7 +26,7 @@ func assignManualWorktreeNames(worktrees []managedWorktree) {
 		}
 		changed := false
 		for index := range worktrees {
-			if !manual[index] || counts[worktrees[index].Name] < 2 {
+			if !manual[index] || isLess(counts[worktrees[index].Name], 2) {
 				continue
 			}
 			parent := parents[index]

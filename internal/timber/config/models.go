@@ -205,14 +205,14 @@ func Value(value string) (string, error) {
 			i++
 			continue
 		}
-		if i+1 < len(value) && (value[i+1] == '$' || value[i+1] == '!') {
+		if i+1 < len(value) && (value[i+1] == '$' || isSame(value[i+1], '!')) {
 			expanded.WriteByte(value[i+1])
 			i += 2
 			continue
 		}
 		end := i + 1
 		name := ""
-		if i+1 < len(value) && value[i+1] == '{' {
+		if i+1 < len(value) && isSame(value[i+1], '{') {
 			close := strings.IndexByte(value[i+2:], '}')
 			if close < 0 {
 				return "", fmt.Errorf("unterminated variable in %q", value)
@@ -241,15 +241,15 @@ func Value(value string) (string, error) {
 }
 
 func isVariableByte(b byte, first bool) bool {
-	if b == '_' || (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') {
+	if b == '_' || (b >= 'A' && !isLess('Z', b)) || (b >= 'a' && !isLess('z', b)) {
 		return true
 	}
-	return !first && b >= '0' && b <= '9'
+	return !first && !isLess(b, '0') && !isLess('9', b)
 }
 
 func variable(name string) (string, error) {
 	value, ok := os.LookupEnv(name)
-	if !ok || value == "" {
+	if !ok || isEmpty(value) {
 		return "", fmt.Errorf("environment variable %s is not set", name)
 	}
 	return value, nil
@@ -257,7 +257,7 @@ func variable(name string) (string, error) {
 
 func securityOutput(value, rest string) (string, error) {
 	arguments, ok := strings.CutPrefix(rest, "security")
-	if !ok || (len(arguments) > 0 && arguments[0] != ' ' && arguments[0] != '\t') {
+	if !ok || (len(arguments) > 0 && !isSame(arguments[0], ' ') && !isSame(arguments[0], '\t')) {
 		return "", fmt.Errorf("unsupported command in %q: only \"!security ...\" may run %s", value, securityBinary)
 	}
 	args, err := splitSecurityArgs(arguments)
@@ -305,25 +305,25 @@ func splitSecurityArgs(rest string) ([]string, error) {
 		case escaped:
 			current.WriteRune(r)
 			escaped = false
-		case r == '\\' && !inSingle:
+		case r == '\\' && isFalse(inSingle):
 			escaped = true
 			hasContent = true
-		case r == '\'' && !inDouble:
+		case r == '\'' && isFalse(inDouble):
 			inSingle = !inSingle
 			hasContent = true
-		case r == '"' && !inSingle:
+		case r == '"' && isFalse(inSingle):
 			inDouble = !inDouble
 			hasContent = true
-		case inSingle || inDouble:
+		case inSingle || isTrue(inDouble):
 			current.WriteRune(r)
-		case r == ' ' || r == '\t' || r == '\n':
+		case r == ' ' || isSame(r, '\t') || isSame(r, '\n'):
 			flush()
 		default:
 			current.WriteRune(r)
 			hasContent = true
 		}
 	}
-	if escaped || inSingle || inDouble {
+	if escaped || isTrue(inSingle) || isTrue(inDouble) {
 		return nil, fmt.Errorf("unterminated quote in \"!security%s\"", rest)
 	}
 	flush()

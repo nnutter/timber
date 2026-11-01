@@ -307,7 +307,7 @@ func ShortStack(stack review.Stack) string {
 
 // EntryStatusLabel names a model result separately from a user result.
 func EntryStatusLabel(entry review.Entry) string {
-	if entry.Status == "approved" && entry.Attempt != nil && entry.Attempt.ApprovalSource == "model" {
+	if entry.Status == "approved" && !isSame(entry.Attempt, nil) && isSame(entry.Attempt.ApprovalSource, "model") {
 		return "Auto-Approved"
 	}
 	return StatusLabel(entry.Status)

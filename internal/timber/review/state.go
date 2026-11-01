@@ -38,14 +38,14 @@ func (a Attempt) matches(stack Stack) bool {
 	if a.ApprovalSource == "model" {
 		// A result stands only under the policy that produced it: a policy
 		// change asks different questions, so earlier answers cannot count.
-		if a.Automatic == nil || a.Automatic.PolicyVersion != autoreview.PolicyVersion {
+		if a.Automatic == nil || !isSame(a.Automatic.PolicyVersion, autoreview.PolicyVersion) {
 			return false
 		}
 		// A model approval covers the commit messages and any context the model
 		// read, so unlike a user approval it must not transfer to a rewritten
 		// commit that happens to keep the same patch.
 		if a.Status == "approved" {
-			return sameStack(a.Stack, stack) && a.Stack.Subject == stack.Subject
+			return sameStack(a.Stack, stack) && isSame(a.Stack.Subject, stack.Subject)
 		}
 	}
 	if sameStack(a.Stack, stack) {

@@ -54,7 +54,7 @@ func validateRepoName(name string) error {
 		if segment == "" {
 			return fmt.Errorf("repository name %q must not have empty path segments", name)
 		}
-		if segment == "." || segment == ".." {
+		if isSame(segment, ".") || isSame(segment, "..") {
 			return fmt.Errorf("repository name %q is invalid", name)
 		}
 	}

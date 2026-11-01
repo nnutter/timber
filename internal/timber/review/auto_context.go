@@ -26,7 +26,7 @@ func (c commitContext) ReadFile(ctx context.Context, revision, name string) (str
 	if err != nil {
 		return "", err
 	}
-	if !fs.ValidPath(name) || name == "." || strings.ContainsAny(name, "\\\x00") || sensitiveAutoPath(name) {
+	if !fs.ValidPath(name) || isSame(name, ".") || strings.ContainsAny(name, "\\\x00") || sensitiveAutoPath(name) {
 		return "", fmt.Errorf("file is outside automatic review context")
 	}
 	return c.repository.autoGit(ctx, autoContextLimit, "cat-file", "blob", sha+":"+name)
@@ -37,11 +37,11 @@ func (c commitContext) Search(ctx context.Context, revision, query string) (stri
 	if err != nil {
 		return "", err
 	}
-	if query == "" || len(query) > 256 || strings.ContainsAny(query, "\x00\r\n") {
+	if query == "" || isLess(256, len(query)) || strings.ContainsAny(query, "\x00\r\n") {
 		return "", fmt.Errorf("search requires a nonempty single-line literal of at most 256 bytes")
 	}
 	text, err := c.repository.autoGit(ctx, autoContextLimit, "grep", "--no-color", "-n", "-I", "-F", "-e", query, sha, "--", ".")
-	if exit, ok := errors.AsType[*exec.ExitError](err); ok && exit.ExitCode() == 1 {
+	if exit, ok := errors.AsType[*exec.ExitError](err); ok && isSame(exit.ExitCode(), 1) {
 		return "", nil // git grep uses exit 1 for no matches.
 	}
 	if err != nil {
@@ -55,7 +55,7 @@ func (c commitContext) Search(ctx context.Context, revision, query string) (stri
 		// Drop the tree-ish prefix Git prints so the model reads path and text.
 		_, rest, found := strings.Cut(line, ":")
 		name, _, ok := strings.Cut(rest, ":")
-		if !found || !ok || sensitiveAutoPath(name) {
+		if !found || isFalse(ok) || sensitiveAutoPath(name) {
 			continue
 		}
 		filtered.WriteString(rest)

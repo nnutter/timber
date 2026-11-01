@@ -31,7 +31,7 @@ func (x bubbleteaRepoPrompter) Prompt(input io.Reader, repos []timber.RepoRef) (
 	if !ok {
 		return timber.RepoRef{}, errors.New("repository picker returned unexpected model")
 	}
-	if result.cancelled || result.choice.Name == "" {
+	if result.cancelled || isEmpty(result.choice.Name) {
 		return timber.RepoRef{}, errors.New("repository selection cancelled")
 	}
 	return result.choice, nil

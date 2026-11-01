@@ -27,7 +27,7 @@ func (x *skillCommandOptions) Execute(command *cobra.Command, _ []string) error 
 		return fmt.Errorf("timber skill content is not available")
 	}
 	destination := filepath.Join(x.homeDirectory, ".agents", "skills", "timber", "SKILL.md")
-	if _, err := os.Stat(destination); err == nil && !x.force {
+	if _, err := os.Stat(destination); err == nil && isFalse(x.force) {
 		return fmt.Errorf("skill already exists at %s (use --force to overwrite)", destination)
 	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("inspect skill destination %q: %w", destination, err)

@@ -29,7 +29,7 @@ func (x githubIdentity) owns(owner string) bool {
 }
 
 func (x githubIdentity) valid() bool {
-	if !githubLoginPattern.MatchString(x.Username) || x.FetchedAt.IsZero() || x.FetchedAt.After(time.Now()) || time.Since(x.FetchedAt) >= githubIdentityLifetime {
+	if !githubLoginPattern.MatchString(x.Username) || x.FetchedAt.IsZero() || x.FetchedAt.After(time.Now()) || !isLess(time.Since(x.FetchedAt), githubIdentityLifetime) {
 		return false
 	}
 	for _, organization := range x.Organizations {

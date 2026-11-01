@@ -33,7 +33,7 @@ func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []Work
 	var selected []WorktreeRef
 	for _, choice := range x.selected {
 		for _, worktree := range worktrees {
-			if worktree.Name == choice.Name && (choice.Repo == "" || worktree.Repo == choice.Repo) {
+			if worktree.Name == choice.Name && (isEmpty(choice.Repo) || isSame(worktree.Repo, choice.Repo)) {
 				selected = append(selected, worktree)
 			}
 		}
@@ -267,7 +267,7 @@ func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
 	t.Helper()
 	command := testCommand(t, "git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
 	err := command.Run()
-	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && isSame(exitError.ExitCode(), 1) {
 		return
 	}
 	if err == nil {

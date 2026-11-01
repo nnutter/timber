@@ -197,7 +197,7 @@ func (s Service) Auto(ctx context.Context, evaluator autoreview.Evaluator, optio
 		if err != nil {
 			return result, resumeError(err, recorded)
 		}
-		if !options.DryRun && entry.Evaluation != nil {
+		if !options.DryRun && !isSame(entry.Evaluation, nil) {
 			// Record each result as it completes so a later failure keeps the
 			// provider work already paid for.
 			if err := s.recordAutomatic(ctx, view, &entry); err != nil {

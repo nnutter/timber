@@ -207,7 +207,7 @@ func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string,
 		agentPaneID:    response.Result.Pane.PaneID,
 		agentPaneLabel: agentPaneLabel,
 	}
-	if space.workspaceID == "" || space.agentTabID == "" || space.agentPaneID == "" {
+	if isEmpty(space.workspaceID) || isEmpty(space.agentTabID) || isEmpty(space.agentPaneID) {
 		return herdrSpace{}, errors.New("herdr pane current response has incomplete pane resources")
 	}
 	return space, nil
@@ -218,7 +218,7 @@ func parseHerdrTabCreateResponse(output []byte) error {
 	if err := json.Unmarshal(output, &response); err != nil {
 		return fmt.Errorf("decode herdr tab create response: %w", err)
 	}
-	if response.Result.Tab.TabID == "" || response.Result.RootPane.PaneID == "" {
+	if response.Result.Tab.TabID == "" || isEmpty(response.Result.RootPane.PaneID) {
 		return errors.New("herdr tab create response has incomplete tab resources")
 	}
 	return nil

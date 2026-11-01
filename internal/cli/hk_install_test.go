@@ -65,7 +65,7 @@ func TestCreateAutomaticallyInstallsHKHooksOnlyForEligibleRepositories(t *testin
 				}
 			}
 			repository := newTestRepository(t)
-			if test.hkFile || test.miseFile {
+			if test.hkFile || isTrue(test.miseFile) {
 				seedRepositoryFiles(t, repository, test.hkFile, test.hkSymlink, test.miseFile, test.miseSymlink)
 			}
 			// Fetch locally. The selected upstream belongs to a different remote,

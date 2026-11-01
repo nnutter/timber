@@ -512,7 +512,7 @@ func recoverablePrior(state State, stack Stack) *Attempt {
 	prior := state.latest(stack)
 	if prior != nil {
 		// A model result has no saved session to recover or replace.
-		if prior.Status == "approved" || prior.ApprovalSource == "model" {
+		if prior.Status == "approved" || isSame(prior.ApprovalSource, "model") {
 			return nil
 		}
 		return prior

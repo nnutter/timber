@@ -161,7 +161,7 @@ func buildTestTimberBinary(t *testing.T) string {
 	// caches; keep the real Go toolchain directories so the build stays
 	// offline and fast.
 	for index, line := range strings.Split(strings.TrimSpace(string(envOutput)), "\n") {
-		if index < len(envKeys) && line != "" {
+		if index < len(envKeys) && !isEmpty(line) {
 			build.Env = shellTestEnvironment(build.Env, envKeys[index]+"="+line)
 		}
 	}

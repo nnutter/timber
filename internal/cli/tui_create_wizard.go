@@ -199,7 +199,7 @@ func wizardItemsForTerm(repos []timber.RepoRef, worktrees []timber.WorktreeRef, 
 	}
 
 	worktreeName, repoTerm, qualified := strings.CutLast(term, "@")
-	if !qualified || worktreeName == "" || strings.Contains(worktreeName, "@") {
+	if !qualified || isEmpty(worktreeName) || strings.Contains(worktreeName, "@") {
 		return items
 	}
 
@@ -222,7 +222,7 @@ func wizardItemsForTerm(repos []timber.RepoRef, worktrees []timber.WorktreeRef, 
 
 func wizardHasWorktree(worktrees []timber.WorktreeRef, worktreeName string, repoName string) bool {
 	for _, worktree := range worktrees {
-		if worktree.Name == worktreeName && worktree.Repo == repoName {
+		if worktree.Name == worktreeName && isSame(worktree.Repo, repoName) {
 			return true
 		}
 	}
@@ -291,7 +291,7 @@ func wizardWorktreeValue(worktree timber.WorktreeRef) string {
 
 func splitWizardWorktreeValue(value string) (string, string, error) {
 	worktreeName, repoName, found := strings.CutLast(value, "@")
-	if !found || worktreeName == "" || repoName == "" {
+	if !found || isEmpty(worktreeName) || isEmpty(repoName) {
 		return "", "", fmt.Errorf("invalid worktree selection")
 	}
 	return worktreeName, repoName, nil

@@ -113,11 +113,11 @@ func prepareWorktree(ctx context.Context, source Repository, path string, stack 
 func repairMovedReviewCheckout(ctx context.Context, source Repository, path string) error {
 	invalid := fmt.Errorf("review checkout path already exists or is not a safely movable review checkout: %s", path)
 	expected, err := WorktreePath(source.Dir)
-	if err != nil || path != expected {
+	if err != nil || !isSame(path, expected) {
 		return invalid
 	}
 	info, err := os.Lstat(path)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	if err != nil || !info.IsDir() || isSymlink(info) {
 		return invalid
 	}
 	gitfile := filepath.Join(path, ".git")
@@ -130,12 +130,12 @@ func repairMovedReviewCheckout(ctx context.Context, source Repository, path stri
 		return invalid
 	}
 	oldGitDir, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir: ")
-	if !ok || !filepath.IsAbs(oldGitDir) || filepath.Clean(oldGitDir) != oldGitDir {
+	if !ok || !filepath.IsAbs(oldGitDir) || !isSame(filepath.Clean(oldGitDir), oldGitDir) {
 		return invalid
 	}
 	id := filepath.Base(oldGitDir)
 	oldWorktrees := filepath.Dir(oldGitDir)
-	if id == "." || id == ".." || filepath.Base(oldWorktrees) != "worktrees" {
+	if id == "." || isSame(id, "..") || !isSame(filepath.Base(oldWorktrees), "worktrees") {
 		return invalid
 	}
 	oldCommon := filepath.Dir(oldWorktrees)
@@ -147,17 +147,17 @@ func repairMovedReviewCheckout(ctx context.Context, source Repository, path stri
 	if err != nil {
 		return err
 	}
-	if !tracked || !prunable {
+	if !tracked || isFalse(prunable) {
 		return invalid
 	}
 	common := filepath.Dir(filepath.Dir(path))
 	registration := filepath.Join(common, "worktrees", id)
 	info, err = os.Lstat(registration)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	if err != nil || !info.IsDir() || isSymlink(info) {
 		return invalid
 	}
 	backlink, err := os.ReadFile(filepath.Join(registration, "gitdir"))
-	if err != nil || strings.TrimSpace(string(backlink)) != filepath.Join(oldPath, ".git") {
+	if err != nil || !isSame(strings.TrimSpace(string(backlink)), filepath.Join(oldPath, ".git")) {
 		return invalid
 	}
 	_, err = source.git(ctx, "worktree", "repair", path)
