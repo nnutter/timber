@@ -27,7 +27,7 @@ gitleaks = "latest"
 #####################
 
 [tasks.all]
-description = "Run fixes, tests, and checks"
+description = "Run fix, test, and check"
 run = [{ task = "fix" }, { task = "test" }, { task = "check" }]
 
 [tasks.ci-test]
@@ -60,17 +60,8 @@ run = "hk install --mise"
 description = "Refresh from template"
 run = "git tpl update && git tpl merge"
 
-[tasks.pre-commit]
-description = "Format staged files"
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-go tool gitleaks git --redact --pre-commit --staged
-mise run fix "$@"
-'''
-
 [tasks.test]
-description = "Run tests (with the race detector)"
+description = "Run tests with coverage"
 run = "go test -cover ./..."
 
 #############
@@ -78,179 +69,22 @@ run = "go test -cover ./..."
 #############
 
 [tasks.fix]
-description = "Fix selected files safely, or run all-files writers"
+description = "Fix all files, or only the supplied files"
+usage = 'arg "[staged_files]" var=#true'
 run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-if [ "$#" -gt 0 ]; then
-  hk check --fix --no-stage --step go-imports "$@"
-  hk check --fix --no-stage --step go-fumpt "$@"
-  hk check --fix --no-stage --step mdlint --step pkl_format --step tombi_format --step yamlfmt "$@"
-  mise run fix-go-fix "$@"
-  mise run fix-go-mod-tidy "$@"
+if [ -z "${usage_staged_files:-}" ]; then
+  hk fix --all
 else
-  hk check --fix --no-stage --all --step go-imports
-  hk check --fix --no-stage --all --step go-fumpt
-  hk check --fix --no-stage --all --step mdlint --step pkl_format --step tombi_format --step yamlfmt
-  mise run fix-go-fix
-  mise run fix-go-mod-tidy
+  hk fix ${usage_staged_files}
 fi
 '''
 
 [tasks.check]
-alias = "static-analysis"
-description = "Run checks, linters, scan for secrets, and validate skills"
+description = "Check all files without writing fixes, then validate skills"
 run = [
   "hk check --all",
-  { task = "lint-constable" },
-  # TODO: Failing after Go upgrade
-  # { task = "lint-errcheck" },
-  { task = "lint-gitleaks" },
-  { task = "lint-go-check-sumtype" },
-  { task = "lint-go-vet" },
-  { task = "lint-gosec" },
-  { task = "lint-govulncheck" },
-  { task = "lint-nilaway" },
   { task = "lint-skills" },
-  # TODO: Failing after Go upgrade
-  # { task = "lint-staticcheck" },
-  # TODO: Failing after Go upgrade
-  # { task = "lint-testifylint" },
 ]
-
-[tasks.fix-gofumpt]
-description = "Run code formatting tools"
-run = '''
-#!/usr/bin/env bash
-set -eo pipefail
-if [ "$#" -eq 0 ]; then
-  go tool gofumpt -l -w .
-  exit 0
-fi
-go_files=()
-for f in "$@"; do
-  case "$f" in
-    *.go)
-      case "$f" in -*) f="./$f" ;; esac
-      go_files+=("$f")
-      ;;
-  esac
-done
-[[ -v go_files[0] ]] || exit 0
-go tool gofumpt -l -w "${go_files[@]}"
-'''
-
-[tasks.fix-goimports]
-description = "Run code formatting tools"
-run = '''
-#!/usr/bin/env bash
-set -eo pipefail
-if [ "$#" -eq 0 ]; then
-  go tool goimports -l -w -local $(go list -m) .
-  exit 0
-fi
-go_files=()
-for f in "$@"; do
-  case "$f" in
-    *.go)
-      case "$f" in -*) f="./$f" ;; esac
-      go_files+=("$f")
-      ;;
-  esac
-done
-[[ -v go_files[0] ]] || exit 0
-go tool goimports -l -w -local "$(go list -m)" "${go_files[@]}"
-'''
-
-[tasks.fix-go-fix]
-description = "Apply go fix"
-run = '''
-#!/usr/bin/env bash
-set -eo pipefail
-if [ "$#" -gt 0 ]; then
-  diff=$(go fix -diff ./...)
-  printf '%s' "$diff"
-  [ -z "$diff" ]
-  exit $?
-fi
-go fix ./...
-'''
-
-[tasks.fix-go-mod-tidy]
-description = "Tidy go.mod and go.sum"
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-if [ "$#" -gt 0 ]; then
-  go mod tidy -diff
-  exit $?
-fi
-go mod tidy
-'''
-
-[tasks.fix-testifylint]
-description = "Run testifylint static analysis"
-run = '''
-#!/usr/bin/env bash
-set -eo pipefail
-if [ "$#" -eq 0 ]; then
-  go tool testifylint -fix ./...
-  exit 0
-fi
-# Package analysis can include unselected files, so do not enable -fix.
-declare -A seen=()
-dirs=()
-for f in "$@"; do
-  case "$f" in
-    *.go)
-      d=$(dirname -- "$f")
-      case "$d" in ./*|/*) ;; *) d="./$d" ;; esac
-      if [[ ! ${seen[$d]+present} ]]; then
-        seen[$d]=1
-        dirs+=("$d")
-      fi
-      ;;
-  esac
-done
-[[ -v dirs[0] ]] || exit 0
-go tool testifylint "${dirs[@]}"
-'''
-
-##############
-# Lint Tasks #
-##############
-
-[tasks.lint-constable]
-description = "Checks nonmutating directives"
-run = "go tool constable ./..."
-
-[tasks.lint-errcheck]
-description = "Check for unhandled errors"
-run = "go tool errcheck ./..."
-
-[tasks.lint-gitleaks]
-description = "Scan the Git history for secrets"
-run = "go tool gitleaks dir --verbose --redact ."
-
-[tasks.lint-go-check-sumtype]
-description = "Check sealed sum-type switches for exhaustiveness"
-run = "go tool go-check-sumtype -default-signifies-exhaustive=false -include-shared-interfaces ./..."
-
-[tasks.lint-go-vet]
-description = "Run go vet static analysis"
-run = "go vet ./..."
-
-[tasks.lint-gosec]
-description = "Run gosec static analysis"
-run = "go tool gosec -severity high -quiet ./..."
-
-[tasks.lint-govulncheck]
-description = "Check for vulnerabilities"
-run = "go tool govulncheck ./..."
-
-[tasks.lint-nilaway]
-description = "Run nilaway on github.com/nnutter packages"
-run = "go tool nilaway -include-pkgs $(go list -m) ./..."
 
 [tasks.lint-skills]
 description = "Validate agent skills"
@@ -265,18 +99,6 @@ for skill in skills/*/; do
 done
 exit "$status"
 '''
-
-[tasks.lint-staticcheck]
-description = "Run staticcheck static analysis"
-run = "go tool staticcheck ./..."
-
-[tasks.lint-testifylint]
-description = "Run testifylint static analysis"
-run = "go tool testifylint ./..."
-
-#####################
-# Agent Hooks       #
-#####################
 
 [tasks.on-start]
 description = "Pi mise-hooks: run fixes, tests, and checks before agent starts"

@@ -1,118 +1,44 @@
-amends "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Config.pkl"
+amends
+  "package://github.com/nnutter/hk-config/releases/download/v2.10.0-3/hk-config@2.10.0-3#/Config.pkl"
 
-import "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Builtins.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.10.0/hk@2.10.0#/Builtins.pkl" as Hk
+import
+  "package://github.com/nnutter/hk-config/releases/download/v2.10.0-3/hk-config@2.10.0-3#/Builtins.pkl"
+  as Extra
 
-local checks = new Mapping<String, Step> {
-  ["go-mod-tidy"] = (Builtins.gomod_tidy) {
-    check = "go mod tidy -diff"
-    check_diff = null
-    fix = null
-    stage = null
-  }
-  ["go-fumpt"] = (Builtins.go_fumpt) {
-    check_list_files =
-      """
-      set -e
-      FILES=$(go tool gofumpt -l {{files}})
-      if [ -n "$FILES" ]; then
-      echo "$FILES"
-      exit 1
-      fi
-      """
-    check_diff = "go tool gofumpt -d {{files}}"
-    apply_check_diff = false
-    fix = "go tool gofumpt -w {{files}}"
-  }
-  ["go-imports"] = (Builtins.go_imports) {
-    check_list_files =
-      """
-      set -e
-      FILES=$(go tool goimports -l -local $(go list -m) {{files}})
-      if [ -n "$FILES" ]; then
-      echo "$FILES"
-      exit 1
-      fi
-      """
-    check_diff = "go tool goimports -d -local $(go list -m) {{files}}"
-    apply_check_diff = false
-    fix = "go tool goimports -w -local $(go list -m) {{files}}"
-  }
-  ["go-fix"] = (Builtins.go_fix) {
-    check = "go fix -diff ./..."
-    check_diff = null
-    fix = null
-  }
-  ["constable"] {
-    check = "go tool constable ./..."
-  }
-  ["errcheck"] {
-    check = "go tool errcheck ./..."
-  }
-  ["staticcheck"] = (Builtins.staticcheck) {
-    glob = null
-    check = "go tool staticcheck ./..."
-  }
-  ["testifylint"] {
-    check = "go tool testifylint ./..."
-  }
-  ["go-check-sumtype"] {
-    check =
-      "go tool go-check-sumtype -default-signifies-exhaustive=false -include-shared-interfaces ./..."
-  }
-  ["go-vet"] = (Builtins.go_vet) {
-    glob = null
-  }
-  ["gosec"] = (Builtins.go_sec) {
-    glob = null
-    check = "go tool gosec -severity high -quiet ./..."
-  }
-  ["govulncheck"] = (Builtins.go_vuln_check) {
-    glob = null
-    check = "go tool govulncheck ./..."
-  }
-  ["nilaway"] {
-    check = "go tool nilaway -include-pkgs $(go list -m) ./..."
-  }
-  ["mdlint"] {
-    glob = "**/*.md"
-    check = "mdlint format --check {{files}} && mdlint check --no-fix {{files}}"
-    fix = "mdlint format {{files}} && mdlint check --fix {{files}}"
-  }
-  ["pkl_format"] = Builtins.pkl_format
-  ["pkl"] = (Builtins.pkl) {
-    depends = List("pkl_format")
-  }
-  ["tombi_format"] = Builtins.tombi_format
-  ["tombi"] = (Builtins.tombi) {
-    depends = List("tombi_format")
-  }
-  ["yamlfmt"] = Builtins.yamlfmt
+/// Fixtures hold deliberately broken files, so every step skips them.
+exclude = List("**/testdata/**")
+
+/// Shared by the implicit check, fix, and pre-commit hooks.
+steps {
+  ["gitleaks"] = Hk.gitleaks
+  ["gomod_tidy"] = Hk.gomod_tidy
+  ["go_fumpt"] = Hk.go_fumpt
+  ["go_imports"] = Extra.go_imports
+  ["go_fix"] = Hk.go_fix
+  ["constable"] = Extra.constable
+  ["errcheck"] = Hk.err_check
+  ["staticcheck"] = Hk.staticcheck
+  ["testifylint"] = Extra.testifylint
+  ["go_check_sumtype"] = Extra.go_check_sumtype
+  ["go_vet"] = Hk.go_vet
+  ["gosec"] = Extra.go_sec
+  ["govulncheck"] = Hk.go_vuln_check
+  ["nilaway"] = Extra.nilaway
+  ["mdlint"] = Extra.mdlint
+  ["pkl_format"] = Hk.pkl_format
+  ["pkl"] = Hk.pkl
+  ["tombi_format"] = Hk.tombi_format
+  ["tombi"] = Hk.tombi
+  ["yamlfmt"] = Hk.yamlfmt
 }
 
 hooks {
-  ["check"] {
-    steps = checks
-  }
+  // A hook that hk does not create needs an explicit declaration.
   ["commit-msg"] {
     fix = true
     steps {
-      ["change-id"] {
-        fix = "timber hooks commit-msg \"{{commit_msg_file}}\""
-      }
-    }
-  }
-  ["pre-commit"] {
-    fix = true
-    stash = "git"
-    steps {
-      ["gitleaks"] = (Builtins.gitleaks) {
-        check =
-          "go tool gitleaks git --redact --pre-commit --staged && tmp=$(mktemp -d) || exit $?; trap 'rm -rf \"$tmp\"' EXIT INT TERM; git diff --cached --name-only -z --diff-filter=ACMRT > \"$tmp/list\" || exit $?; git checkout-index -z --stdin --prefix=\"$tmp/tree/\" < \"$tmp/list\" || exit $?; mkdir -p \"$tmp/tree\" || exit $?; go tool gitleaks dir --redact --verbose --no-banner \"$tmp/tree\" || exit $?"
-      }
-      ["format"] {
-        glob = "*.go"
-        fix = "mise run pre-commit {{files}}"
-      }
+      ["change-id"] = Extra.timber_commit_msg
     }
   }
 }
