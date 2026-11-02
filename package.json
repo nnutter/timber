@@ -7,7 +7,7 @@
   "keywords": ["pi-package"],
   "pi": {
     "extensions": ["./pi/extensions/timber-review/index.ts"],
-    "skills": ["./skills/timber-review"]
+    "skills": ["./skills/*"]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
