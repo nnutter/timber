@@ -61,10 +61,10 @@ func TestReviewStatusAfterStackRewrite(t *testing.T) {
 		legacy                      bool
 		v1                          bool
 	}{
-		{name: "approved reword", status: "approved", rewrite: "reword", want: "approved"},
+		{name: "approved reword", status: "approved", rewrite: "reword", want: "needs_review"},
 		{name: "approved rebase", status: "approved", rewrite: "rebase", want: "approved"},
-		{name: "approved squash", status: "approved", rewrite: "squash", want: "approved"},
-		{name: "feedback squash", status: "feedback", rewrite: "squash", want: "feedback"},
+		{name: "approved squash", status: "approved", rewrite: "squash", want: "needs_review"},
+		{name: "feedback squash", status: "feedback", rewrite: "squash", want: "needs_review"},
 		{name: "incomplete reword", status: "incomplete", rewrite: "reword", want: "needs_review"},
 		{name: "active reword", status: "reviewing", rewrite: "reword", want: "needs_review"},
 		{name: "changed content", status: "approved", rewrite: "content", want: "needs_review"},

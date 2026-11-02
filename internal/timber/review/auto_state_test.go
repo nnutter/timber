@@ -34,34 +34,54 @@ func TestAutomaticReviewDoesNotTransferToRewrittenCommits(t *testing.T) {
 	require.Equal(t, "needs_review", after.Entries[0].Status)
 }
 
-func TestAutomaticReviewResetsOnlyWhenContentChanges(t *testing.T) {
-	r := testRepo(t)
-	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("one\n"), 0o600))
-	gitTest(t, r.Dir, "add", "value")
-	gitTest(t, r.Dir, "commit", "-m", "Refactor: Extract constant")
-	view, err := r.Snapshot(t.Context())
-	require.NoError(t, err)
-	attempt := newAttempt(view.Stacks[0], "auto_reviewed")
-	attempt.ApprovalSource = "model"
-	attempt.Automatic = &AutomaticReview{PolicyVersion: "refactor-v1", Decision: "needs-human-review", Model: "test-model", ResponseID: "resp_test", Reason: "Equivalence is unclear."}
-	require.NoError(t, (Store{Path: view.Path}).Update(func(state *State) error {
-		state.Attempts = append(state.Attempts, attempt)
-		return nil
-	}))
-	service := Service{Repository: r}
-	before, err := service.Status(t.Context(), false)
-	require.NoError(t, err)
-	require.Equal(t, "auto_reviewed", before.Entries[0].Status)
-	gitTest(t, r.Dir, "commit", "--amend", "-m", "Refactor: Extract named constant")
-	rewritten, err := service.Status(t.Context(), false)
-	require.NoError(t, err)
-	require.Equal(t, view.Stacks[0].PatchHash, rewritten.View.Stacks[0].PatchHash)
-	require.Equal(t, "auto_reviewed", rewritten.Entries[0].Status)
-	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("two\n"), 0o600))
-	gitTest(t, r.Dir, "commit", "-am", "fixup! Refactor: Extract named constant")
-	changed, err := service.Status(t.Context(), false)
-	require.NoError(t, err)
-	require.Equal(t, "needs_review", changed.Entries[0].Status)
+// A model result resets when the stack content changes, and a rewritten message
+// is content that the model read.
+func TestAutomaticReviewResetsWhenContentOrMessageChanges(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		rewrite func(t *testing.T, dir string)
+		want    string
+	}{
+		{name: "rebase", want: "auto_reviewed", rewrite: func(t *testing.T, dir string) {
+			gitTest(t, dir, "checkout", "main")
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "other"), []byte("upstream\n"), 0o600))
+			gitTest(t, dir, "add", ".")
+			gitTest(t, dir, "commit", "-m", "Unrelated upstream change")
+			gitTest(t, dir, "checkout", "feature")
+			gitTest(t, dir, "rebase", "main")
+		}},
+		{name: "message", want: "needs_review", rewrite: func(t *testing.T, dir string) {
+			gitTest(t, dir, "commit", "--amend", "-m", "Refactor: Extract named constant")
+		}},
+		{name: "content", want: "needs_review", rewrite: func(t *testing.T, dir string) {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "value"), []byte("two\n"), 0o600))
+			gitTest(t, dir, "commit", "-am", "fixup! Refactor: Extract constant")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := testRepo(t)
+			require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("one\n"), 0o600))
+			gitTest(t, r.Dir, "add", "value")
+			gitTest(t, r.Dir, "commit", "-m", "Refactor: Extract constant")
+			view, err := r.Snapshot(t.Context())
+			require.NoError(t, err)
+			attempt := newAttempt(view.Stacks[0], "auto_reviewed")
+			attempt.ApprovalSource = "model"
+			attempt.Automatic = &AutomaticReview{PolicyVersion: "refactor-v1", Decision: "needs-human-review", Model: "test-model", ResponseID: "resp_test", Reason: "Equivalence is unclear."}
+			require.NoError(t, (Store{Path: view.Path}).Update(func(state *State) error {
+				state.Attempts = append(state.Attempts, attempt)
+				return nil
+			}))
+			service := Service{Repository: r}
+			before, err := service.Status(t.Context(), false)
+			require.NoError(t, err)
+			require.Equal(t, "auto_reviewed", before.Entries[0].Status)
+			tc.rewrite(t, r.Dir)
+			after, err := service.Status(t.Context(), false)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, after.Entries[0].Status)
+		})
+	}
 }
 
 func TestAutomaticReviewValidation(t *testing.T) {

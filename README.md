@@ -158,9 +158,13 @@ timber review commits
 timber review feedback --json
 ```
 
+A review covers the stack patch and the commit message that tuicr shows.
+A rebase keeps a review because neither changes.
+An `amend!` or `reword!` fixup, or applying one, changes the message and asks for a new review.
+
 `timber review auto` delegates review of `Refactor:` stacks to an AI model.
 An approval is recorded as model evidence and shows as `Auto-Approved`.
-An abstention is recorded and shows as `Auto-Reviewed` until the stack content changes.
+An abstention is recorded and shows as `Auto-Reviewed` until the stack content or message changes.
 Each result is recorded as its stack completes, so a failed or interrupted run keeps finished work and the next run resumes with the stacks that have no result.
 
 Configure the endpoint in `$XDG_CONFIG_HOME/timber/model.json`, a file that follows [Pi's models schema](https://pi.dev/schemas/models.schema.json):
