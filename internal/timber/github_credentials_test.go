@@ -161,8 +161,10 @@ func TestLookupGitHubKeyringReturnsResult(t *testing.T) {
 		done <- err
 	}()
 	select {
-	case <-done:
+	case err := <-done:
+		// The error depends on the host keyring. Only settling matters here.
+		_ = err
 	case <-time.After(keyringTimeout + time.Second):
-		t.Fatal("keyring lookup did not settle")
+		require.Fail(t, "keyring lookup did not settle")
 	}
 }

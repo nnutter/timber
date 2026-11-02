@@ -2,6 +2,7 @@ package todo
 
 import (
 	"context"
+	json "encoding/json/v2"
 	"fmt"
 	"io"
 	"os"
@@ -38,62 +39,17 @@ type todoCommandOptions struct {
 	repo         bool
 }
 
-func New(deps Dependencies) *cobra.Command {
-	options := &todoCommandOptions{deps: deps}
-
-	command := &cobra.Command{
-		Use:               "todo [name[@repo]]",
-		Short:             "Open the worktree or repository TODO list",
-		Args:              cobra.MaximumNArgs(1),
-		RunE:              options.Execute,
-		ValidArgsFunction: deps.Complete,
-	}
-	command.Flags().BoolVar(&options.repo, "repo", false, "Use the repository TODO list instead of the worktree list")
-	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO list path instead of opening it")
-	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
-	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
-	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO items as JSON instead of opening the file")
-	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
-	command.MarkFlagsMutuallyExclusive("repo", "install-skill")
-	return command
-}
-
 func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) error {
 	if x.installSkill {
-		if len(args) > 0 {
-			return fmt.Errorf("install-skill takes no arguments")
-		}
-		return x.installTodoSkill(command)
+		return installTodoOnly(x, command, args)
 	}
-
-	resolveGitDir := x.deps.ResolveGitDir
-	if x.repo {
-		resolveGitDir = x.deps.ResolveRepoGitDir
-	}
-	gitDir, err := resolveGitDir(command.InOrStdin(), args)
+	todoPath, err := ensureTodoFile(x, command, args)
 	if err != nil {
 		return err
 	}
 
-	todoPath := tododata.Path(gitDir)
-	if x.repo {
-		todoPath = filepath.Join(gitDir, "TODO.repo.md")
-	}
-	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
-	if err != nil {
-		return fmt.Errorf("create TODO file: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("create TODO file: %w", err)
-	}
-
-	if x.pathOnly {
-		_, err := fmt.Fprintln(command.OutOrStdout(), todoPath)
+	if handled, err := reportTodoCommand(x, command, todoPath); handled || hasError(err) {
 		return err
-	}
-
-	if x.jsonOutput {
-		return x.reportTodoJSON(command, todoPath)
 	}
 
 	editorLine, err := editorCommandLine(x.deps.Environment)
@@ -120,7 +76,7 @@ func (x *todoCommandOptions) installTodoSkill(command *cobra.Command) error {
 	}
 
 	destination := filepath.Join(x.deps.HomeDirectory, ".agents", "skills", "timber-todo", "SKILL.md")
-	if _, err := os.Stat(destination); err == nil && !x.force {
+	if _, err := os.Stat(destination); err == nil && isFalse(x.force) {
 		return fmt.Errorf("skill already exists at %s (use --force to overwrite)", destination)
 	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("inspect skill destination %q: %w", destination, err)
@@ -137,11 +93,44 @@ func (x *todoCommandOptions) installTodoSkill(command *cobra.Command) error {
 	return err
 }
 
+func (x *todoCommandOptions) reportTodoJSON(command *cobra.Command, path string) error {
+	output, err := readTodoJSON(path)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return fmt.Errorf("encode TODO.md as JSON: %w", err)
+	}
+	_, err = fmt.Fprintln(command.OutOrStdout(), string(encoded))
+	return err
+}
+
+func New(deps Dependencies) *cobra.Command {
+	options := &todoCommandOptions{deps: deps}
+
+	command := &cobra.Command{
+		Use:               "todo [name[@repo]]",
+		Short:             "Open the worktree or repository TODO list",
+		Args:              cobra.MaximumNArgs(1),
+		RunE:              options.Execute,
+		ValidArgsFunction: deps.Complete,
+	}
+	command.Flags().BoolVar(&options.repo, "repo", false, "Use the repository TODO list instead of the worktree list")
+	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO list path instead of opening it")
+	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
+	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
+	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO items as JSON instead of opening the file")
+	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
+	command.MarkFlagsMutuallyExclusive("repo", "install-skill")
+	return command
+}
+
 func editorCommandLine(environment []string) (string, error) {
 	if environment != nil {
 		for _, entry := range environment {
 			key, value, _ := strings.Cut(entry, "=")
-			if key == "EDITOR" && value != "" {
+			if key == "EDITOR" && !isEmpty(value) {
 				return value, nil
 			}
 		}
@@ -181,11 +170,52 @@ func lookupFallbackEditor(pathEnv string) (string, bool) {
 			}
 			fullPath := filepath.Join(dir, candidate)
 			info, err := os.Stat(fullPath)
-			if err != nil || info.IsDir() || info.Mode().Perm()&0o111 == 0 {
+			if err != nil || info.IsDir() || isNotExecutable(info) {
 				continue
 			}
 			return candidate, true
 		}
 	}
 	return "", false
+}
+
+func installTodoOnly(x *todoCommandOptions, command *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("install-skill takes no arguments")
+	}
+	return x.installTodoSkill(command)
+}
+
+func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string) (string, error) {
+	resolveGitDir := x.deps.ResolveGitDir
+	if x.repo {
+		resolveGitDir = x.deps.ResolveRepoGitDir
+	}
+	gitDir, err := resolveGitDir(command.InOrStdin(), args)
+	if err != nil {
+		return "", err
+	}
+	todoPath := tododata.Path(gitDir)
+	if x.repo {
+		todoPath = filepath.Join(gitDir, "TODO.repo.md")
+	}
+	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
+	if err != nil {
+		return "", fmt.Errorf("create TODO file: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return "", fmt.Errorf("create TODO file: %w", err)
+	}
+	return todoPath, nil
+}
+
+func reportTodoCommand(x *todoCommandOptions, command *cobra.Command, todoPath string) (bool, error) {
+	if x.pathOnly {
+		_, err := fmt.Fprintln(command.OutOrStdout(), todoPath)
+		return true, err
+	}
+	if x.jsonOutput {
+		return true, x.reportTodoJSON(command, todoPath)
+	}
+	return false, nil
 }

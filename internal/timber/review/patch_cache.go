@@ -19,36 +19,6 @@ type patchCache struct {
 	writable     bool
 }
 
-func patchCachePath(view Snapshot) string {
-	return filepath.Join(filepath.Dir(filepath.Dir(view.Path)), "cache", "patch-v2")
-}
-
-func newPatchCache(ctx context.Context, r Repository, view Snapshot, repo string) *patchCache {
-	if len(view.Stacks) == 0 {
-		return nil
-	}
-	root := r
-	root.Dir = repo
-	config, err := root.gitOutput(ctx, "config", "--null", "--list")
-	if err != nil {
-		r.logger().Debug("Patch cache unavailable", "error", err)
-		return nil
-	}
-	version, err := root.git(ctx, "--version")
-	if err != nil {
-		r.logger().Debug("Patch cache unavailable", "error", err)
-		return nil
-	}
-	inputs := []string{"patch-context-v3", version, config, environmentValue(r.Environment, "GIT_DIFF_OPTS"), environmentValue(r.Environment, "GIT_ATTR_SOURCE")}
-	cache := &patchCache{dir: patchCachePath(view), repo: repo, context: fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(inputs, "\x00"))))}
-	if err := os.MkdirAll(cache.dir, 0o700); err != nil {
-		r.logger().Debug("Patch cache is read-only", "error", err)
-	} else {
-		cache.writable = true
-	}
-	return cache
-}
-
 func (c *patchCache) hash(ctx context.Context, r Repository, base, tip string) (string, error) {
 	if c == nil {
 		return r.patchHash(ctx, base, tip)
@@ -79,6 +49,36 @@ func (c *patchCache) hash(ctx context.Context, r Repository, base, tip string) (
 		}
 	}
 	return hash, nil
+}
+
+func patchCachePath(view Snapshot) string {
+	return filepath.Join(filepath.Dir(filepath.Dir(view.Path)), "cache", "patch-v2")
+}
+
+func newPatchCache(ctx context.Context, r Repository, view Snapshot, repo string) *patchCache {
+	if len(view.Stacks) == 0 {
+		return nil
+	}
+	root := r
+	root.Dir = repo
+	config, err := root.gitOutput(ctx, "config", "--null", "--list")
+	if err != nil {
+		r.logger().Debug("Patch cache unavailable", "error", err)
+		return nil
+	}
+	version, err := root.git(ctx, "--version")
+	if err != nil {
+		r.logger().Debug("Patch cache unavailable", "error", err)
+		return nil
+	}
+	inputs := []string{"patch-context-v3", version, config, environmentValue(r.Environment, "GIT_DIFF_OPTS"), environmentValue(r.Environment, "GIT_ATTR_SOURCE")}
+	cache := &patchCache{dir: patchCachePath(view), repo: repo, context: fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(inputs, "\x00"))))}
+	if err := os.MkdirAll(cache.dir, 0o700); err != nil {
+		r.logger().Debug("Patch cache is read-only", "error", err)
+	} else {
+		cache.writable = true
+	}
+	return cache
 }
 
 // Attribute inputs belong to one stack, not the snapshot that selected it.

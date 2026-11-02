@@ -39,6 +39,33 @@ type Command struct {
 	outputError error
 }
 
+func (c *Command) build() *cobra.Command {
+	writer := c.Terminal
+	if writer == nil {
+		writer = io.Discard
+	}
+	logger := charmlog.New(writer)
+	c.Service.Repository = review.NewRepository(c.Service.Repository.Dir, logger)
+	root := &cobra.Command{Use: "review", Short: "Review feature-branch commit stacks with tuicr", Long: "Timber review tracks review of exact commit stacks against the configured Git upstream.\nApproval never transfers to rewritten commits or added fixups."}
+	root.PersistentPreRun = func(_ *cobra.Command, _ []string) {
+		if c.Debug {
+			logger.SetLevel(charmlog.DebugLevel)
+		}
+	}
+	root.PersistentFlags().BoolVar(&c.Debug, "debug", false, "Write diagnostic logs to stderr")
+	root.PersistentFlags().BoolVar(&c.JSON, "json", c.JSON, "Emit a versioned JSON result without interactive prompts")
+	root.AddCommand(reviewCommitMessageHook(c.Service.Repository.Dir))
+	approve.Install(root, c.Service, c.Output)
+	auto.Install(root, c.Service, c.Output, c.LoadModels)
+	cache.Install(root, c.Service.Repository, c.Output)
+	commits.Install(root, c.Service, c.Input, c.Output, c.Terminal)
+	feedback.Install(root, c.Service, c.Output)
+	files.Install(root, c.Service, c.Input, c.Output, c.Terminal)
+	log.Install(root, c.Service, c.Input, c.Output, c.Terminal)
+	status.Install(root, c.Service, c.Output)
+	return root
+}
+
 // New builds the root command and installs every sub-command onto it.
 func New(svc review.Service, in io.Reader, out, term io.Writer, jsonDef bool, loadModels func() (coreconfig.Models, error)) *cobra.Command {
 	c := &Command{
@@ -87,31 +114,4 @@ func reviewCommitMessageHook(directory string) *cobra.Command {
 	command := commitmsg.New(directory)
 	command.Hidden = true
 	return command
-}
-
-func (c *Command) build() *cobra.Command {
-	writer := c.Terminal
-	if writer == nil {
-		writer = io.Discard
-	}
-	logger := charmlog.New(writer)
-	c.Service.Repository = review.NewRepository(c.Service.Repository.Dir, logger)
-	root := &cobra.Command{Use: "review", Short: "Review feature-branch commit stacks with tuicr", Long: "Timber review tracks review of exact commit stacks against the configured Git upstream.\nApproval never transfers to rewritten commits or added fixups."}
-	root.PersistentPreRun = func(_ *cobra.Command, _ []string) {
-		if c.Debug {
-			logger.SetLevel(charmlog.DebugLevel)
-		}
-	}
-	root.PersistentFlags().BoolVar(&c.Debug, "debug", false, "Write diagnostic logs to stderr")
-	root.PersistentFlags().BoolVar(&c.JSON, "json", c.JSON, "Emit a versioned JSON result without interactive prompts")
-	root.AddCommand(reviewCommitMessageHook(c.Service.Repository.Dir))
-	approve.Install(root, c.Service, c.Output)
-	auto.Install(root, c.Service, c.Output, c.LoadModels)
-	cache.Install(root, c.Service.Repository, c.Output)
-	commits.Install(root, c.Service, c.Input, c.Output, c.Terminal)
-	feedback.Install(root, c.Service, c.Output)
-	files.Install(root, c.Service, c.Input, c.Output, c.Terminal)
-	log.Install(root, c.Service, c.Input, c.Output, c.Terminal)
-	status.Install(root, c.Service, c.Output)
-	return root
 }

@@ -63,94 +63,6 @@ func (x *importPlan) collectWorktrees(porcelainWorktrees []porcelainWorktree) er
 	return nil
 }
 
-// validateTargets fails before anything is touched when two worktrees would
-// collide or a target path already exists.
-func (x *importPlan) validateTargets() error {
-	targets := make(map[string]string, len(x.worktrees))
-	for _, worktree := range x.worktrees {
-		targetPath := filepath.Clean(worktree.TargetPath)
-		if existingName, ok := targets[targetPath]; ok {
-			return fmt.Errorf("worktrees %q and %q share target path %q", existingName, worktree.Name, worktree.TargetPath)
-		}
-		targets[targetPath] = worktree.Name
-
-		if _, err := os.Stat(worktree.TargetPath); err == nil {
-			return fmt.Errorf("worktree directory %q already exists", worktree.TargetPath)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("inspect worktree directory %q: %w", worktree.TargetPath, err)
-		}
-	}
-	return nil
-}
-
-// run performs the import in fail-safe order:
-//
-//  1. Clone the clean source bare and register it.
-//  2. Recreate each worktree from the new bare. Old worktrees are only
-//     removed after this succeeds.
-//  3. Move the old worktrees to the system trash with the trash CLI and
-//     remove their empty parent directories.
-//
-// A failure in step 2 rolls back the freshly created worktrees and the bare
-// clone, leaving the source repository untouched.
-func (x *importPlan) run(reporter ImportReporter) error {
-	if err := ensureDirectory(filepath.Dir(x.barePath)); err != nil {
-		return err
-	}
-	if _, err := gitOutput(x.runtime, x.mainPath, "clone", "--bare", x.mainPath, x.barePath); err != nil {
-		return err
-	}
-	if err := setupImportedBareOrigin(x.runtime, x.source, x.barePath); err != nil {
-		return errors.Join(err, x.runtime.trashPaths(x.barePath))
-	}
-
-	if err := reporter.Registered(x.repoName, x.barePath); err != nil {
-		return err
-	}
-
-	bareRepository, err := openBareRepository(x.runtime, x.barePath)
-	if err != nil {
-		return err
-	}
-
-	created := make([]*importWorktree, 0, len(x.worktrees))
-	for index := range x.worktrees {
-		worktree := &x.worktrees[index]
-		// Git can leave a worktree behind even when add reports a failure.
-		created = append(created, worktree)
-		if err := x.createWorktree(bareRepository, worktree); err != nil {
-			return errors.Join(err, x.rollbackCreated(bareRepository, created))
-		}
-	}
-
-	trashablePaths := make([]string, 0, len(x.worktrees))
-	for _, worktree := range x.worktrees {
-		trashablePaths = append(trashablePaths, worktree.CurrentPath)
-	}
-	if err := x.runtime.trashPaths(trashablePaths...); err != nil {
-		return err
-	}
-	for _, worktree := range x.worktrees {
-		if err := x.runtime.removeEmptySourceParents(worktree.CurrentPath); err != nil {
-			return err
-		}
-	}
-
-	summary := ImportSummary{
-		Skipped:   make([]ImportSkipped, 0, len(x.skips)),
-		Worktrees: make([]ImportMove, 0, len(x.worktrees)),
-	}
-	for _, skip := range x.skips {
-		summary.Skipped = append(summary.Skipped, ImportSkipped(skip))
-	}
-	for _, worktree := range x.worktrees {
-		summary.Worktrees = append(summary.Worktrees, ImportMove{
-			Name: worktree.Name, SourcePath: worktree.CurrentPath, TargetPath: worktree.TargetPath,
-		})
-	}
-	return reporter.Summary(summary)
-}
-
 func (x *importPlan) createWorktree(bareRepository *Repository, worktree *importWorktree) error {
 	var err error
 	if worktree.Detached {
@@ -193,4 +105,108 @@ func (x *importPlan) rollbackCreated(bareRepository *Repository, created []*impo
 		}
 	}
 	return errors.Join(rollbackErrors...)
+}
+
+// run performs the import in fail-safe order:
+//
+//  1. Clone the clean source bare and register it.
+//  2. Recreate each worktree from the new bare. Old worktrees are only
+//     removed after this succeeds.
+//  3. Move the old worktrees to the system trash with the trash CLI and
+//     remove their empty parent directories.
+//
+// A failure in step 2 rolls back the freshly created worktrees and the bare
+// clone, leaving the source repository untouched.
+func (x *importPlan) run(reporter ImportReporter) error {
+	if err := ensureDirectory(filepath.Dir(x.barePath)); err != nil {
+		return err
+	}
+	if _, err := gitOutput(x.runtime, x.mainPath, "clone", "--bare", x.mainPath, x.barePath); err != nil {
+		return err
+	}
+	if err := setupImportedBareOrigin(x.runtime, x.source, x.barePath); err != nil {
+		return errors.Join(err, x.runtime.trashPaths(x.barePath))
+	}
+
+	if err := reporter.Registered(x.repoName, x.barePath); err != nil {
+		return err
+	}
+
+	bareRepository, err := openBareRepository(x.runtime, x.barePath)
+	if err != nil {
+		return err
+	}
+
+	if err := createImportedWorktrees(x, bareRepository); err != nil {
+		return err
+	}
+	if err := trashImportedSources(x); err != nil {
+		return err
+	}
+	return reportImport(x, reporter)
+}
+
+// validateTargets fails before anything is touched when two worktrees would
+// collide or a target path already exists.
+func (x *importPlan) validateTargets() error {
+	targets := make(map[string]string, len(x.worktrees))
+	for _, worktree := range x.worktrees {
+		targetPath := filepath.Clean(worktree.TargetPath)
+		if existingName, ok := targets[targetPath]; ok {
+			return fmt.Errorf("worktrees %q and %q share target path %q", existingName, worktree.Name, worktree.TargetPath)
+		}
+		targets[targetPath] = worktree.Name
+
+		if _, err := os.Stat(worktree.TargetPath); err == nil {
+			return fmt.Errorf("worktree directory %q already exists", worktree.TargetPath)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("inspect worktree directory %q: %w", worktree.TargetPath, err)
+		}
+	}
+	return nil
+}
+
+func createImportedWorktrees(x *importPlan, bareRepository *Repository) error {
+	created := make([]*importWorktree, 0, len(x.worktrees))
+	for index := range x.worktrees {
+		worktree := &x.worktrees[index]
+		// Git can leave a worktree behind even when add reports a failure.
+		created = append(created, worktree)
+		if err := x.createWorktree(bareRepository, worktree); err != nil {
+			return errors.Join(err, x.rollbackCreated(bareRepository, created))
+		}
+	}
+	return nil
+}
+
+func trashImportedSources(x *importPlan) error {
+	trashablePaths := make([]string, 0, len(x.worktrees))
+	for _, worktree := range x.worktrees {
+		trashablePaths = append(trashablePaths, worktree.CurrentPath)
+	}
+	if err := x.runtime.trashPaths(trashablePaths...); err != nil {
+		return err
+	}
+	for _, worktree := range x.worktrees {
+		if err := x.runtime.removeEmptySourceParents(worktree.CurrentPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func reportImport(x *importPlan, reporter ImportReporter) error {
+	summary := ImportSummary{
+		Skipped:   make([]ImportSkipped, 0, len(x.skips)),
+		Worktrees: make([]ImportMove, 0, len(x.worktrees)),
+	}
+	for _, skip := range x.skips {
+		summary.Skipped = append(summary.Skipped, ImportSkipped(skip))
+	}
+	for _, worktree := range x.worktrees {
+		summary.Worktrees = append(summary.Worktrees, ImportMove{
+			Name: worktree.Name, SourcePath: worktree.CurrentPath, TargetPath: worktree.TargetPath,
+		})
+	}
+	return reporter.Summary(summary)
 }

@@ -1,7 +1,6 @@
 ---
 name: timber-review
 description: Address saved Timber review feedback.
-compatibility: Requires Git and timber on PATH, a configured upstream for commit reviews, and permission to change history for fixups.
 ---
 
 # Address timber review feedback
@@ -11,6 +10,10 @@ Run commands from the feature checkout. `timber review` does not accept a worktr
 Interactive reviews require `tuicr` on PATH.
 This skill does not launch reviews or register harness commands.
 The user controls review and approval.
+
+## Requirements
+
+Requires Git, `timber` on `PATH`, a configured upstream for commit reviews, and permission to change history for fixups.
 
 ## Check review progress
 

@@ -77,23 +77,34 @@ func prepareWorktree(ctx context.Context, source Repository, path string, stack 
 		return err
 	}
 	if !tracked {
-		if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
-			_, err := source.git(ctx, "worktree", "add", "--detach", path, stack.Tip)
+		if err := ensureReviewCheckout(ctx, source, path, stack); err != nil {
 			return err
-		} else if err != nil {
-			return fmt.Errorf("review checkout path is unreadable: %w", err)
-		}
-		if err := repairMovedReviewCheckout(ctx, source, path); err != nil {
-			return err
-		}
-		tracked, _, err = registeredReviewWorktree(ctx, source, path)
-		if err != nil {
-			return err
-		}
-		if !tracked {
-			return fmt.Errorf("repaired review checkout is not registered: %s", path)
 		}
 	}
+	return resetReviewCheckout(ctx, source, path, stack)
+}
+
+func ensureReviewCheckout(ctx context.Context, source Repository, path string, stack Stack) error {
+	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
+		_, err := source.git(ctx, "worktree", "add", "--detach", path, stack.Tip)
+		return err
+	} else if err != nil {
+		return fmt.Errorf("review checkout path is unreadable: %w", err)
+	}
+	if err := repairMovedReviewCheckout(ctx, source, path); err != nil {
+		return err
+	}
+	tracked, _, err := registeredReviewWorktree(ctx, source, path)
+	if err != nil {
+		return err
+	}
+	if !tracked {
+		return fmt.Errorf("repaired review checkout is not registered: %s", path)
+	}
+	return nil
+}
+
+func resetReviewCheckout(ctx context.Context, source Repository, path string, stack Stack) error {
 	if err := validateReviewCheckout(ctx, source, path); err != nil {
 		return err
 	}
@@ -104,7 +115,7 @@ func prepareWorktree(ctx context.Context, source Repository, path string, stack 
 	if _, err := checkout.git(ctx, "clean", "-fdx"); err != nil {
 		return err
 	}
-	_, err = checkout.git(ctx, "checkout", "--detach", "--no-overwrite-ignore", stack.Tip)
+	_, err := checkout.git(ctx, "checkout", "--detach", "--no-overwrite-ignore", stack.Tip)
 	return err
 }
 
@@ -112,56 +123,91 @@ func prepareWorktree(ctx context.Context, source Repository, path string, stack 
 // identify the same old review checkout and registration.
 func repairMovedReviewCheckout(ctx context.Context, source Repository, path string) error {
 	invalid := fmt.Errorf("review checkout path already exists or is not a safely movable review checkout: %s", path)
+	if err := reviewCheckoutExpected(source, path, invalid); err != nil {
+		return err
+	}
+	if err := reviewCheckoutDir(path, invalid); err != nil {
+		return err
+	}
+	oldGitDir, err := reviewGitFile(path, invalid)
+	if err != nil {
+		return err
+	}
+	oldPath, id, err := reviewWorktreeID(oldGitDir, path, invalid)
+	if err != nil {
+		return err
+	}
+	if err := reviewRegistration(ctx, source, path, oldPath, id, invalid); err != nil {
+		return err
+	}
+	_, err = source.git(ctx, "worktree", "repair", path)
+	return err
+}
+
+func reviewCheckoutExpected(source Repository, path string, invalid error) error {
 	expected, err := WorktreePath(source.Dir)
-	if err != nil || path != expected {
+	if err != nil || !isSame(path, expected) {
 		return invalid
 	}
+	return nil
+}
+
+func reviewCheckoutDir(path string, invalid error) error {
 	info, err := os.Lstat(path)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	if err != nil || !info.IsDir() || isSymlink(info) {
 		return invalid
 	}
+	return nil
+}
+
+func reviewGitFile(path string, invalid error) (string, error) {
 	gitfile := filepath.Join(path, ".git")
-	info, err = os.Lstat(gitfile)
+	info, err := os.Lstat(gitfile)
 	if err != nil || !info.Mode().IsRegular() {
-		return invalid
+		return "", invalid
 	}
 	data, err := os.ReadFile(gitfile)
 	if err != nil {
-		return invalid
+		return "", invalid
 	}
 	oldGitDir, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir: ")
-	if !ok || !filepath.IsAbs(oldGitDir) || filepath.Clean(oldGitDir) != oldGitDir {
-		return invalid
+	if !ok || !filepath.IsAbs(oldGitDir) || !isSame(filepath.Clean(oldGitDir), oldGitDir) {
+		return "", invalid
 	}
+	return oldGitDir, nil
+}
+
+func reviewWorktreeID(oldGitDir, path string, invalid error) (string, string, error) {
 	id := filepath.Base(oldGitDir)
 	oldWorktrees := filepath.Dir(oldGitDir)
-	if id == "." || id == ".." || filepath.Base(oldWorktrees) != "worktrees" {
-		return invalid
+	if id == "." || isSame(id, "..") || !isSame(filepath.Base(oldWorktrees), "worktrees") {
+		return "", "", invalid
 	}
-	oldCommon := filepath.Dir(oldWorktrees)
-	oldPath := filepath.Join(oldCommon, "timber-review", "worktree")
+	oldPath := filepath.Join(filepath.Dir(oldWorktrees), "timber-review", "worktree")
 	if oldPath == path {
-		return invalid
+		return "", "", invalid
 	}
+	return oldPath, id, nil
+}
+
+func reviewRegistration(ctx context.Context, source Repository, path, oldPath, id string, invalid error) error {
 	tracked, prunable, err := registeredReviewWorktree(ctx, source, oldPath)
 	if err != nil {
 		return err
 	}
-	if !tracked || !prunable {
+	if !tracked || isFalse(prunable) {
 		return invalid
 	}
-	common := filepath.Dir(filepath.Dir(path))
-	registration := filepath.Join(common, "worktrees", id)
-	info, err = os.Lstat(registration)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	registration := filepath.Join(filepath.Dir(filepath.Dir(path)), "worktrees", id)
+	info, err := os.Lstat(registration)
+	if err != nil || !info.IsDir() || isSymlink(info) {
 		return invalid
 	}
 	backlink, err := os.ReadFile(filepath.Join(registration, "gitdir"))
-	if err != nil || strings.TrimSpace(string(backlink)) != filepath.Join(oldPath, ".git") {
+	if err != nil || !isSame(strings.TrimSpace(string(backlink)), filepath.Join(oldPath, ".git")) {
 		return invalid
 	}
-	_, err = source.git(ctx, "worktree", "repair", path)
-	return err
+	return nil
 }
 
 func registeredReviewWorktree(ctx context.Context, source Repository, path string) (registered, prunable bool, err error) {

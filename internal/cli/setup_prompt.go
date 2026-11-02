@@ -25,6 +25,60 @@ func reportSetupWarning(output io.Writer, kind timber.SetupKind, cause error) er
 
 type setupPrompter struct{}
 
+func (setupPrompter) Choose(input io.Reader, output io.Writer, kind timber.SetupKind, identity timber.SetupIdentity) (bool, error) {
+	text, err := setupText(kind)
+	if err != nil {
+		return false, err
+	}
+	if _, err := fmt.Fprintln(output, text.warning); err != nil {
+		return false, err
+	}
+	organizations := strings.Join(identity.Organizations, ", ")
+	if organizations == "" {
+		organizations = "none"
+	}
+	if _, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations); err != nil {
+		return false, err
+	}
+	reader := bufio.NewReader(input)
+	for {
+		if _, err := fmt.Fprint(output, text.question); err != nil {
+			return false, err
+		}
+		answer, err := reader.ReadString('\n')
+		if err != nil {
+			return false, fmt.Errorf("%s: %w", text.read, err)
+		}
+		decided, accept, err := setupAnswer(output, answer)
+		if err != nil || isTrue(decided) {
+			return accept, err
+		}
+	}
+}
+
+func (setupPrompter) ReportDisabled(output io.Writer, kind timber.SetupKind) error {
+	text, err := setupText(kind)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(output, text.disabled)
+	return err
+}
+
+func setupAnswer(output io.Writer, answer string) (bool, bool, error) {
+	switch strings.ToLower(strings.TrimSpace(answer)) {
+	case "y", "yes":
+		return true, true, nil
+	case "", "n", "no":
+		return true, false, nil
+	default:
+		if _, err := fmt.Fprintln(output, "Enter yes or no."); err != nil {
+			return true, false, err
+		}
+		return false, false, nil
+	}
+}
+
 type setupPromptText struct {
 	warning  string
 	question string
@@ -51,50 +105,4 @@ func setupText(kind timber.SetupKind) (setupPromptText, error) {
 	default:
 		return setupPromptText{}, fmt.Errorf("unknown automatic setup kind %q", kind)
 	}
-}
-
-func (setupPrompter) Choose(input io.Reader, output io.Writer, kind timber.SetupKind, identity timber.SetupIdentity) (bool, error) {
-	text, err := setupText(kind)
-	if err != nil {
-		return false, err
-	}
-	if _, err := fmt.Fprintln(output, text.warning); err != nil {
-		return false, err
-	}
-	organizations := strings.Join(identity.Organizations, ", ")
-	if organizations == "" {
-		organizations = "none"
-	}
-	if _, err := fmt.Fprintf(output, "GitHub username: %s\nGitHub organizations: %s\n", identity.Username, organizations); err != nil {
-		return false, err
-	}
-	reader := bufio.NewReader(input)
-	for {
-		if _, err := fmt.Fprint(output, text.question); err != nil {
-			return false, err
-		}
-		answer, err := reader.ReadString('\n')
-		if err != nil {
-			return false, fmt.Errorf("%s: %w", text.read, err)
-		}
-		switch strings.ToLower(strings.TrimSpace(answer)) {
-		case "y", "yes":
-			return true, nil
-		case "", "n", "no":
-			return false, nil
-		default:
-			if _, err := fmt.Fprintln(output, "Enter yes or no."); err != nil {
-				return false, err
-			}
-		}
-	}
-}
-
-func (setupPrompter) ReportDisabled(output io.Writer, kind timber.SetupKind) error {
-	text, err := setupText(kind)
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintln(output, text.disabled)
-	return err
 }

@@ -24,7 +24,7 @@ func WriteAuto(output io.Writer, asJSON bool, result review.AutoResult) error {
 		label := "Skipped"
 		if verdict := entry.Evaluation; verdict != nil {
 			label = autoDecisionLabel(verdict.Decision)
-			if verdict.Decision == "approve" && !entry.Approved {
+			if verdict.Decision == "approve" && isFalse(entry.Approved) {
 				label = "Would approve"
 			}
 			if entry.Approved {

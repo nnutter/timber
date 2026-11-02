@@ -55,39 +55,47 @@ func TestTimberSkillExamplesMatchCLI(t *testing.T) {
 // splitShellWords splits an example line into arguments, keeping a value that
 // the example quotes together so a title or body with spaces survives.
 func splitShellWords(line string) ([]string, error) {
-	var words []string
-	var current strings.Builder
-	var quote rune
-	inWord := false
+	var splitter shellWordSplitter
 	for _, character := range line {
-		switch {
-		case quote != 0:
-			if character == quote {
-				quote = 0
-				continue
-			}
-			current.WriteRune(character)
-		case character == '\'' || character == '"':
-			quote = character
-			inWord = true
-		case character == ' ' || character == '\t':
-			if inWord {
-				words = append(words, current.String())
-				current.Reset()
-				inWord = false
-			}
-		default:
-			current.WriteRune(character)
-			inWord = true
+		splitter.accept(character)
+	}
+	if splitter.quote != 0 {
+		return nil, fmt.Errorf("unbalanced %q in example", string(splitter.quote))
+	}
+	if splitter.inWord {
+		splitter.words = append(splitter.words, splitter.current.String())
+	}
+	return splitter.words, nil
+}
+
+type shellWordSplitter struct {
+	words   []string
+	current strings.Builder
+	quote   rune
+	inWord  bool
+}
+
+func (splitter *shellWordSplitter) accept(character rune) {
+	switch {
+	case splitter.quote != 0:
+		if character == splitter.quote {
+			splitter.quote = 0
+			return
 		}
+		splitter.current.WriteRune(character)
+	case character == '\'' || isSame(character, '"'):
+		splitter.quote = character
+		splitter.inWord = true
+	case character == ' ' || isSame(character, '\t'):
+		if splitter.inWord {
+			splitter.words = append(splitter.words, splitter.current.String())
+			splitter.current.Reset()
+			splitter.inWord = false
+		}
+	default:
+		splitter.current.WriteRune(character)
+		splitter.inWord = true
 	}
-	if quote != 0 {
-		return nil, fmt.Errorf("unbalanced %q in example", string(quote))
-	}
-	if inWord {
-		words = append(words, current.String())
-	}
-	return words, nil
 }
 
 func TestTimberSkillWorktreeWorkflow(t *testing.T) {

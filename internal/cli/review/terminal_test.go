@@ -27,23 +27,6 @@ type terminalSession struct {
 	readDone chan struct{}
 }
 
-func startTerminal(t *testing.T, binary, dir string, env []string, args ...string) *terminalSession {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
-	session := &terminalSession{command: exec.CommandContext(ctx, binary, args...), done: make(chan error, 1), readDone: make(chan struct{})}
-	session.command.Dir = dir
-	session.command.Env = env
-	session.command.Stdout = &session.stdout
-	file, err := pty.StartWithSize(session.command, &pty.Winsize{Rows: 40, Cols: 120})
-	require.NoError(t, err, "a pseudo-terminal is required for functional tests")
-	session.file = file
-	session.screen = vt10x.New(vt10x.WithSize(120, 40), vt10x.WithWriter(file))
-	go session.read()
-	go func() { session.done <- session.command.Wait() }()
-	t.Cleanup(func() { cancel(); require.NoError(t, file.Close()); <-session.readDone })
-	return session
-}
-
 func (s *terminalSession) killParent(t *testing.T) {
 	t.Helper()
 	require.NoError(t, s.command.Process.Kill())
@@ -89,4 +72,21 @@ func (s *terminalSession) waitFor(t *testing.T, text string) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assert.Contains(collect, s.text(), text)
 	}, 10*time.Second, 10*time.Millisecond)
+}
+
+func startTerminal(t *testing.T, binary, dir string, env []string, args ...string) *terminalSession {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	session := &terminalSession{command: exec.CommandContext(ctx, binary, args...), done: make(chan error, 1), readDone: make(chan struct{})}
+	session.command.Dir = dir
+	session.command.Env = env
+	session.command.Stdout = &session.stdout
+	file, err := pty.StartWithSize(session.command, &pty.Winsize{Rows: 40, Cols: 120})
+	require.NoError(t, err, "a pseudo-terminal is required for functional tests")
+	session.file = file
+	session.screen = vt10x.New(vt10x.WithSize(120, 40), vt10x.WithWriter(file))
+	go session.read()
+	go func() { session.done <- session.command.Wait() }()
+	t.Cleanup(func() { cancel(); require.NoError(t, file.Close()); <-session.readDone })
+	return session
 }

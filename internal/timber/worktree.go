@@ -34,6 +34,18 @@ func (x managedWorktree) branchName() string {
 	return strings.TrimPrefix(string(x.BranchReference), branchRefPrefix)
 }
 
+func (x managedWorktree) ref() WorktreeRef {
+	return WorktreeRef{
+		Repo:        x.Repo,
+		Name:        x.Name,
+		Path:        x.Path,
+		DisplayPath: x.DisplayPath,
+		Status:      x.Status,
+		Clean:       x.Clean,
+		Merged:      x.Merged,
+	}
+}
+
 func (x managedWorktree) shortCommitHash() string {
 	if len(x.CommitHash) <= 7 {
 		return x.CommitHash

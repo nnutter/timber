@@ -2,6 +2,7 @@
 package review
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/log/v2"
 )
@@ -120,8 +122,6 @@ type Repository struct {
 	missingIDWarning *sync.Once
 }
 
-var quietLogger = log.New(io.Discard)
-
 // PruneCache applies the maintenance retention limits to the shared cache.
 // Repository discovery does not require a branch, upstream, or review history.
 func (r Repository) PruneCache(ctx context.Context) error {
@@ -182,6 +182,29 @@ func (r Repository) WarmCache(ctx context.Context, ref string) error {
 	return fmt.Errorf("commit %s is not in the current feature range", sha)
 }
 
+// autoGit bounds output in memory and disables interactive Git behavior.
+func (r Repository) autoGit(ctx context.Context, limit int, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = r.Dir
+	cmd.Env = append(slices.Clone(r.environment()), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0", "GIT_NO_REPLACE_OBJECTS=1")
+	out := autoOutput{limit: limit}
+	diagnostics := autoDiagnostics{limit: 4096}
+	cmd.Stdout, cmd.Stderr = &out, &diagnostics
+	if err := cmd.Run(); err != nil {
+		// Report Git's own reason, as other review commands do.
+		if message := strings.TrimSpace(diagnostics.String()); message != "" {
+			return "", fmt.Errorf("read automatic review context: %w: %s", err, message)
+		}
+		return "", fmt.Errorf("read automatic review context: %w", err)
+	}
+	if !utf8.Valid(out.buffer.Bytes()) || !isLess(bytes.IndexByte(out.buffer.Bytes(), 0), 0) {
+		return "", fmt.Errorf("automatic review requires UTF-8 text context")
+	}
+	return out.buffer.String(), nil
+}
+
 func (r Repository) branchView(ctx context.Context) (Snapshot, string, error) {
 	view, repo, err := r.checkoutView(ctx)
 	if err != nil {
@@ -193,20 +216,6 @@ func (r Repository) branchView(ctx context.Context) (Snapshot, string, error) {
 	}
 	view.Target = target
 	return view, repo, nil
-}
-
-func changeID(sha, id string, ids map[string]bool) (string, error) {
-	if id == "" {
-		return "", nil
-	}
-	if !changeIDPattern.MatchString(id) {
-		return "", fmt.Errorf("commit %s requires at most one valid Change-Id trailer", sha)
-	}
-	if ids[id] {
-		return "", fmt.Errorf("duplicate Change-Id %s on current original commits", id)
-	}
-	ids[id] = true
-	return id, nil
 }
 
 func (r Repository) checkoutView(ctx context.Context) (Snapshot, string, error) {
@@ -226,6 +235,13 @@ func (r Repository) checkoutView(ctx context.Context) (Snapshot, string, error) 
 	view.Branch = branch
 	view.Path = filepath.Join(common, "timber-review", "state", fmt.Sprintf("%x.json", sha256.Sum256([]byte(branch))))
 	return view, repo, nil
+}
+
+func (r Repository) environment() []string {
+	if r.Environment == nil {
+		return os.Environ()
+	}
+	return r.Environment
 }
 
 func (r Repository) git(ctx context.Context, args ...string) (string, error) {
@@ -264,40 +280,6 @@ func (r Repository) logger() *log.Logger {
 		return r.Logger
 	}
 	return quietLogger
-}
-
-func (r Repository) environment() []string {
-	if r.Environment == nil {
-		return os.Environ()
-	}
-	return r.Environment
-}
-
-func environmentValue(environment []string, key string) string {
-	if environment == nil {
-		return os.Getenv(key)
-	}
-	value := ""
-	prefix := key + "="
-	for _, entry := range environment {
-		if found, ok := strings.CutPrefix(entry, prefix); ok {
-			value = found
-		}
-	}
-	return value
-}
-
-// diffOptions pins every diff input that changes rendered patch bytes. Patch
-// fingerprints and model review must describe the same bytes, so neither reads
-// user diff configuration.
-var diffOptions = []string{
-	"-c", "core.quotePath=true", "-c", "diff.suppressBlankEmpty=false", "diff",
-	"--patch", "--binary", "--full-index", "--no-renames", "--no-ext-diff",
-	"--no-textconv", "--no-color", "--no-relative", "--ignore-submodules=none",
-	"--src-prefix=a/", "--dst-prefix=b/", "--output-indicator-new=+",
-	"--output-indicator-old=-", "--output-indicator-context= ",
-	"--unified=3", "--inter-hunk-context=0", "--diff-algorithm=myers",
-	"--no-indent-heuristic", "--submodule=short", "-O/dev/null",
 }
 
 // patchHash fingerprints the aggregate diff, not commit metadata. Empty diffs
@@ -432,6 +414,49 @@ func (r Repository) stacks(repo, base string, history []historyCommit) ([]Stack,
 	}
 	warnMissingChangeIDs(r, stacks)
 	return stacks, nil
+}
+
+var quietLogger = log.New(io.Discard)
+
+func changeID(sha, id string, ids map[string]bool) (string, error) {
+	if id == "" {
+		return "", nil
+	}
+	if !changeIDPattern.MatchString(id) {
+		return "", fmt.Errorf("commit %s requires at most one valid Change-Id trailer", sha)
+	}
+	if ids[id] {
+		return "", fmt.Errorf("duplicate Change-Id %s on current original commits", id)
+	}
+	ids[id] = true
+	return id, nil
+}
+
+func environmentValue(environment []string, key string) string {
+	if environment == nil {
+		return os.Getenv(key)
+	}
+	value := ""
+	prefix := key + "="
+	for _, entry := range environment {
+		if found, ok := strings.CutPrefix(entry, prefix); ok {
+			value = found
+		}
+	}
+	return value
+}
+
+// diffOptions pins every diff input that changes rendered patch bytes. Patch
+// fingerprints and model review must describe the same bytes, so neither reads
+// user diff configuration.
+var diffOptions = []string{
+	"-c", "core.quotePath=true", "-c", "diff.suppressBlankEmpty=false", "diff",
+	"--patch", "--binary", "--full-index", "--no-renames", "--no-ext-diff",
+	"--no-textconv", "--no-color", "--no-relative", "--ignore-submodules=none",
+	"--src-prefix=a/", "--dst-prefix=b/", "--output-indicator-new=+",
+	"--output-indicator-old=-", "--output-indicator-context= ",
+	"--unified=3", "--inter-hunk-context=0", "--diff-algorithm=myers",
+	"--no-indent-heuristic", "--submodule=short", "-O/dev/null",
 }
 
 func warnMissingChangeIDs(r Repository, stacks []Stack) {

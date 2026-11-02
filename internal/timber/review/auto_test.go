@@ -83,7 +83,7 @@ func TestAutoRecordsModelEvidenceAndSkipsApprovedStack(t *testing.T) {
 	require.Equal(t, "test-model", attempt.Automatic.Model)
 	require.Equal(t, "resp_test", attempt.Automatic.ResponseID)
 	_, err = service.Auto(t.Context(), evaluatorFunc(func(context.Context, autoreview.Input, autoreview.ContextReader) (autoreview.Verdict, error) {
-		t.Fatal("approved stacks must not be evaluated again")
+		require.Fail(t, "approved stacks must not be evaluated again")
 		return autoreview.Verdict{}, nil
 	}), AutoOptions{})
 	require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestAutoSkipsIneligibleAndPreviouslyReviewedStacks(t *testing.T) {
 				}))
 			}
 			result, err := (Service{Repository: r}).Auto(t.Context(), evaluatorFunc(func(context.Context, autoreview.Input, autoreview.ContextReader) (autoreview.Verdict, error) {
-				t.Fatal("ineligible stacks must not call the provider")
+				require.Fail(t, "ineligible stacks must not call the provider")
 				return autoreview.Verdict{}, nil
 			}), AutoOptions{})
 			require.NoError(t, err)
@@ -245,7 +245,7 @@ func TestAutoSkipsRecordedResultUntilContentChanges(t *testing.T) {
 	require.NoError(t, err)
 	// The recorded result answers a second run without another request.
 	result, err := service.Auto(t.Context(), evaluatorFunc(func(context.Context, autoreview.Input, autoreview.ContextReader) (autoreview.Verdict, error) {
-		t.Fatal("recorded results must not be evaluated again")
+		require.Fail(t, "recorded results must not be evaluated again")
 		return autoreview.Verdict{}, nil
 	}), AutoOptions{})
 	require.NoError(t, err)
@@ -267,7 +267,7 @@ func TestAutoRejectsOversizedDiffWithoutCallingProvider(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte(strings.Repeat("a", autoreview.MaxInputBytes+1)), 0o600))
 	gitTest(t, r.Dir, "commit", "-am", "fixup! Refactor: Extract constant")
 	_, err := (Service{Repository: r}).Auto(t.Context(), evaluatorFunc(func(context.Context, autoreview.Input, autoreview.ContextReader) (autoreview.Verdict, error) {
-		t.Fatal("oversized input must not call the provider")
+		require.Fail(t, "oversized input must not call the provider")
 		return autoreview.Verdict{}, nil
 	}), AutoOptions{})
 	require.Error(t, err)
@@ -296,7 +296,7 @@ func TestAutoSkipsBinaryChangesBeforeAnyRequest(t *testing.T) {
 	gitTest(t, r.Dir, "add", "blob.bin")
 	gitTest(t, r.Dir, "commit", "-m", "fixup! Refactor: Extract constant")
 	result, err := (Service{Repository: r}).Auto(t.Context(), evaluatorFunc(func(context.Context, autoreview.Input, autoreview.ContextReader) (autoreview.Verdict, error) {
-		t.Fatal("binary changes must not reach the provider")
+		require.Fail(t, "binary changes must not reach the provider")
 		return autoreview.Verdict{}, nil
 	}), AutoOptions{})
 	require.NoError(t, err)
@@ -312,7 +312,7 @@ func TestAutoRequiresNoActiveReview(t *testing.T) {
 		return nil
 	}))
 	_, err = (Service{Repository: r}).Auto(t.Context(), evaluatorFunc(func(context.Context, autoreview.Input, autoreview.ContextReader) (autoreview.Verdict, error) {
-		t.Fatal("an active review must block automatic approval")
+		require.Fail(t, "an active review must block automatic approval")
 		return autoreview.Verdict{}, nil
 	}), AutoOptions{})
 	require.ErrorContains(t, err, "recover or replace the active review")

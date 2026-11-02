@@ -26,14 +26,6 @@ type stubPrompter struct {
 	err      error
 }
 
-type stubCreateWizardPrompter struct {
-	selection WizardSelection
-	err       error
-	repos     []RepoRef
-	worktrees []WorktreeRef
-	showTitle bool
-}
-
 func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []WorktreeRef) ([]WorktreeRef, error) {
 	if x.err != nil {
 		return nil, x.err
@@ -41,12 +33,20 @@ func (x stubPrompter) Prompt(input io.Reader, output io.Writer, worktrees []Work
 	var selected []WorktreeRef
 	for _, choice := range x.selected {
 		for _, worktree := range worktrees {
-			if worktree.Name == choice.Name && (choice.Repo == "" || worktree.Repo == choice.Repo) {
+			if worktree.Name == choice.Name && (isEmpty(choice.Repo) || isSame(worktree.Repo, choice.Repo)) {
 				selected = append(selected, worktree)
 			}
 		}
 	}
 	return selected, nil
+}
+
+type stubCreateWizardPrompter struct {
+	selection WizardSelection
+	err       error
+	repos     []RepoRef
+	worktrees []WorktreeRef
+	showTitle bool
 }
 
 func (x *stubCreateWizardPrompter) Prompt(
@@ -263,6 +263,50 @@ type testRepository struct {
 	worktreeRoot string
 }
 
+func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
+	t.Helper()
+	command := testCommand(t, "git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+	err := command.Run()
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && isSame(exitError.ExitCode(), 1) {
+		return
+	}
+	if err == nil {
+		require.Fail(t, fmt.Sprintf("expected branch %s to be missing", branchName))
+	}
+	require.Fail(t, fmt.Sprintf("unexpected error checking branch %s: %v", branchName, err))
+}
+
+func (x testRepository) assertPathMissing(t *testing.T, path string) {
+	t.Helper()
+	_, err := os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist, "expected path %s to be missing", path)
+}
+
+func (x testRepository) assertPathPresent(t *testing.T, path string) {
+	t.Helper()
+	_, err := os.Stat(path)
+	require.NoError(t, err, "expected path %s to be present", path)
+}
+
+func (x testRepository) commitFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
+	t.Helper()
+	path := x.worktreePath(branchName)
+	x.writeFileInWorktree(t, branchName, fileName, contents)
+	runGitCommand(t, path, "add", fileName)
+	runGitCommand(t, path, "commit", "-m", "change")
+}
+
+func (x testRepository) worktreePath(branchName string) string {
+	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
+}
+
+func (x testRepository) writeFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
+	t.Helper()
+	path := filepath.Join(x.worktreePath(branchName), fileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
+}
+
 type testRepositoryFixture struct {
 	root       string
 	remotePath string
@@ -304,55 +348,43 @@ func createTestRepositoryFixture() (testRepositoryFixture, error) {
 		}
 	}()
 
-	runGit := func(cwd string, args ...string) error {
-		_, err := runGitCommandResult(cwd, args...)
-		if err != nil {
-			return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-		}
-		return nil
-	}
-
 	remotePath := filepath.Join(root, "remote.git")
-	if err := runGit(root, "init", "--bare", remotePath); err != nil {
+	if err := fixtureGit(root, "init", "--bare", remotePath); err != nil {
 		return testRepositoryFixture{}, err
 	}
 
 	seedPath := filepath.Join(root, "seed")
-	if err := runGit(root, "clone", remotePath, seedPath); err != nil {
+	if err := fixtureGit(root, "clone", remotePath, seedPath); err != nil {
 		return testRepositoryFixture{}, err
 	}
 	if err := os.WriteFile(filepath.Join(seedPath, "README.md"), []byte("initial\n"), 0o644); err != nil {
 		return testRepositoryFixture{}, err
 	}
-	for _, args := range [][]string{
+	if err := seedFixtureGit(seedPath, [][]string{
 		{"add", "README.md"},
 		{"commit", "-m", "initial"},
 		{"branch", "-M", "main"},
 		{"push", "-u", remoteName, "main"},
-	} {
-		if err := runGit(seedPath, args...); err != nil {
-			return testRepositoryFixture{}, err
-		}
+	}); err != nil {
+		return testRepositoryFixture{}, err
 	}
 	// git init --bare leaves HEAD at init.defaultBranch (often master). Point it at
 	// the branch we actually pushed so clones and remote set-head --auto work on CI.
-	if err := runGit(remotePath, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
+	if err := fixtureGit(remotePath, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
 		return testRepositoryFixture{}, err
 	}
 
 	barePath := filepath.Join(root, "bare.git")
-	if err := runGit(root, "clone", "--bare", remotePath, barePath); err != nil {
+	if err := fixtureGit(root, "clone", "--bare", remotePath, barePath); err != nil {
 		return testRepositoryFixture{}, err
 	}
-	for _, args := range [][]string{
+	if err := seedFixtureGit(barePath, [][]string{
 		{"remote", "remove", remoteName},
 		{"remote", "add", remoteName, remotePath},
 		{"fetch", remoteName},
 		{"remote", "set-head", remoteName, "main"},
-	} {
-		if err := runGit(barePath, args...); err != nil {
-			return testRepositoryFixture{}, err
-		}
+	}); err != nil {
+		return testRepositoryFixture{}, err
 	}
 
 	removeRoot = false
@@ -416,10 +448,6 @@ func replaceGitRemotePath(barePath string, oldPath string, newPath string) error
 	return os.WriteFile(configPath, updated, 0o644)
 }
 
-func (x testRepository) worktreePath(branchName string) string {
-	return filepath.Join(x.worktreeRoot, testRepoName, branchName, testRepoName)
-}
-
 func testCreateReporters() CreateReporters {
 	return CreateReporters{
 		Created: func(output io.Writer, path string) error {
@@ -457,44 +485,21 @@ func runTUICreate(
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 
-func (x testRepository) commitFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
-	t.Helper()
-	path := x.worktreePath(branchName)
-	x.writeFileInWorktree(t, branchName, fileName, contents)
-	runGitCommand(t, path, "add", fileName)
-	runGitCommand(t, path, "commit", "-m", "change")
-}
-
-func (x testRepository) writeFileInWorktree(t *testing.T, branchName string, fileName string, contents string) {
-	t.Helper()
-	path := filepath.Join(x.worktreePath(branchName), fileName)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
-}
-
-func (x testRepository) assertBranchMissing(t *testing.T, branchName string) {
-	t.Helper()
-	command := testCommand(t, "git", "--git-dir", x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
-	err := command.Run()
-	if exitError, ok := errors.AsType[*exec.ExitError](err); ok && exitError.ExitCode() == 1 {
-		return
+func fixtureGit(cwd string, args ...string) error {
+	_, err := runGitCommandResult(cwd, args...)
+	if err != nil {
+		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
-	if err == nil {
-		require.Fail(t, fmt.Sprintf("expected branch %s to be missing", branchName))
+	return nil
+}
+
+func seedFixtureGit(cwd string, commands [][]string) error {
+	for _, args := range commands {
+		if err := fixtureGit(cwd, args...); err != nil {
+			return err
+		}
 	}
-	require.Fail(t, fmt.Sprintf("unexpected error checking branch %s: %v", branchName, err))
-}
-
-func (x testRepository) assertPathMissing(t *testing.T, path string) {
-	t.Helper()
-	_, err := os.Stat(path)
-	require.ErrorIs(t, err, os.ErrNotExist, "expected path %s to be missing", path)
-}
-
-func (x testRepository) assertPathPresent(t *testing.T, path string) {
-	t.Helper()
-	_, err := os.Stat(path)
-	require.NoError(t, err, "expected path %s to be present", path)
+	return nil
 }
 
 func runGitCommand(t *testing.T, cwd string, args ...string) string {

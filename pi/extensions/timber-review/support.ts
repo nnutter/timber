@@ -98,4 +98,3 @@ export function reviewLineFromEvent(data: unknown): string | undefined {
 	if (line !== expected) return undefined;
 	return expected;
 }
-

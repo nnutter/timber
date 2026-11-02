@@ -59,7 +59,7 @@ func run(deps Dependencies, create, noCd *bool, upstream *string, herdr, noHerdr
 			if err != nil {
 				return err
 			}
-			if *noCd || herdrOpened {
+			if *noCd || isTrue(herdrOpened) {
 				return nil
 			}
 			return deps.ReportPath(command.OutOrStdout(), worktreePath)

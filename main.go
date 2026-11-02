@@ -43,7 +43,7 @@ func main() {
 		fang.WithVersion(version),
 		fang.WithErrorHandler(func(w io.Writer, styles fang.Styles, err error) {
 			args := os.Args[1:]
-			if len(args) > 0 && args[0] == "review" && display.WantsJSON(args[1:]) {
+			if len(args) > 0 && isSame(args[0], "review") && display.WantsJSON(args[1:]) {
 				failed, _, _ := root.Find(args)
 				name := "review"
 				if failed != nil {

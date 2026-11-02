@@ -17,130 +17,6 @@ type repositoryRenamePlan struct {
 	currentTargetDir string
 }
 
-type worktreePathMove struct {
-	Source      string
-	Destination string
-}
-
-type linkedWorktreePath struct {
-	Original string
-	Renamed  string
-}
-
-func (x repositoryRenamePlan) validateDestinationRepo() error {
-	if _, err := os.Lstat(x.destinationRepo.BarePath); err == nil {
-		return fmt.Errorf(
-			"repository %q already exists at %s",
-			x.destinationRepo.Name,
-			x.destinationRepo.BarePath,
-		)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("inspect repository path %q: %w", x.destinationRepo.BarePath, err)
-	}
-	return nil
-}
-
-func (x *repositoryRenamePlan) collectWorktrees() error {
-	repository, err := openBareRepository(x.runtime, x.sourceRepo.BarePath)
-	if err != nil {
-		return err
-	}
-	worktrees, err := repository.listPorcelainWorktrees()
-	if err != nil {
-		return err
-	}
-
-	for _, worktree := range worktrees {
-		// A Git directory named .git makes `worktree list` report the parent
-		// directory, not the Git directory, as the bare entry.
-		if worktree.Bare {
-			continue
-		}
-		sameAsBareRepo, err := samePath(worktree.Path, x.sourceRepo.BarePath)
-		if err != nil {
-			return err
-		}
-		if sameAsBareRepo {
-			continue
-		}
-		if worktree.Prunable != "" {
-			return fmt.Errorf("linked worktree at %q is prunable: %s", worktree.Path, worktree.Prunable)
-		}
-		if err := validateLinkedWorktree(x.runtime, worktree.Path, x.sourceRepo.BarePath); err != nil {
-			return err
-		}
-
-		renamedPath := worktree.Path
-		branchName := worktree.branchName()
-		if branchName != "" {
-			expectedSource := x.runtime.managedWorktreePath(x.sourceRepo.Name, branchName)
-			managed, err := samePath(worktree.Path, expectedSource)
-			if err != nil {
-				return err
-			}
-			if managed {
-				renamedPath = x.runtime.managedWorktreePath(x.destinationRepo.Name, branchName)
-				x.worktreeMoves = append(x.worktreeMoves, worktreePathMove{
-					Source:      worktree.Path,
-					Destination: renamedPath,
-				})
-			}
-		}
-
-		x.linkedWorktrees = append(x.linkedWorktrees, linkedWorktreePath{
-			Original: worktree.Path,
-			Renamed:  renamedPath,
-		})
-	}
-	return nil
-}
-
-func validateLinkedWorktree(runtime Runtime, worktreePath string, expectedBarePath string) error {
-	repository, err := openRepository(runtime, worktreePath)
-	if err != nil {
-		return fmt.Errorf("open linked worktree %q: %w", worktreePath, err)
-	}
-	commonDir, err := repository.commonGitDir()
-	if err != nil {
-		return err
-	}
-	same, err := samePath(commonDir, expectedBarePath)
-	if err != nil {
-		return err
-	}
-	if !same {
-		return fmt.Errorf("linked worktree %q uses unexpected common Git directory %q", worktreePath, commonDir)
-	}
-	return nil
-}
-
-func (x repositoryRenamePlan) validateWorktreeDestinations() error {
-	for _, move := range x.worktreeMoves {
-		if _, err := os.Lstat(move.Destination); err == nil {
-			return fmt.Errorf("worktree directory %q already exists", move.Destination)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("inspect worktree directory %q: %w", move.Destination, err)
-		}
-	}
-	return nil
-}
-
-func (x *repositoryRenamePlan) findCurrentTargetDirectory() error {
-	currentDirectory := x.runtime.CurrentDirectory
-	for _, move := range x.worktreeMoves {
-		if !pathIsWithin(move.Source, currentDirectory) {
-			continue
-		}
-		relativePath, err := filepath.Rel(move.Source, currentDirectory)
-		if err != nil {
-			return fmt.Errorf("resolve current worktree subdirectory: %w", err)
-		}
-		x.currentTargetDir = filepath.Join(move.Destination, relativePath)
-		return nil
-	}
-	return nil
-}
-
 func (x repositoryRenamePlan) apply(renamePath renamePathFunc, repairWorktrees repairWorktreesFunc) error {
 	completedMoves := make([]worktreePathMove, 0, len(x.worktreeMoves))
 	for _, move := range x.worktreeMoves {
@@ -180,6 +56,81 @@ func (x repositoryRenamePlan) apply(renamePath renamePathFunc, repairWorktrees r
 	return nil
 }
 
+func (x *repositoryRenamePlan) collectWorktrees() error {
+	repository, err := openBareRepository(x.runtime, x.sourceRepo.BarePath)
+	if err != nil {
+		return err
+	}
+	worktrees, err := repository.listPorcelainWorktrees()
+	if err != nil {
+		return err
+	}
+
+	for _, worktree := range worktrees {
+		// A Git directory named .git makes `worktree list` report the parent
+		// directory, not the Git directory, as the bare entry.
+		if worktree.Bare {
+			continue
+		}
+		sameAsBareRepo, err := samePath(worktree.Path, x.sourceRepo.BarePath)
+		if err != nil {
+			return err
+		}
+		if sameAsBareRepo {
+			continue
+		}
+		if worktree.Prunable != "" {
+			return fmt.Errorf("linked worktree at %q is prunable: %s", worktree.Path, worktree.Prunable)
+		}
+		if err := validateLinkedWorktree(x.runtime, worktree.Path, x.sourceRepo.BarePath); err != nil {
+			return err
+		}
+
+		renamedPath, err := renamedWorktreePath(x, worktree)
+		if err != nil {
+			return err
+		}
+
+		x.linkedWorktrees = append(x.linkedWorktrees, linkedWorktreePath{
+			Original: worktree.Path,
+			Renamed:  renamedPath,
+		})
+	}
+	return nil
+}
+
+func (x *repositoryRenamePlan) findCurrentTargetDirectory() error {
+	currentDirectory := x.runtime.CurrentDirectory
+	for _, move := range x.worktreeMoves {
+		if !pathIsWithin(move.Source, currentDirectory) {
+			continue
+		}
+		relativePath, err := filepath.Rel(move.Source, currentDirectory)
+		if err != nil {
+			return fmt.Errorf("resolve current worktree subdirectory: %w", err)
+		}
+		x.currentTargetDir = filepath.Join(move.Destination, relativePath)
+		return nil
+	}
+	return nil
+}
+
+func (x repositoryRenamePlan) repairAndVerify(
+	repairWorktrees repairWorktreesFunc,
+	barePath string,
+	worktreePaths []string,
+) error {
+	if err := repairWorktrees(barePath, worktreePaths); err != nil {
+		return err
+	}
+	for _, worktreePath := range worktreePaths {
+		if err := validateLinkedWorktree(x.runtime, worktreePath, barePath); err != nil {
+			return fmt.Errorf("verify renamed repository: %w", err)
+		}
+	}
+	return nil
+}
+
 func (x repositoryRenamePlan) rollback(
 	renamePath renamePathFunc,
 	repairWorktrees repairWorktreesFunc,
@@ -209,18 +160,55 @@ func (x repositoryRenamePlan) rollback(
 	return errors.Join(rollbackErrors...)
 }
 
-func (x repositoryRenamePlan) repairAndVerify(
-	repairWorktrees repairWorktreesFunc,
-	barePath string,
-	worktreePaths []string,
-) error {
-	if err := repairWorktrees(barePath, worktreePaths); err != nil {
+func (x repositoryRenamePlan) validateDestinationRepo() error {
+	if _, err := os.Lstat(x.destinationRepo.BarePath); err == nil {
+		return fmt.Errorf(
+			"repository %q already exists at %s",
+			x.destinationRepo.Name,
+			x.destinationRepo.BarePath,
+		)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect repository path %q: %w", x.destinationRepo.BarePath, err)
+	}
+	return nil
+}
+
+func (x repositoryRenamePlan) validateWorktreeDestinations() error {
+	for _, move := range x.worktreeMoves {
+		if _, err := os.Lstat(move.Destination); err == nil {
+			return fmt.Errorf("worktree directory %q already exists", move.Destination)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("inspect worktree directory %q: %w", move.Destination, err)
+		}
+	}
+	return nil
+}
+
+type worktreePathMove struct {
+	Source      string
+	Destination string
+}
+
+type linkedWorktreePath struct {
+	Original string
+	Renamed  string
+}
+
+func validateLinkedWorktree(runtime Runtime, worktreePath string, expectedBarePath string) error {
+	repository, err := openRepository(runtime, worktreePath)
+	if err != nil {
+		return fmt.Errorf("open linked worktree %q: %w", worktreePath, err)
+	}
+	commonDir, err := repository.commonGitDir()
+	if err != nil {
 		return err
 	}
-	for _, worktreePath := range worktreePaths {
-		if err := validateLinkedWorktree(x.runtime, worktreePath, barePath); err != nil {
-			return fmt.Errorf("verify renamed repository: %w", err)
-		}
+	same, err := samePath(commonDir, expectedBarePath)
+	if err != nil {
+		return err
+	}
+	if !same {
+		return fmt.Errorf("linked worktree %q uses unexpected common Git directory %q", worktreePath, commonDir)
 	}
 	return nil
 }
@@ -254,4 +242,26 @@ func originalLinkedPaths(worktrees []linkedWorktreePath) []string {
 		paths = append(paths, worktree.Original)
 	}
 	return paths
+}
+
+func renamedWorktreePath(x *repositoryRenamePlan, worktree porcelainWorktree) (string, error) {
+	renamedPath := worktree.Path
+	branchName := worktree.branchName()
+	if branchName == "" {
+		return renamedPath, nil
+	}
+	expectedSource := x.runtime.managedWorktreePath(x.sourceRepo.Name, branchName)
+	managed, err := samePath(worktree.Path, expectedSource)
+	if err != nil {
+		return "", err
+	}
+	if !managed {
+		return renamedPath, nil
+	}
+	renamedPath = x.runtime.managedWorktreePath(x.destinationRepo.Name, branchName)
+	x.worktreeMoves = append(x.worktreeMoves, worktreePathMove{
+		Source:      worktree.Path,
+		Destination: renamedPath,
+	})
+	return renamedPath, nil
 }

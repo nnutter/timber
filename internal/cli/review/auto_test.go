@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	reviewroot "github.com/nnutter/timber/internal/cli/review/root"
@@ -22,24 +23,18 @@ func TestAutoCommandDryRunThenRecordsOpenAIVerdict(t *testing.T) {
 	var requests int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++
-		if r.URL.Path != "/v1/responses" {
-			t.Errorf("unexpected API path: %s", r.URL.Path)
+		if !assert.Equal(t, "/v1/responses", r.URL.Path, "unexpected API path") {
 			http.Error(w, "wrong path", http.StatusNotFound)
 			return
 		}
 		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Error(err)
+		if !assert.NoError(t, err) {
 			return
 		}
-		if !strings.Contains(string(body), `"model":"test-model"`) {
-			t.Errorf("request did not use selected model: %s", body)
-		}
+		assert.Contains(t, string(body), `"model":"test-model"`, "request did not use selected model")
 		w.Header().Set("Content-Type", "application/json")
 		_, err = io.WriteString(w, `{"id":"resp_cli","object":"response","status":"completed","model":"test-model","output":[{"id":"msg_cli","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"{\"decision\":\"approve\",\"reason\":\"Only a private name changes.\",\"evidence\":[\"code.go:2 preserves the constant value\"]}","annotations":[]}]}]}`)
-		if err != nil {
-			t.Error(err)
-		}
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 	t.Setenv("OPENAI_API_KEY", "test-placeholder")
@@ -128,13 +123,11 @@ func TestAutoResolvesTheOnlyModelInTheModelsFile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authorization = r.Header.Get("Authorization")
 		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Error(err)
+		if !assert.NoError(t, err) {
 			return
 		}
 		var request map[string]any
-		if err := json.Unmarshal(body, &request); err != nil {
-			t.Error(err)
+		if !assert.NoError(t, json.Unmarshal(body, &request)) {
 			return
 		}
 		model, _ = request["model"].(string)
@@ -159,13 +152,11 @@ func TestAutoPrefersTheEnvironmentAndFlagsOverTheModelsFile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authorization = r.Header.Get("Authorization")
 		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Error(err)
+		if !assert.NoError(t, err) {
 			return
 		}
 		var request map[string]any
-		if err := json.Unmarshal(body, &request); err != nil {
-			t.Error(err)
+		if !assert.NoError(t, json.Unmarshal(body, &request)) {
 			return
 		}
 		model, _ = request["model"].(string)

@@ -9,10 +9,7 @@ import (
 	"io/fs"
 	"os/exec"
 	"path"
-	"slices"
 	"strings"
-	"time"
-	"unicode/utf8"
 )
 
 const autoContextLimit = 64 * 1024
@@ -22,6 +19,39 @@ type commitContext struct {
 	repository Repository
 	base       string
 	tip        string
+}
+
+func (c commitContext) ReadFile(ctx context.Context, revision, name string) (string, error) {
+	sha, err := c.revision(revision)
+	if err != nil {
+		return "", err
+	}
+	if !fs.ValidPath(name) || isSame(name, ".") || strings.ContainsAny(name, "\\\x00") || sensitiveAutoPath(name) {
+		return "", fmt.Errorf("file is outside automatic review context")
+	}
+	return c.repository.autoGit(ctx, autoContextLimit, "cat-file", "blob", sha+":"+name)
+}
+
+func (c commitContext) Search(ctx context.Context, revision, query string) (string, error) {
+	sha, err := c.revision(revision)
+	if err != nil {
+		return "", err
+	}
+	if query == "" || isLess(256, len(query)) || strings.ContainsAny(query, "\x00\r\n") {
+		return "", fmt.Errorf("search requires a nonempty single-line literal of at most 256 bytes")
+	}
+	text, err := c.repository.autoGit(ctx, autoContextLimit, "grep", "--no-color", "-n", "-I", "-F", "-e", query, sha, "--", ".")
+	if exit, ok := errors.AsType[*exec.ExitError](err); ok && isSame(exit.ExitCode(), 1) {
+		return "", nil // git grep uses exit 1 for no matches.
+	}
+	if err != nil {
+		return "", err
+	}
+	filtered, err := filterSearchLines(text)
+	if err != nil {
+		return "", err
+	}
+	return filtered, nil
 }
 
 func (c commitContext) revision(label string) (string, error) {
@@ -35,32 +65,7 @@ func (c commitContext) revision(label string) (string, error) {
 	}
 }
 
-func (c commitContext) ReadFile(ctx context.Context, revision, name string) (string, error) {
-	sha, err := c.revision(revision)
-	if err != nil {
-		return "", err
-	}
-	if !fs.ValidPath(name) || name == "." || strings.ContainsAny(name, "\\\x00") || sensitiveAutoPath(name) {
-		return "", fmt.Errorf("file is outside automatic review context")
-	}
-	return c.repository.autoGit(ctx, autoContextLimit, "cat-file", "blob", sha+":"+name)
-}
-
-func (c commitContext) Search(ctx context.Context, revision, query string) (string, error) {
-	sha, err := c.revision(revision)
-	if err != nil {
-		return "", err
-	}
-	if query == "" || len(query) > 256 || strings.ContainsAny(query, "\x00\r\n") {
-		return "", fmt.Errorf("search requires a nonempty single-line literal of at most 256 bytes")
-	}
-	text, err := c.repository.autoGit(ctx, autoContextLimit, "grep", "--no-color", "-n", "-I", "-F", "-e", query, sha, "--", ".")
-	if exit, ok := errors.AsType[*exec.ExitError](err); ok && exit.ExitCode() == 1 {
-		return "", nil // git grep uses exit 1 for no matches.
-	}
-	if err != nil {
-		return "", err
-	}
+func filterSearchLines(text string) (string, error) {
 	var filtered strings.Builder
 	scanner := bufio.NewScanner(strings.NewReader(text))
 	scanner.Buffer(make([]byte, 0, 4096), autoContextLimit)
@@ -69,7 +74,7 @@ func (c commitContext) Search(ctx context.Context, revision, query string) (stri
 		// Drop the tree-ish prefix Git prints so the model reads path and text.
 		_, rest, found := strings.Cut(line, ":")
 		name, _, ok := strings.Cut(rest, ":")
-		if !found || !ok || sensitiveAutoPath(name) {
+		if !found || isFalse(ok) || sensitiveAutoPath(name) {
 			continue
 		}
 		filtered.WriteString(rest)
@@ -126,34 +131,11 @@ type autoDiagnostics struct {
 	limit  int
 }
 
+func (b *autoDiagnostics) String() string { return b.buffer.String() }
+
 func (b *autoDiagnostics) Write(data []byte) (int, error) {
 	if room := b.limit - b.buffer.Len(); room > 0 {
 		b.buffer.Write(data[:min(len(data), room)])
 	}
 	return len(data), nil
-}
-
-func (b *autoDiagnostics) String() string { return b.buffer.String() }
-
-// autoGit bounds output in memory and disables interactive Git behavior.
-func (r Repository) autoGit(ctx context.Context, limit int, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = r.Dir
-	cmd.Env = append(slices.Clone(r.environment()), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0", "GIT_NO_REPLACE_OBJECTS=1")
-	out := autoOutput{limit: limit}
-	diagnostics := autoDiagnostics{limit: 4096}
-	cmd.Stdout, cmd.Stderr = &out, &diagnostics
-	if err := cmd.Run(); err != nil {
-		// Report Git's own reason, as other review commands do.
-		if message := strings.TrimSpace(diagnostics.String()); message != "" {
-			return "", fmt.Errorf("read automatic review context: %w: %s", err, message)
-		}
-		return "", fmt.Errorf("read automatic review context: %w", err)
-	}
-	if !utf8.Valid(out.buffer.Bytes()) || bytes.IndexByte(out.buffer.Bytes(), 0) >= 0 {
-		return "", fmt.Errorf("automatic review requires UTF-8 text context")
-	}
-	return out.buffer.String(), nil
 }

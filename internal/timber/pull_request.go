@@ -29,7 +29,7 @@ func parsePullRequestList(output []byte) (map[string]string, error) {
 
 	pullRequests := make(map[string]string, len(entries))
 	for _, entry := range entries {
-		if entry.HeadRefName == "" || entry.Number <= 0 {
+		if isEmpty(entry.HeadRefName) || !isLess(0, entry.Number) {
 			continue
 		}
 		if _, exists := pullRequests[entry.HeadRefName]; exists {

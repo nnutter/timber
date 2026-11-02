@@ -1,12 +1,10 @@
 package timber
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 )
 
 // CreateReporters reports worktree creation, Herdr opening, and setup warnings.
@@ -16,134 +14,6 @@ type CreateReporters struct {
 	HerdrOpened  func(io.Writer, string) error
 	SetupPrompt  SetupPrompter
 	SetupWarning func(io.Writer, SetupKind, error) error
-}
-
-// CreateManagedWorktree creates a managed worktree and runs automatic setup.
-// It returns the worktree path and whether a Herdr workspace was opened.
-// hasExplicitPath selects a custom location; otherwise the managed layout
-// is used. An empty explicit path is an error, matching CLI validation.
-func (runtime Runtime) CreateManagedWorktree(ctx context.Context, input io.Reader, output io.Writer, repoName, raw, explicitPath string, hasExplicitPath bool, upstream string, herdr, noHerdr bool, reporters CreateReporters) (string, bool, error) {
-	if reporters.Created == nil {
-		return "", false, errors.New("create requires a worktree creation reporter")
-	}
-	if (herdr || (!noHerdr && runtime.HerdrEnvironment)) && reporters.HerdrOpened == nil {
-		return "", false, errors.New("create requires a Herdr opening reporter")
-	}
-	qualified, err := runtime.parseQualifiedName(raw)
-	if err != nil {
-		return "", false, err
-	}
-	if err := ValidateWorktreeName(qualified.Name); err != nil {
-		return "", false, err
-	}
-	if qualified.Repo != "" {
-		repoName = qualified.Repo
-	}
-
-	selection := repoSelection{runtime: runtime, RepoName: repoName}
-	repo, repository, err := selection.resolve(input)
-	if err != nil {
-		return "", false, err
-	}
-
-	branchName, err := runtime.resolveCreateWorktreeName(repo.Name, qualified.Name)
-	if err != nil {
-		return "", false, err
-	}
-
-	worktreePath := runtime.managedWorktreePath(repo.Name, branchName)
-	if hasExplicitPath {
-		if explicitPath == "" {
-			return "", false, errors.New("worktree path must not be empty")
-		}
-		worktreePath, err = runtime.absolutePath(explicitPath)
-		if err != nil {
-			return "", false, err
-		}
-	}
-	if err := rejectNonEmptyWorktreeDirectory(worktreePath); err != nil {
-		return "", false, err
-	}
-	worktrees, err := runtime.managedWorktreesFromRepository(repository, repo.Name)
-	if err != nil {
-		return "", false, err
-	}
-	if _, err := managedWorktreeByName(worktrees, branchName); err == nil {
-		return "", false, fmt.Errorf("worktree %q already exists", branchName)
-	}
-
-	if err := repository.fetchOrigin(); err != nil {
-		return "", false, err
-	}
-
-	upstreamBranch := upstream
-	if upstreamBranch == "" {
-		resolvedUpstream, err := repository.remoteHeadBranch()
-		if err != nil {
-			return "", false, err
-		}
-		upstreamBranch = resolvedUpstream
-	}
-
-	branchExists, err := repository.branchExists(branchName)
-	if err != nil {
-		return "", false, err
-	}
-	if err := ensureWorktreeDirectory(worktreePath); err != nil {
-		return "", false, err
-	}
-	if branchExists {
-		if _, err := repository.git("worktree", "add", worktreePath, branchName); err != nil {
-			return "", false, err
-		}
-	} else {
-		if _, err := repository.git("worktree", "add", "-b", branchName, worktreePath, upstreamBranch); err != nil {
-			return "", false, err
-		}
-	}
-
-	if err := repository.setBranchUpstream(branchName, upstreamBranch); err != nil {
-		return "", false, err
-	}
-	if hasExplicitPath {
-		gitDir, err := runtime.worktreeGitDir(worktreePath)
-		if err != nil {
-			return "", false, err
-		}
-		if err := os.WriteFile(filepath.Join(gitDir, worktreeNameFile), []byte(branchName+"\n"), 0o600); err != nil {
-			return "", false, fmt.Errorf("record worktree name: %w", err)
-		}
-	}
-
-	if err := reporters.Created(output, worktreePath); err != nil {
-		return "", false, err
-	}
-
-	runtime.autoTrustMise(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt, reporters.SetupWarning)
-	runtime.autoInstallHKHooks(ctx, input, output, repository, upstreamBranch, worktreePath, reporters.SetupPrompt, reporters.SetupWarning)
-
-	// Run after hook installation so the worktree hooks directory keeps the
-	// hooks a hook manager just installed.
-	if err := runtime.ConfigureWorktreeHooks(worktreePath); err != nil {
-		return "", false, err
-	}
-
-	if !(herdr || (!noHerdr && runtime.HerdrEnvironment)) {
-		return worktreePath, false, nil
-	}
-
-	worktree := managedWorktree{
-		Repo: repo.Name,
-		Name: branchName,
-		Path: worktreePath,
-	}
-	if err := runtime.openHerdrSpace(ctx, worktree); err != nil {
-		return "", false, err
-	}
-	if err := reporters.HerdrOpened(output, branchName); err != nil {
-		return "", false, err
-	}
-	return worktreePath, true, nil
 }
 
 func rejectNonEmptyWorktreeDirectory(worktreePath string) error {

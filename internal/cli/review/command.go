@@ -37,7 +37,7 @@ func New(directory, homeDirectory, skillContent string, loadModels func() (corec
 			return fmt.Errorf("timber-review skill content is not available")
 		}
 		destination := filepath.Join(homeDirectory, ".agents", "skills", "timber-review", "SKILL.md")
-		if _, err := os.Stat(destination); err == nil && !force {
+		if _, err := os.Stat(destination); err == nil && isFalse(force) {
 			return fmt.Errorf("skill already exists at %s (use --force to overwrite)", destination)
 		} else if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("inspect skill destination %q: %w", destination, err)
@@ -57,17 +57,19 @@ func New(directory, homeDirectory, skillContent string, loadModels func() (corec
 type reviewInput struct{ command **cobra.Command }
 
 func (r reviewInput) Read(p []byte) (int, error) { return r.UnwrapReader().Read(p) }
-func (r reviewInput) UnwrapReader() io.Reader    { return (*r.command).InOrStdin() }
+
+func (r reviewInput) UnwrapReader() io.Reader { return (*r.command).InOrStdin() }
 
 type reviewOutput struct {
 	command  **cobra.Command
 	terminal bool
 }
 
-func (w reviewOutput) Write(p []byte) (int, error) { return w.UnwrapWriter().Write(p) }
 func (w reviewOutput) UnwrapWriter() io.Writer {
 	if w.terminal {
 		return (*w.command).ErrOrStderr()
 	}
 	return (*w.command).OutOrStdout()
 }
+
+func (w reviewOutput) Write(p []byte) (int, error) { return w.UnwrapWriter().Write(p) }

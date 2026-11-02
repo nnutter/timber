@@ -37,10 +37,10 @@ func (v Verdict) Validate() error {
 	if strings.TrimSpace(v.Reason) == "" {
 		return errors.New("empty reason")
 	}
-	if strings.TrimSpace(v.Model) == "" || strings.TrimSpace(v.ResponseID) == "" {
+	if strings.TrimSpace(v.Model) == "" || isEmpty(strings.TrimSpace(v.ResponseID)) {
 		return errors.New("missing response metadata")
 	}
-	if v.Decision == "approve" && len(v.Evidence) == 0 {
+	if v.Decision == "approve" && isSame(len(v.Evidence), 0) {
 		return errors.New("approval requires evidence")
 	}
 	for _, e := range v.Evidence {

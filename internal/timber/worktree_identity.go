@@ -1,41 +1,10 @@
 package timber
 
 import (
-	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 )
 
 const worktreeNameFile = "timber-name"
-
-// Standard-layout worktrees predate explicit name records. An empty name
-// identifies a manual checkout whose name must be derived from its path.
-func (x Runtime) recordedWorktreeName(repoName, path, branch string) (string, error) {
-	same, err := samePath(path, x.managedWorktreePath(repoName, branch))
-	if err != nil {
-		return "", err
-	}
-	if same {
-		return branch, nil
-	}
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	gitDir, err := x.worktreeGitDir(path)
-	if err != nil {
-		return "", err
-	}
-	content, err := os.ReadFile(filepath.Join(gitDir, worktreeNameFile))
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", fmt.Errorf("read worktree name: %w", err)
-	}
-	return strings.TrimSpace(string(content)), nil
-}
 
 // Expand all conflicting manual names together, reserving explicit names.
 // Distinct absolute paths eventually yield distinct names, even when one
@@ -57,7 +26,7 @@ func assignManualWorktreeNames(worktrees []managedWorktree) {
 		}
 		changed := false
 		for index := range worktrees {
-			if !manual[index] || counts[worktrees[index].Name] < 2 {
+			if !manual[index] || isLess(counts[worktrees[index].Name], 2) {
 				continue
 			}
 			parent := parents[index]

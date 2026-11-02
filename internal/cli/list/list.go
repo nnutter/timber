@@ -12,12 +12,6 @@ import (
 // sortValue implements pflag.Value for the list command's sort modes.
 type sortValue string
 
-const (
-	sortRecency  sortValue = "recency"
-	sortRepo     sortValue = "repo"
-	sortWorktree sortValue = "worktree"
-)
-
 func (x *sortValue) Set(value string) error {
 	switch sortValue(value) {
 	case sortRecency, sortRepo, sortWorktree:
@@ -29,7 +23,14 @@ func (x *sortValue) Set(value string) error {
 }
 
 func (x *sortValue) String() string { return string(*x) }
-func (x *sortValue) Type() string   { return "sort" }
+
+func (x *sortValue) Type() string { return "sort" }
+
+const (
+	sortRecency  sortValue = "recency"
+	sortRepo     sortValue = "repo"
+	sortWorktree sortValue = "worktree"
+)
 
 func completeSort(_ *cobra.Command, _ []string, prefix string) ([]string, cobra.ShellCompDirective) {
 	var values []string

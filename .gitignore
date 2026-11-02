@@ -1,6 +1,5 @@
-tmp/
 .tmp/
-lefthook-local.yml
-.lefthook-local.yml
-
-
+/timber
+coverage.html
+coverage.out
+tmp/

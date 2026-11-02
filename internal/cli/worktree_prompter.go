@@ -27,7 +27,7 @@ func (huhWorktreePrompter) Prompt(input io.Reader, output io.Writer, worktrees [
 			label += " (dirty)"
 		}
 		option := huh.NewOption(label, worktreeRefKey(worktree))
-		if worktree.Clean && worktree.Merged {
+		if worktree.Clean && isTrue(worktree.Merged) {
 			option = option.Selected(true)
 		}
 		return option

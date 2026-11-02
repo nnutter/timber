@@ -16,19 +16,6 @@ type Command struct {
 	Output  io.Writer
 }
 
-// New builds the feedback sub-command. Callers install it onto the parent
-// with Install.
-func New(svc review.Service, out io.Writer) *cobra.Command {
-	c := &Command{Service: svc, Output: out}
-	cmd := &cobra.Command{Use: "feedback", Short: "Read current and historical saved feedback without launching tuicr", Args: cobra.NoArgs, RunE: c.RunE}
-	return cmd
-}
-
-// Install adds the feedback sub-command to parent.
-func Install(parent *cobra.Command, svc review.Service, out io.Writer) {
-	parent.AddCommand(New(svc, out))
-}
-
 // RunE runs the feedback workflow.
 func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 	asJSON := false
@@ -40,4 +27,17 @@ func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	return display.Write(c.Output, asJSON, result, false)
+}
+
+// New builds the feedback sub-command. Callers install it onto the parent
+// with Install.
+func New(svc review.Service, out io.Writer) *cobra.Command {
+	c := &Command{Service: svc, Output: out}
+	cmd := &cobra.Command{Use: "feedback", Short: "Read current and historical saved feedback without launching tuicr", Args: cobra.NoArgs, RunE: c.RunE}
+	return cmd
+}
+
+// Install adds the feedback sub-command to parent.
+func Install(parent *cobra.Command, svc review.Service, out io.Writer) {
+	parent.AddCommand(New(svc, out))
 }
