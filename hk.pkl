@@ -23,6 +23,7 @@ steps {
   ["gosec"] = Extra.go_sec
   ["govulncheck"] = Hk.go_vuln_check
   ["mdlint"] = Extra.mdlint
+  ["newlines"] = Hk.newlines
   ["nilaway"] = Extra.nilaway
   ["pkl"] = Hk.pkl
   ["pkl_format"] = Hk.pkl_format
@@ -30,6 +31,7 @@ steps {
   ["testifylint"] = Extra.testifylint
   ["tombi"] = Hk.tombi
   ["tombi_format"] = Hk.tombi_format
+  ["trailing_whitespace"] = Hk.trailing_whitespace
   ["yamlfmt"] = Hk.yamlfmt
 }
 
