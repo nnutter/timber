@@ -123,9 +123,11 @@ func installMiseTrustStub(t *testing.T, repository testRepository, runtime timbe
 	if test.miseFails {
 		script += "echo 'trust refused' >&2\nexit 1\n"
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "mise"), []byte(script), 0o700))
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	runtime = withTestEnvironment(runtime, "PATH="+os.Getenv("PATH"))
+	misePath := filepath.Join(bin, "mise")
+	require.NoError(t, os.WriteFile(misePath, []byte(script), 0o700))
+	// In-process runs use the override; the interactive child finds mise on its PATH.
+	runtime.MiseExecutable = misePath
+	runtime = withTestEnvironment(runtime, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	upstream := "source/main"
 	if test.localStart {
 		runGitCommand(t, repository.barePath, "branch", "--track", "local-start", "source/main")

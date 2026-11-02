@@ -107,9 +107,11 @@ func runHKInstallCase(t *testing.T, parent *testing.T, timberBin *string, test s
 	if test.hkFails {
 		script += "echo 'install refused' >&2\nexit 1\n"
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "hk"), []byte(script), 0o700))
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	runtime = withTestEnvironment(runtime, "PATH="+os.Getenv("PATH"))
+	hkPath := filepath.Join(bin, "hk")
+	require.NoError(t, os.WriteFile(hkPath, []byte(script), 0o700))
+	// In-process runs use the override; the interactive child finds hk on its PATH.
+	runtime.HkExecutable = hkPath
+	runtime = withTestEnvironment(runtime, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	upstream := "source/main"
 	if test.localStart {
 		runGitCommand(t, repository.barePath, "branch", "--track", "local-start", "source/main")
