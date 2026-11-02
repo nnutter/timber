@@ -24,9 +24,8 @@ import (
 // Stack identifies an original commit and its adjacent feedback commits.
 // Field names retain the Pi state format. ChangeID is optional lineage metadata.
 // PatchHash and MessageHash identify the reviewable content: the patch and the
-// message that a review shows. AmendCount counts attached amend! and reword!
-// commits, whose messages carry reviewable content. Attached fixup! commits
-// carry no message, so patch identity alone decides their review status.
+// message that a review shows. An attached fixup! commit carries no message, so
+// a fixup leaves the message fingerprint unchanged.
 type Stack struct {
 	Repo        string   `json:"repo"`
 	Commits     []string `json:"commits"`
@@ -37,7 +36,6 @@ type Stack struct {
 	ChangeID    string   `json:"changeId,omitempty"`
 	PatchHash   string   `json:"patchHash,omitempty"`
 	MessageHash string   `json:"messageHash,omitempty"`
-	AmendCount  int      `json:"amendCount,omitzero"`
 }
 
 func (s Stack) validate() error {
@@ -77,12 +75,6 @@ func (s Stack) validateMetadata() error {
 		if !changeIDPattern.MatchString(s.ChangeID) {
 			return fmt.Errorf("invalid stack Change-Id")
 		}
-	}
-	if s.AmendCount < 0 {
-		return fmt.Errorf("invalid stack amend count")
-	}
-	if s.AmendCount > len(s.Commits) {
-		return fmt.Errorf("invalid stack amend count")
 	}
 	return nil
 }
@@ -401,7 +393,7 @@ func stacks(repo, base string, history []historyCommit) ([]Stack, error) {
 			return nil, fmt.Errorf("commit %s has an empty subject", sha)
 		}
 		if match := feedbackSubject.FindStringSubmatch(subject); match != nil {
-			if !tryAppendFeedback(stacks, targets, sha, match[1], match[2]) {
+			if !tryAppendFeedback(stacks, targets, sha, match[2]) {
 				id, err := changeID(sha, commit.changeID, ids)
 				if err != nil {
 					return nil, err
@@ -523,16 +515,7 @@ func detachedHEADExit(err error) bool {
 	return exit.ExitCode() == 1
 }
 
-func changesCommitMessage(kind string) bool {
-	switch kind {
-	case "amend!", "reword!":
-		return true
-	default:
-		return false
-	}
-}
-
-func tryAppendFeedback(stacks []Stack, targets map[string][]int, sha, kind, subject string) bool {
+func tryAppendFeedback(stacks []Stack, targets map[string][]int, sha, subject string) bool {
 	matches := targets[subject]
 	if len(matches) != 1 {
 		return false
@@ -544,9 +527,6 @@ func tryAppendFeedback(stacks []Stack, targets map[string][]int, sha, kind, subj
 	last.Commits = append(last.Commits, sha)
 	last.Tip = sha
 	last.Key = last.Commits[0] + ".." + sha
-	if changesCommitMessage(kind) {
-		last.AmendCount++
-	}
 	return true
 }
 
