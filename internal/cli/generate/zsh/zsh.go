@@ -198,6 +198,21 @@ _%[1]s()
         fi
     done < <(printf "%%s\n" "${out[@]}")
 
+    # A short alias expands to the command it stands for: timber returns the
+    # canonical command name when the typed word is an alias (for example
+    # 'rp' for 'repo'). zsh drops a match that does not start with the typed
+    # word, so hold those matches back and add them unconditionally below.
+    local -a expansions prefixed
+    local completion
+    for completion in "${completions[@]}"; do
+        if [[ "${completion%%%%:*}" == "${lastParam}"* ]]; then
+            prefixed+=("$completion")
+        else
+            expansions+=("${completion%%%%:*}")
+        fi
+    done
+    completions=("${prefixed[@]}")
+
     # The shell wrapper adds 'create --no-cd', which timber itself does not
     # define, so offer it alongside Cobra's completions when completing flags.
     if [[ ${words[2]} == create && ${lastParam} == -* ]]; then
@@ -289,6 +304,11 @@ _%[1]s()
         done
 
         local completed=1
+        if [ ${#expansions} -ne 0 ]; then
+            __%[1]s_debug "Adding alias expansions: ${expansions[*]}"
+            compadd -U -Q -- "${expansions[@]}"
+            completed=0
+        fi
         if [[ ${comp_matches[(r)*/*]} == */* ]]; then
             __%[1]s_debug "Calling _multi_parts"
             local parts_order
@@ -299,8 +319,9 @@ _%[1]s()
                 completed=0
             fi
         else
-            __%[1]s_debug "Calling _describe"
-            if eval _describe $keepOrder "completions" completions $flagPrefix $noSpace; then
+            if [ ${#comp_matches} -eq 0 ]; then
+                __%[1]s_debug "Skipping _describe without matches"
+            elif eval _describe $keepOrder "completions" completions $flagPrefix $noSpace; then
                 completed=0
             fi
         fi

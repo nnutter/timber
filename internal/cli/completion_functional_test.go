@@ -48,3 +48,37 @@ func TestWorktreeCompletionAddsAtWhenNameIsAmbiguous(t *testing.T) {
 	assert.Contains(t, qualified, at(testRepoName, "feature/login"))
 	assert.Contains(t, qualified, at(secondaryName, "feature/login"))
 }
+
+func TestAliasCompletionExpandsToCommandName(t *testing.T) {
+	t.Parallel()
+	testRepository := newTestRepository(t)
+
+	for _, testCase := range []struct{ alias, name string }{
+		{"rp", "repo"},
+		{"hk", "hooks"},
+		{"td", "todo"},
+	} {
+		stdout := runCompleteWithRuntime(t, testRepository.runtime, testCase.alias)
+		assert.Contains(t, stdout, testCase.name+"\n", "alias=%s", testCase.alias)
+		assert.NotContains(t, stdout, testCase.name+"\t", "alias=%s", testCase.alias)
+	}
+
+	nested := runCompleteWithRuntime(t, testRepository.runtime, "rp", "mv")
+	assert.Contains(t, nested, "rename\n")
+}
+
+func TestAliasCompletionYieldsToCommandNamePrefixes(t *testing.T) {
+	t.Parallel()
+	testRepository := newTestRepository(t)
+
+	// 'r' is the alias for review, but 'review', 'repo', and 'remove' share
+	// the prefix, so completion lists the names instead of expanding.
+	stdout := runCompleteWithRuntime(t, testRepository.runtime, "r")
+	assert.NotContains(t, stdout, "review\n")
+	assert.Contains(t, stdout, "repo\t")
+
+	// 'c' is the alias for create, but 'config' and 'create' share the prefix.
+	stdout = runCompleteWithRuntime(t, testRepository.runtime, "c")
+	assert.NotContains(t, stdout, "create\n")
+	assert.Contains(t, stdout, "create\t")
+}
