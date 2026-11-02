@@ -18,10 +18,10 @@ steps {
   ["go_fix"] = Hk.go_fix
   ["go_fumpt"] = Hk.go_fumpt
   ["go_imports"] = Extra.go_imports
+  ["go_sec"] = Extra.go_sec
   ["go_vet"] = Hk.go_vet
+  ["go_vuln_check"] = Hk.go_vuln_check
   ["gomod_tidy"] = Hk.gomod_tidy
-  ["gosec"] = Extra.go_sec
-  ["govulncheck"] = Hk.go_vuln_check
   ["mdlint"] = Extra.mdlint
   ["newlines"] = Hk.newlines
   ["nilaway"] = Extra.nilaway
