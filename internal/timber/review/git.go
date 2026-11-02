@@ -153,6 +153,7 @@ func (r Repository) Snapshot(ctx context.Context) (Snapshot, error) {
 			return view, err
 		}
 	}
+	warnMissingChangeIDs(r, view)
 	return view, nil
 }
 
@@ -371,14 +372,14 @@ func (r Repository) stackView(ctx context.Context) (Snapshot, string, error) {
 	if err != nil {
 		return view, repo, err
 	}
-	view.Stacks, err = r.stacks(repo, view.Base, history)
+	view.Stacks, err = stacks(repo, view.Base, history)
 	if err != nil {
 		return view, repo, err
 	}
 	return view, repo, nil
 }
 
-func (r Repository) stacks(repo, base string, history []historyCommit) ([]Stack, error) {
+func stacks(repo, base string, history []historyCommit) ([]Stack, error) {
 	stacks := []Stack{}
 	if len(history) == 0 {
 		return stacks, nil
@@ -412,7 +413,6 @@ func (r Repository) stacks(repo, base string, history []historyCommit) ([]Stack,
 		targets[subject] = append(targets[subject], len(stacks)-1)
 		parent = sha
 	}
-	warnMissingChangeIDs(r, stacks)
 	return stacks, nil
 }
 
@@ -459,12 +459,12 @@ var diffOptions = []string{
 	"--no-indent-heuristic", "--submodule=short", "-O/dev/null",
 }
 
-func warnMissingChangeIDs(r Repository, stacks []Stack) {
+func warnMissingChangeIDs(r Repository, view Snapshot) {
 	if r.missingIDWarning == nil {
 		return
 	}
 	missing := 0
-	for _, stack := range stacks {
+	for _, stack := range view.Stacks {
 		if stack.ChangeID == "" {
 			missing++
 		}
