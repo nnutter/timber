@@ -375,22 +375,34 @@ func readObject(path string) (object, error) {
 	return obj, nil
 }
 
-func readIndex(store string) (map[string][]object, error) {
+// loadIndex returns the index document and its entries, or a nil document when
+// the store has no index. It returns the document for writers that must keep
+// the keys they do not understand.
+func loadIndex(store string) (object, map[string][]object, error) {
 	index, err := readObject(filepath.Join(store, "index.json"))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	version, err := decodeRequired[string](index, "version")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if version != "2.0" {
-		return nil, fmt.Errorf("unsupported review index version %q", version)
+		return nil, nil, fmt.Errorf("unsupported review index version %q", version)
 	}
-	return decodeRequired[map[string][]object](index, "entries")
+	entries, err := decodeRequired[map[string][]object](index, "entries")
+	if err != nil {
+		return nil, nil, err
+	}
+	return index, entries, nil
+}
+
+func readIndex(store string) (map[string][]object, error) {
+	_, entries, err := loadIndex(store)
+	return entries, err
 }
 
 func readStore(store string, scope Stack, selector string) (*SavedReview, error) {
