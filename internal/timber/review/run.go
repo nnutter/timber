@@ -227,7 +227,7 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 	if len(active) > 1 {
 		return plan, fmt.Errorf("multiple active attempts in state; resolve them before review")
 	}
-	if len(active) == 1 {
+	if len(active) == 1 && !supersededAttempt(active[0], view) {
 		prior := active[0]
 		plan.prior = &prior
 		plan.stack = &prior.Stack
@@ -248,7 +248,7 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 		plan.stack = &selected
 	}
 	if plan.stack != nil {
-		plan.prior = recoverablePrior(state, *plan.stack)
+		plan.prior = recoverablePrior(state, view, *plan.stack)
 	}
 	return plan, nil
 }
@@ -508,22 +508,37 @@ func nextStack(view Snapshot, state State) *Stack {
 	return nil
 }
 
-func recoverablePrior(state State, stack Stack) *Attempt {
-	prior := state.latest(stack)
-	if prior != nil {
-		// A model result has no saved session to recover or replace.
-		if prior.Status == "approved" || isSame(prior.ApprovalSource, "model") {
+// recoverablePrior returns the attempt that a review of stack can reopen.
+func recoverablePrior(state State, view Snapshot, stack Stack) *Attempt {
+	if prior := state.latest(stack); prior != nil {
+		if !recoverableAttempt(*prior, view) {
 			return nil
 		}
 		return prior
 	}
-	prior = state.previous(stack)
-	if prior != nil {
-		if prior.Status == "incomplete" {
-			return prior
+	if prior := state.previous(stack); prior != nil {
+		if !isSame(prior.Status, "incomplete") {
+			return nil
 		}
+		if !recoverableAttempt(*prior, view) {
+			return nil
+		}
+		return prior
 	}
 	return nil
+}
+
+// recoverableAttempt reports whether a review can reopen the attempt. A model
+// result has no saved session to reopen, and a stack version that a feedback
+// commit extended is no longer a range that the review can select.
+func recoverableAttempt(attempt Attempt, view Snapshot) bool {
+	if attempt.Status == "approved" {
+		return false
+	}
+	if isSame(attempt.ApprovalSource, "model") {
+		return false
+	}
+	return !supersededAttempt(attempt, view)
 }
 
 func recordFailure(path, id string, cause error) error {

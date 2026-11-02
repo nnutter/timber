@@ -340,6 +340,18 @@ func appendedAmends(old, current Stack) bool {
 	return current.AmendCount > old.AmendCount
 }
 
+// supersededAttempt reports whether a current stack extends the attempt's
+// captured commits, so the attempt describes an earlier version of that stack.
+// A feedback commit replaced its range, so another review cannot resume it.
+func supersededAttempt(attempt Attempt, view Snapshot) bool {
+	for _, stack := range view.Stacks {
+		if extendsStack(attempt.Stack, stack) {
+			return true
+		}
+	}
+	return false
+}
+
 func extendsStack(old, current Stack) bool {
 	if len(current.Commits) <= len(old.Commits) {
 		return false
