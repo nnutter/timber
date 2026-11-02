@@ -22,10 +22,6 @@ tombi = "latest"
 uv = "latest"
 yamlfmt = "latest"
 
-#####################
-# Development Tasks #
-#####################
-
 [tasks.all]
 description = "Run fix, test, and check"
 run = [{ task = "fix" }, { task = "test" }, { task = "check" }]
@@ -52,7 +48,7 @@ description = "Run tests and generate coverage report"
 run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
 
 [tasks.setup]
-description = "Install hk Git hooks without removing other hook managers"
+description = "Install hk git hooks"
 run = "hk install --mise"
 
 [tasks.refresh-template]
@@ -62,10 +58,6 @@ run = "git tpl update && git tpl merge"
 [tasks.test]
 description = "Run tests with coverage"
 run = "go test -cover ./..."
-
-#############
-# Fix Tasks #
-#############
 
 [tasks.fix]
 description = "Fix all files, or only the supplied files"
