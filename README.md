@@ -263,7 +263,7 @@ mise run all
 `mise run test` runs the Go and plugin shell tests with coverage.
 Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-test` requires these dependencies rather than silently skipping those tests.
 `mise run check` runs the configured checks, including gitleaks, and validates skills.
-`mise run coverage` (or `mise run cover`) runs the tests and prints coverage.
+`mise run coverage` runs the tests and prints coverage.
 `mise run demo` re-renders the [demo](#demo) GIF, MP4, and still from `docs/demo/demo.tape` (needs a working Chrome for VHS).
 `mise run setup` installs the hk Git hooks from `hk.pkl` without removing other hook managers.
 The commit-message hook requires `timber` on `PATH`.

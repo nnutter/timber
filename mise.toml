@@ -48,7 +48,6 @@ go tool vhs docs/demo/demo.tape
 '''
 
 [tasks.coverage]
-alias = "cover"
 description = "Run tests and generate coverage report"
 run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
 
