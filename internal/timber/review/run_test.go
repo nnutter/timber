@@ -307,24 +307,31 @@ func TestRecoverablePriorIgnoresRecordedModelResults(t *testing.T) {
 	require.Equal(t, human.ID, prior.ID)
 }
 
-func TestReviewIgnoresEarlierStackVersion(t *testing.T) {
-	for _, status := range []string{"incomplete"} {
+func TestReviewDiscardsEarlierStackVersion(t *testing.T) {
+	for _, status := range []string{"incomplete", "reviewing"} {
 		t.Run(status, func(t *testing.T) {
 			reviewer, view, store := testReviewer(t)
 			r := reviewer.Service.Repository
+			first := view.Stacks[0]
+			path, err := WorktreePath(first.Repo)
+			require.NoError(t, err)
+			// The review of the version before the fixup commit left a session.
+			earlier := savedSession(t, store, Stack{Repo: path, Commits: first.Commits}, "aaaaaaaaaaaaaaaa")
 			require.NoError(t, (Store{Path: view.Path}).Update(func(state *State) error {
-				state.Attempts = append(state.Attempts, newAttempt(view.Stacks[0], status))
+				state.Attempts = append(state.Attempts, newAttempt(first, status))
 				return nil
 			}))
 			// A fixup commit extends the stack, so its captured range is gone.
 			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "fixup! Feature")
-			view, err := r.Snapshot(t.Context())
+			view, err = r.Snapshot(t.Context())
 			require.NoError(t, err)
 			scope := view.Stacks[0]
-			path, err := WorktreePath(scope.Repo)
-			require.NoError(t, err)
 			scope.Repo = path
-			savedFixture(t, scope, store, true)
+			current := savedSession(t, store, scope, "bbbbbbbbbbbbbbbb")
+			writeSavedIndex(t, store,
+				savedEntry{"nnutter/timber@~aaaa/commits/first", path, earlier},
+				savedEntry{"nnutter/timber@~bbbb/commits/current", path, current},
+			)
 			log := filepath.Join(t.TempDir(), "launch")
 			t.Setenv("TEST_LAUNCH_LOG", log)
 			fakeTuicr(t, `printf '%s\n' "$4" > "$TEST_LAUNCH_LOG"`)
@@ -334,6 +341,13 @@ func TestReviewIgnoresEarlierStackVersion(t *testing.T) {
 			launch, err := os.ReadFile(log)
 			require.NoError(t, err)
 			require.Equal(t, view.Stacks[0].Base+".."+view.Stacks[0].Tip, strings.TrimSpace(string(launch)))
+			// The earlier review and its session are gone, the new one remains.
+			state, err := (Store{Path: view.Path}).Load()
+			require.NoError(t, err)
+			require.Len(t, state.Attempts, 1)
+			require.Equal(t, "approved", state.Attempts[0].Status)
+			require.NoFileExists(t, filepath.Join(store, earlier))
+			require.FileExists(t, filepath.Join(store, current))
 		})
 	}
 }

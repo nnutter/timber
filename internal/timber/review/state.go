@@ -340,6 +340,17 @@ func appendedAmends(old, current Stack) bool {
 	return current.AmendCount > old.AmendCount
 }
 
+// unfinished reports whether an attempt recorded no outcome. Only these
+// attempts ask the user to recover or replace them.
+func unfinished(attempt Attempt) bool {
+	switch attempt.Status {
+	case "reviewing", "incomplete":
+		return true
+	default:
+		return false
+	}
+}
+
 // supersededAttempt reports whether a current stack extends the attempt's
 // captured commits, so the attempt describes an earlier version of that stack.
 // A feedback commit replaced its range, so another review cannot resume it.

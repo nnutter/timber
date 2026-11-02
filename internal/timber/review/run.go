@@ -62,6 +62,7 @@ func (r Reviewer) Review(ctx context.Context, options ReviewOptions) (result Res
 	}
 	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository, lock)
 	defer stopMaintenance()
+	r.discardSuperseded(ctx)
 	result, err = r.reviewSequence(ctx, options, path, lock)
 	if err != nil {
 		return result, err
@@ -170,6 +171,49 @@ func (r Reviewer) bounds(ctx context.Context, view Snapshot, first, last string)
 		return nil, fmt.Errorf("review boundaries must be in oldest-first order")
 	}
 	return view.Stacks[start : end+1], nil
+}
+
+// discardSuperseded removes the reviews of earlier stack versions. Their saved
+// sessions can no longer be resumed, and their unfinished attempts still look
+// recoverable, so nothing else would ever remove them.
+// Cleanup only warns: reviewing a current stack must still work.
+func (r Reviewer) discardSuperseded(ctx context.Context) {
+	view, err := r.Service.Repository.Snapshot(ctx)
+	if err != nil {
+		r.warnSupersededCleanup(err)
+		return
+	}
+	state, err := (Store{Path: view.Path}).Load()
+	if err != nil {
+		r.warnSupersededCleanup(err)
+		return
+	}
+	var sessions []Stack
+	for _, attempt := range state.Attempts {
+		if supersededAttempt(attempt, view) {
+			sessions = append(sessions, attempt.Stack)
+		}
+	}
+	if len(sessions) == 0 {
+		return
+	}
+	err = (Store{Path: view.Path}).Update(func(state *State) error {
+		state.Attempts = slices.DeleteFunc(state.Attempts, func(attempt Attempt) bool {
+			return unfinished(attempt) && supersededAttempt(attempt, view)
+		})
+		return nil
+	})
+	if err != nil {
+		r.warnSupersededCleanup(err)
+		return
+	}
+	writer := SavedWriter{Stores: r.Reader.Stores}
+	for _, stack := range sessions {
+		if _, err := writer.Delete(stack); err != nil {
+			r.warnSupersededCleanup(err)
+			return
+		}
+	}
 }
 
 func (r Reviewer) execute(ctx context.Context, plan reviewPlan, options ReviewOptions, path string, lock *os.File) (result Result, err error) {
@@ -416,6 +460,10 @@ type reviewPlan struct {
 	prior     *Attempt
 	automatic bool
 	exhausted bool
+}
+
+func (r Reviewer) warnSupersededCleanup(cause error) {
+	r.Service.Repository.logger().Warn("Superseded review cleanup failed", "error", cause)
 }
 
 func (plan reviewPlan) rangeComplete() bool {
