@@ -111,6 +111,7 @@ func New(deps Dependencies) *cobra.Command {
 
 	command := &cobra.Command{
 		Use:               "todo [name[@repo]]",
+		Aliases:           []string{"td"},
 		Short:             "Open the worktree or repository TODO list",
 		Args:              cobra.MaximumNArgs(1),
 		RunE:              options.Execute,

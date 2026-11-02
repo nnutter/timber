@@ -46,7 +46,7 @@ func (c *Command) build() *cobra.Command {
 	}
 	logger := charmlog.New(writer)
 	c.Service.Repository = review.NewRepository(c.Service.Repository.Dir, logger)
-	root := &cobra.Command{Use: "review", Short: "Review feature-branch commit stacks with tuicr", Long: "Timber review tracks review of exact commit stacks against the configured Git upstream.\nApproval never transfers to rewritten commits or added fixups."}
+	root := &cobra.Command{Use: "review", Aliases: []string{"r"}, Short: "Review feature-branch commit stacks with tuicr", Long: "Timber review tracks review of exact commit stacks against the configured Git upstream.\nApproval never transfers to rewritten commits or added fixups."}
 	root.PersistentPreRun = func(_ *cobra.Command, _ []string) {
 		if c.Debug {
 			logger.SetLevel(charmlog.DebugLevel)
