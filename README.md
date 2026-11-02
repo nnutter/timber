@@ -258,7 +258,6 @@ mise run all
 ```
 
 `mise run all` runs fixes, tests, and checks.
-`mise run format` (or `mise run fmt`) formats Go files.
 `mise run fix` applies every configured fixer, including `go fix` and `go mod tidy`.
 `mise run test` runs the Go and plugin shell tests with coverage.
 Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-test` requires these dependencies rather than silently skipping those tests.
