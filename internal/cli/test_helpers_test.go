@@ -2,10 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -244,6 +247,27 @@ func gitTestEnv() []string {
 		"GIT_CONFIG_KEY_1=init.templateDir",
 		"GIT_CONFIG_VALUE_1=",
 	}
+}
+
+// requireGitIdentity stops Git from guessing a commit identity from the host.
+// Git falls back to the password database and the network hostname when no
+// identity is configured, and that guess succeeds on some hosts and fails on
+// others. A test that expects an identity error must disable the guess.
+func requireGitIdentity(environment []string) []string {
+	count := 0
+	updated := make([]string, 0, len(environment)+3)
+	for _, entry := range environment {
+		if value, ok := strings.CutPrefix(entry, "GIT_CONFIG_COUNT="); ok {
+			count, _ = strconv.Atoi(value)
+			continue
+		}
+		updated = append(updated, entry)
+	}
+	return append(updated,
+		"GIT_CONFIG_COUNT="+strconv.Itoa(count+1),
+		fmt.Sprintf("GIT_CONFIG_KEY_%d=user.useConfigOnly", count),
+		fmt.Sprintf("GIT_CONFIG_VALUE_%d=true", count),
+	)
 }
 
 func resolvedTempDir(t *testing.T) string {

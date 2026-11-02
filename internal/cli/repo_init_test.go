@@ -104,6 +104,7 @@ func TestRepoInitDiscardsRepositoryWithoutCommitIdentity(t *testing.T) {
 			t.Parallel()
 
 			runtime := testRuntime(t)
+			runtime.Environment = requireGitIdentity(runtime.Environment)
 			result := runTimberCommandWithRuntime(t, runtime, "repo", "init", repoName)
 			require.Error(t, result.err)
 			groupDirectory, _, _ := strings.Cut(repoName, "/")
