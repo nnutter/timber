@@ -11,25 +11,25 @@ exclude = List("**/testdata/**")
 
 /// Shared by the implicit check, fix, and pre-commit hooks.
 steps {
-  ["gitleaks"] = Hk.gitleaks
-  ["gomod_tidy"] = Hk.gomod_tidy
-  ["go_fumpt"] = Hk.go_fumpt
-  ["go_imports"] = Extra.go_imports
-  ["go_fix"] = Hk.go_fix
   ["constable"] = Extra.constable
   ["errcheck"] = Hk.err_check
-  ["staticcheck"] = Hk.staticcheck
-  ["testifylint"] = Extra.testifylint
+  ["gitleaks"] = Hk.gitleaks
   ["go_check_sumtype"] = Extra.go_check_sumtype
+  ["go_fix"] = Hk.go_fix
+  ["go_fumpt"] = Hk.go_fumpt
+  ["go_imports"] = Extra.go_imports
   ["go_vet"] = Hk.go_vet
+  ["gomod_tidy"] = Hk.gomod_tidy
   ["gosec"] = Extra.go_sec
   ["govulncheck"] = Hk.go_vuln_check
-  ["nilaway"] = Extra.nilaway
   ["mdlint"] = Extra.mdlint
-  ["pkl_format"] = Hk.pkl_format
+  ["nilaway"] = Extra.nilaway
   ["pkl"] = Hk.pkl
-  ["tombi_format"] = Hk.tombi_format
+  ["pkl_format"] = Hk.pkl_format
+  ["staticcheck"] = Hk.staticcheck
+  ["testifylint"] = Extra.testifylint
   ["tombi"] = Hk.tombi
+  ["tombi_format"] = Hk.tombi_format
   ["yamlfmt"] = Hk.yamlfmt
 }
 
