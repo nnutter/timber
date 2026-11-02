@@ -318,15 +318,30 @@ The following aliases are available for the commands below:
 
 | Command | Alias |
 | --- | --- |
+| `create` | `c` |
+| `hooks` | `hk` |
 | `list` | `ls` |
 | `prune` | `clean` |
 | `remove` | `rm` |
+| `repo` | `rp` |
+| `review` | `r` |
+| `todo` | `td` |
 
 The nested command groups have these aliases as well:
 
+- `hooks commit-msg` → `hooks cm`
+- `pr create` → `pr c`
 - `repo list` → `repo ls`
 - `repo remove` → `repo rm`
 - `repo rename` → `repo mv`
+- `review approve` → `review a` (`review confirm` also works)
+- `review commits` → `review c` (`review run` and `review challenge` also work)
+- `review files` → `review f`
+- `review log` → `review l`
+- `review status` → `review s`
+
+Zsh completion expands an alias to the command it stands for: `t rp<tab>` becomes `t repo` with a trailing space.
+The expansion waits while a command name shares the typed prefix, so `t r<tab>` still lists `review`, `repo`, and `remove`.
 
 ### Repository selection
 

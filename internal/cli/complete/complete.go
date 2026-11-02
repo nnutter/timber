@@ -4,6 +4,7 @@
 package complete
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -120,4 +121,44 @@ func InitialBranches() func(*cobra.Command, []string, string) ([]string, cobra.S
 		}
 		return matches, cobra.ShellCompDirectiveNoFileComp
 	}
+}
+
+// AliasExpansions completes the canonical name of a subcommand when the typed
+// word is one of its aliases, so a short alias expands to the command it
+// stands for. The expansion stays out of the way while a command name shares
+// the typed prefix, so prefix completion keeps its own candidates.
+func AliasExpansions() func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(command *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		if toComplete == "" {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		name, found := canonicalName(command, toComplete)
+		if !found {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return []string{name}, cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
+// canonicalName reports the available subcommand that uses word as an alias.
+// It reports nothing while a subcommand name shares the prefix of word, so a
+// short prefix still completes every name it could mean.
+func canonicalName(command *cobra.Command, word string) (string, bool) {
+	for _, subcommand := range command.Commands() {
+		if subcommand.IsAvailableCommand() && strings.HasPrefix(subcommand.Name(), word) {
+			return "", false
+		}
+	}
+	for _, subcommand := range command.Commands() {
+		if !subcommand.IsAvailableCommand() {
+			continue
+		}
+		if slices.Contains(subcommand.Aliases, word) {
+			return subcommand.Name(), true
+		}
+	}
+	return "", false
 }

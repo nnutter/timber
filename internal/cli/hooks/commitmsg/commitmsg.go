@@ -18,9 +18,10 @@ import (
 // New builds the commit-msg subcommand. Successful hooks produce no output.
 func New(dir string) *cobra.Command {
 	return &cobra.Command{
-		Use:   "commit-msg <message-file>",
-		Short: "Add a Gerrit-compatible Change-Id to a commit message",
-		Args:  cobra.ExactArgs(1),
+		Use:     "commit-msg <message-file>",
+		Aliases: []string{"cm"},
+		Short:   "Add a Gerrit-compatible Change-Id to a commit message",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return (hook{ctx: cmd.Context(), dir: dir}).run(args[0])
 		},

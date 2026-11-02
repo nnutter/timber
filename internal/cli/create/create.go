@@ -20,6 +20,7 @@ func New(deps Dependencies) *cobra.Command {
 	var herdr, noHerdr bool
 	command := &cobra.Command{
 		Use:               "create [name[@repo]] [path]",
+		Aliases:           []string{"c"},
 		Short:             "Create a managed Git worktree",
 		Args:              cobra.MaximumNArgs(2),
 		RunE:              run(deps, &upstream, &herdr, &noHerdr),
