@@ -23,19 +23,21 @@ import (
 
 // Stack identifies an original commit and its adjacent feedback commits.
 // Field names retain the Pi state format. ChangeID is optional lineage metadata.
-// AmendCount counts attached amend! and reword! commits, whose messages carry
-// reviewable content. Attached fixup! commits carry no message, so patch
-// identity alone decides their review status.
+// PatchHash and MessageHash identify the reviewable content: the patch and the
+// message that a review shows. AmendCount counts attached amend! and reword!
+// commits, whose messages carry reviewable content. Attached fixup! commits
+// carry no message, so patch identity alone decides their review status.
 type Stack struct {
-	Repo       string   `json:"repo"`
-	Commits    []string `json:"commits"`
-	Base       string   `json:"base"`
-	Tip        string   `json:"tip"`
-	Subject    string   `json:"subject"`
-	Key        string   `json:"key"`
-	ChangeID   string   `json:"changeId,omitempty"`
-	PatchHash  string   `json:"patchHash,omitempty"`
-	AmendCount int      `json:"amendCount,omitzero"`
+	Repo        string   `json:"repo"`
+	Commits     []string `json:"commits"`
+	Base        string   `json:"base"`
+	Tip         string   `json:"tip"`
+	Subject     string   `json:"subject"`
+	Key         string   `json:"key"`
+	ChangeID    string   `json:"changeId,omitempty"`
+	PatchHash   string   `json:"patchHash,omitempty"`
+	MessageHash string   `json:"messageHash,omitempty"`
+	AmendCount  int      `json:"amendCount,omitzero"`
 }
 
 func (s Stack) validate() error {
@@ -67,6 +69,9 @@ func (s Stack) validate() error {
 func (s Stack) validateMetadata() error {
 	if s.PatchHash != "" && !patchHashPattern.MatchString(s.PatchHash) {
 		return fmt.Errorf("invalid stack patch hash")
+	}
+	if s.MessageHash != "" && !messageHashPattern.MatchString(s.MessageHash) {
+		return fmt.Errorf("invalid stack message hash")
 	}
 	if s.ChangeID != "" {
 		if !changeIDPattern.MatchString(s.ChangeID) {
@@ -413,7 +418,29 @@ func stacks(repo, base string, history []historyCommit) ([]Stack, error) {
 		targets[subject] = append(targets[subject], len(stacks)-1)
 		parent = sha
 	}
+	if err := fingerprintMessages(stacks, history); err != nil {
+		return nil, err
+	}
 	return stacks, nil
+}
+
+// fingerprintMessages records the reviewed message of each stack. Stacks are
+// contiguous runs of the oldest-first history, so each stack's commits are the
+// next block of that history.
+func fingerprintMessages(stacks []Stack, history []historyCommit) error {
+	next := 0
+	for i := range stacks {
+		end := next + len(stacks[i].Commits)
+		if end > len(history) {
+			return fmt.Errorf("review stack does not match feature history")
+		}
+		stacks[i].MessageHash = messageFingerprint(history[next:end])
+		next = end
+	}
+	if next != len(history) {
+		return fmt.Errorf("review stack does not match feature history")
+	}
+	return nil
 }
 
 var quietLogger = log.New(io.Discard)
@@ -524,7 +551,8 @@ func tryAppendFeedback(stacks []Stack, targets map[string][]int, sha, kind, subj
 }
 
 var (
-	patchHashPattern = regexp.MustCompile(`^(?:v1:[a-f0-9]{64}|v2:(?:[a-f0-9]{40}|[a-f0-9]{64}))$`)
-	feedbackSubject  = regexp.MustCompile(`^(fixup!|reword!|amend!) (.+)$`)
-	changeIDPattern  = regexp.MustCompile(`^I[0-9a-fA-F]{40}$`)
+	patchHashPattern   = regexp.MustCompile(`^(?:v1:[a-f0-9]{64}|v2:(?:[a-f0-9]{40}|[a-f0-9]{64}))$`)
+	messageHashPattern = regexp.MustCompile(`^v1:[a-f0-9]{64}$`)
+	feedbackSubject    = regexp.MustCompile(`^(fixup!|reword!|amend!) (.+)$`)
+	changeIDPattern    = regexp.MustCompile(`^I[0-9a-fA-F]{40}$`)
 )
