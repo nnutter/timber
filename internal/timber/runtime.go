@@ -66,6 +66,14 @@ type Runtime struct {
 	// primarily useful for tests; an empty value uses PATH lookup.
 	GhExecutable string
 
+	// HkExecutable overrides the executable used for hk commands. It is
+	// primarily useful for tests; an empty value uses PATH lookup.
+	HkExecutable string
+
+	// MiseExecutable overrides the executable used for mise commands. It is
+	// primarily useful for tests; an empty value uses PATH lookup.
+	MiseExecutable string
+
 	// GhConfigDirectory overrides where the GitHub CLI keeps its
 	// configuration, which Timber reads for a stored credential. An empty
 	// value follows GH_CONFIG_DIR and then the Timber config home.
@@ -922,6 +930,12 @@ func (x Runtime) command(ctx context.Context, name string, args ...string) *exec
 	}
 	if name == "gh" && !isEmpty(x.GhExecutable) {
 		name = x.GhExecutable
+	}
+	if name == "hk" && !isEmpty(x.HkExecutable) {
+		name = x.HkExecutable
+	}
+	if name == "mise" && !isEmpty(x.MiseExecutable) {
+		name = x.MiseExecutable
 	}
 
 	command := exec.CommandContext(ctx, name, args...)

@@ -13,8 +13,7 @@ import (
 )
 
 func TestCreateAutomaticallyInstallsHKHooksOnlyForEligibleRepositories(t *testing.T) {
-	parent := t
-	var timberBin string
+	bin := &timberBinary{parent: t}
 	for _, test := range []struct {
 		name            string
 		remote          string
@@ -58,12 +57,13 @@ func TestCreateAutomaticallyInstallsHKHooksOnlyForEligibleRepositories(t *testin
 		{name: "hk failure", remote: "git@github.com:alice/project.git", enabled: true, hkFile: true, hkFails: true, wantInstall: true, wantWarn: "hk install failed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			runHKInstallCase(t, parent, &timberBin, test)
+			t.Parallel()
+			runHKInstallCase(t, bin, test)
 		})
 	}
 }
 
-func runHKInstallCase(t *testing.T, parent *testing.T, timberBin *string, test struct {
+func runHKInstallCase(t *testing.T, binary *timberBinary, test struct {
 	name            string
 	remote          string
 	enabled         bool
@@ -84,11 +84,10 @@ func runHKInstallCase(t *testing.T, parent *testing.T, timberBin *string, test s
 	noOrganizations bool
 },
 ) {
+	timberBin := ""
 	if test.interactive {
 		shellSkipIfNoPty(t)
-		if *timberBin == "" {
-			*timberBin = buildTestTimberBinary(parent)
-		}
+		timberBin = binary.get()
 	}
 	repository := newTestRepository(t)
 	if test.hkFile || isTrue(test.miseFile) {
@@ -107,9 +106,11 @@ func runHKInstallCase(t *testing.T, parent *testing.T, timberBin *string, test s
 	if test.hkFails {
 		script += "echo 'install refused' >&2\nexit 1\n"
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "hk"), []byte(script), 0o700))
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	runtime = withTestEnvironment(runtime, "PATH="+os.Getenv("PATH"))
+	hkPath := filepath.Join(bin, "hk")
+	require.NoError(t, os.WriteFile(hkPath, []byte(script), 0o700))
+	// In-process runs use the override; the interactive child finds hk on its PATH.
+	runtime.HkExecutable = hkPath
+	runtime = withTestEnvironment(runtime, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	upstream := "source/main"
 	if test.localStart {
 		runGitCommand(t, repository.barePath, "branch", "--track", "local-start", "source/main")
@@ -117,12 +118,12 @@ func runHKInstallCase(t *testing.T, parent *testing.T, timberBin *string, test s
 	}
 	var result commandResult
 	if test.interactive {
-		result = interactiveCreate(t, runtime, *timberBin, test.answer, "feature")
+		result = interactiveCreate(t, runtime, timberBin, test.answer, "feature")
 	} else {
 		result = runTimberCommandWithRuntime(t, runtime, "create", "--upstream", upstream, at(testRepoName, "feature"))
 	}
 	require.NoError(t, result.err)
-	assertHKInstallCase(t, runtime, repository, result, logPath, *timberBin, test)
+	assertHKInstallCase(t, runtime, repository, result, logPath, timberBin, test)
 }
 
 func TestCreateTrustsMiseBeforeInstallingHKHooks(t *testing.T) {

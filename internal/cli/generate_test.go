@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -168,6 +169,20 @@ func buildTestTimberBinary(t *testing.T) string {
 	buildOutput, err := build.CombinedOutput()
 	require.NoError(t, err, string(buildOutput))
 	return binDir
+}
+
+// timberBinary builds the CLI once for every case that drives the real binary
+// through a pty. Parallel cases share one build and one parent fixture.
+type timberBinary struct {
+	parent *testing.T
+	once   sync.Once
+	path   string
+}
+
+// get returns the built binary path, building it on first use.
+func (b *timberBinary) get() string {
+	b.once.Do(func() { b.path = buildTestTimberBinary(b.parent) })
+	return b.path
 }
 
 func TestGeneratedCreateCompletesUniqueRepoPrefix(t *testing.T) {

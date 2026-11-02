@@ -8,8 +8,7 @@ import (
 )
 
 func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
-	parent := t
-	var timberBin string
+	bin := &timberBinary{parent: t}
 	for _, test := range []miseTrustCase{
 		{name: "prompt yes", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, answer: "yes", wantPrompt: true, wantTrust: true},
 		{name: "prompt without organizations", remote: "git@github.com:alice/project.git", miseFile: true, interactive: true, answer: "yes", wantPrompt: true, wantTrust: true, noOrganizations: true},
@@ -39,7 +38,8 @@ func TestCreateAutomaticallyTrustsOnlyEligibleMiseConfigs(t *testing.T) {
 		{name: "mise failure", remote: "git@github.com:alice/project", enabled: true, miseFile: true, miseFails: true, wantTrust: true, wantWarn: "mise trust failed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			runMiseTrustCase(t, parent, &timberBin, test)
+			t.Parallel()
+			runMiseTrustCase(t, bin, test)
 		})
 	}
 }

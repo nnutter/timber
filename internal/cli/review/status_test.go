@@ -189,6 +189,21 @@ func TestMissingChangeIDWarning(t *testing.T) {
 	require.Contains(t, terminal, "commits=2")
 }
 
+func TestMissingChangeIDWarningSkipsApprovedStacks(t *testing.T) {
+	dir := featureRepo(t)
+	git(t, dir, "commit", "--allow-empty", "-m", "Missing ID")
+	_, terminal, err := execute(t, dir, "approve", "HEAD")
+	require.NoError(t, err)
+	require.Contains(t, terminal, "lack Change-Id")
+	_, terminal, err = execute(t, dir, "status")
+	require.NoError(t, err)
+	require.NotContains(t, terminal, "lack Change-Id")
+	git(t, dir, "commit", "--allow-empty", "-m", "Another missing ID")
+	_, terminal, err = execute(t, dir, "status")
+	require.NoError(t, err)
+	require.Contains(t, terminal, "commits=1")
+}
+
 func TestStatusDebugLogsStayOffJSON(t *testing.T) {
 	dir := featureRepo(t)
 	out, terminal, err := execute(t, dir, "status", "--json", "--debug")
