@@ -1,6 +1,6 @@
 # Pi review extension
 
-The Pi package exposes the review extension and the `timber-review` skill.
+The Pi package exposes the review extension and the `timber`, `timber-review`, and `timber-todo` skills.
 Install the package with `pi install /path/to/timber` and ensure `timber` is on
 `PATH`.
 The extension registers `/feedback` and publishes review status.
