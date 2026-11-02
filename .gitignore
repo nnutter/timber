@@ -1,4 +1,5 @@
-tmp/
 .tmp/
-coverage.out
+/timber
 coverage.html
+coverage.out
+tmp/
