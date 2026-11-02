@@ -10,6 +10,14 @@ func isSame[T comparable](a, b T) bool {
 	return a == b
 }
 
+// isApproved reports whether the attempt records an approval.
+func isApproved(attempt *Attempt) bool {
+	if attempt == nil {
+		return false
+	}
+	return attempt.Status == "approved"
+}
+
 // isLess reports whether a sorts before b.
 func isLess[T cmp.Ordered](a, b T) bool {
 	return a < b

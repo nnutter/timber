@@ -459,15 +459,26 @@ var diffOptions = []string{
 	"--no-indent-heuristic", "--submodule=short", "-O/dev/null",
 }
 
+// An approval is bound to the exact commits that carry it, so asking for a
+// Change-Id on an approved stack would rewrite the commit and discard the
+// approval. Only stacks that still need review benefit from the reminder.
 func warnMissingChangeIDs(r Repository, view Snapshot) {
 	if r.missingIDWarning == nil {
 		return
 	}
+	state, err := (Store{Path: view.Path}).Load()
+	if err != nil {
+		return
+	}
 	missing := 0
 	for _, stack := range view.Stacks {
-		if stack.ChangeID == "" {
-			missing++
+		if stack.ChangeID != "" {
+			continue
 		}
+		if isApproved(state.latest(stack)) {
+			continue
+		}
+		missing++
 	}
 	if missing == 0 {
 		return
