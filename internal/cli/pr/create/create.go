@@ -29,6 +29,7 @@ func New(deps Dependencies) *cobra.Command {
 	var draft Draft
 	command := &cobra.Command{
 		Use:               "create <name[@repo]>",
+		Aliases:           []string{"c"},
 		Short:             "Create a GitHub pull request for a managed worktree",
 		Args:              cobra.MaximumNArgs(1),
 		RunE:              run(deps, &draft),

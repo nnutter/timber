@@ -53,7 +53,7 @@ func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 // with Install.
 func New(svc review.Service, out io.Writer) *cobra.Command {
 	c := &Command{Service: svc, Output: out}
-	cmd := &cobra.Command{Use: "status", Short: "Show all feature stacks and their review states", Args: cobra.NoArgs, RunE: c.RunE}
+	cmd := &cobra.Command{Use: "status", Aliases: []string{"s"}, Short: "Show all feature stacks and their review states", Args: cobra.NoArgs, RunE: c.RunE}
 	cmd.Flags().BoolVarP(&c.Verbose, "verbose", "v", false, "Show saved review details before the table")
 	cmd.Flags().BoolVar(&c.NeedsReview, "needs-review", false, "Show unresolved stacks and active review attempts")
 	cmd.Flags().BoolVar(&c.IsReviewing, "is-reviewing", false, "Check whether a review is running for the current branch")
