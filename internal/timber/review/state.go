@@ -283,11 +283,12 @@ func (s Store) Update(action func(*State) error) (err error) {
 	if err != nil {
 		return err
 	}
-	return s.replace(append(data, '\n'))
+	return replaceFile(s.Path, append(data, '\n'))
 }
 
-func (s Store) replace(data []byte) (err error) {
-	file, err := os.CreateTemp(filepath.Dir(s.Path), ".review-*.tmp")
+// replaceFile replaces path with data after a durable write of a temporary file.
+func replaceFile(path string, data []byte) (err error) {
+	file, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*.tmp")
 	if err != nil {
 		return err
 	}
@@ -298,7 +299,7 @@ func (s Store) replace(data []byte) (err error) {
 	if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
 		return err
 	}
-	return os.Rename(file.Name(), s.Path)
+	return os.Rename(file.Name(), path)
 }
 
 func newAttempt(stack Stack, status string) Attempt {
@@ -337,6 +338,29 @@ func appendedAmends(old, current Stack) bool {
 		return false
 	}
 	return current.AmendCount > old.AmendCount
+}
+
+// unfinished reports whether an attempt recorded no outcome. Only these
+// attempts ask the user to recover or replace them.
+func unfinished(attempt Attempt) bool {
+	switch attempt.Status {
+	case "reviewing", "incomplete":
+		return true
+	default:
+		return false
+	}
+}
+
+// supersededAttempt reports whether a current stack extends the attempt's
+// captured commits, so the attempt describes an earlier version of that stack.
+// A feedback commit replaced its range, so another review cannot resume it.
+func supersededAttempt(attempt Attempt, view Snapshot) bool {
+	for _, stack := range view.Stacks {
+		if extendsStack(attempt.Stack, stack) {
+			return true
+		}
+	}
+	return false
 }
 
 func extendsStack(old, current Stack) bool {

@@ -120,6 +120,224 @@ func (r SavedReader) ReadFile(repo, diffSource, selector string) (*SavedReview, 
 	return nil, "", nil
 }
 
+// SavedWriter removes sessions from the tuicr stores it is given. It does not
+// create a store and never changes a session it does not remove.
+type SavedWriter struct{ Stores []string }
+
+// Delete removes the saved sessions that captured the stack's commits, in the
+// review checkout or in the stack's own repository. It returns how many
+// sessions it removed.
+func (w SavedWriter) Delete(scope Stack) (int, error) {
+	if err := validateCommits(scope.Commits); err != nil {
+		return 0, err
+	}
+	repos, err := sessionRepositories(scope.Repo)
+	if err != nil {
+		return 0, err
+	}
+	deleted := 0
+	for _, store := range w.Stores {
+		removed, err := deleteSessions(store, scope.Commits, repos)
+		if err != nil {
+			return deleted, err
+		}
+		deleted += removed
+	}
+	return deleted, nil
+}
+
+// sessionRepositories lists the repository paths a commit review of repo can
+// have saved its session under. A session records the disposable review
+// checkout, but an older session can name the checkout itself.
+func sessionRepositories(repo string) ([]string, error) {
+	checkout, err := WorktreePath(repo)
+	if err != nil {
+		return nil, err
+	}
+	return []string{repo, checkout}, nil
+}
+
+// deleteSessions removes the index entries and then the session files for
+// commits under any of repos. It rewrites the index before it unlinks a file,
+// so a failure leaves an unused file and never an entry without a file.
+func deleteSessions(store string, commits, repos []string) (int, error) {
+	index, entries, err := loadIndex(store)
+	if err != nil {
+		return 0, err
+	}
+	if index == nil {
+		return 0, nil
+	}
+	var matched []string
+	for slug, rows := range entries {
+		kept, sessions, err := partitionEntries(store, rows, commits, repos)
+		if err != nil {
+			return 0, err
+		}
+		matched = append(matched, sessions...)
+		if len(kept) == 0 {
+			delete(entries, slug)
+			continue
+		}
+		entries[slug] = kept
+	}
+	if len(matched) == 0 {
+		return 0, nil
+	}
+	if err := writeIndex(store, index, entries); err != nil {
+		return 0, err
+	}
+	if err := removeSessions(matched); err != nil {
+		return len(matched), err
+	}
+	return len(matched), nil
+}
+
+// partitionEntries splits the entries that captured commits from the entries
+// that must stay.
+func partitionEntries(store string, rows []object, commits, repos []string) ([]object, []string, error) {
+	kept := make([]object, 0, len(rows))
+	var matched []string
+	for _, entry := range rows {
+		session, isCaptured, err := capturedSession(store, entry, commits, repos)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !isCaptured {
+			kept = append(kept, entry)
+			continue
+		}
+		matched = append(matched, session)
+	}
+	return kept, matched, nil
+}
+
+func removeSessions(sessions []string) error {
+	for _, session := range sessions {
+		if err := removeIfPresent(session); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// capturedSession reports whether an index entry names a session that captured
+// exactly commits under one of repos, and returns the path of its file.
+func capturedSession(store string, entry object, commits, repos []string) (string, bool, error) {
+	canonical, relative, err := localEntry(entry)
+	if err != nil {
+		return "", false, err
+	}
+	if relative == "" {
+		return "", false, nil
+	}
+	if !slices.ContainsFunc(repos, func(repo string) bool { return sameRepositoryPath(canonical, repo) }) {
+		return "", false, nil
+	}
+	path, err := safeSessionPath(store, relative)
+	if errors.Is(err, os.ErrNotExist) {
+		// The entry outlived its file, so only the entry remains to remove.
+		return filepath.Join(store, filepath.FromSlash(relative)), true, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	captured, err := sessionCaptures(path, canonical, commits)
+	if err != nil {
+		return "", false, err
+	}
+	return path, captured, nil
+}
+
+// localEntry returns the canonical repository and the checked relative session
+// path of a local index entry. Other entry kinds return an empty path.
+func localEntry(entry object) (string, string, error) {
+	kind, err := decodeRequired[object](entry, "kind")
+	if err != nil {
+		return "", "", err
+	}
+	entryType, err := decodeRequired[string](kind, "type")
+	if err != nil {
+		return "", "", err
+	}
+	if entryType != "local" {
+		return "", "", nil
+	}
+	canonical, err := decodeRequired[string](entry, "canonical_repo_path")
+	if err != nil {
+		return "", "", err
+	}
+	relative, err := decodeRequired[string](entry, "path")
+	if err != nil {
+		return "", "", err
+	}
+	if !sessionPathPattern.MatchString(relative) {
+		return "", "", fmt.Errorf("unsafe session path %q", relative)
+	}
+	return canonical, relative, nil
+}
+
+// sessionCaptures reports whether the session file captured exactly commits.
+func sessionCaptures(path, canonical string, commits []string) (bool, error) {
+	session, err := readObject(path)
+	if err != nil {
+		return false, err
+	}
+	stored, err := decodeRequired[string](session, "repo_path")
+	if err != nil {
+		return false, err
+	}
+	if !sameRepositoryPath(stored, canonical) {
+		return false, fmt.Errorf("index/session repository mismatch")
+	}
+	source, err := decodeRequired[string](session, "diff_source")
+	if err != nil {
+		return false, err
+	}
+	if source != "commit_range" {
+		return false, nil
+	}
+	captured, err := decodeRequired[[]string](session, "commit_range")
+	if err != nil {
+		return false, err
+	}
+	if err := validateCommits(captured); err != nil {
+		return false, err
+	}
+	return slices.Equal(captured, commits), nil
+}
+
+// writeIndex replaces the entries of the index document and keeps its other
+// keys, so a newer tuicr version can add fields that this writer preserves.
+func writeIndex(store string, index object, entries map[string][]object) error {
+	encoded, err := json.Marshal(entries)
+	if err != nil {
+		return err
+	}
+	index["entries"] = jsontext.Value(encoded)
+	data, err := json.Marshal(index, jsontext.WithIndent("  "))
+	if err != nil {
+		return err
+	}
+	return replaceFile(filepath.Join(store, "index.json"), append(data, '\n'))
+}
+
+// sameRepositoryPath reports whether two repository paths name one directory.
+func sameRepositoryPath(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	resolvedA, err := filepath.EvalSymlinks(a)
+	if err != nil {
+		return false
+	}
+	resolvedB, err := filepath.EvalSymlinks(b)
+	if err != nil {
+		return false
+	}
+	return resolvedA == resolvedB
+}
+
 // DefaultSavedReader uses tuicr's platform store, then the other platform path.
 func DefaultSavedReader() (SavedReader, error) {
 	home, err := os.UserHomeDir()
@@ -375,22 +593,34 @@ func readObject(path string) (object, error) {
 	return obj, nil
 }
 
-func readIndex(store string) (map[string][]object, error) {
+// loadIndex returns the index document and its entries, or a nil document when
+// the store has no index. It returns the document for writers that must keep
+// the keys they do not understand.
+func loadIndex(store string) (object, map[string][]object, error) {
 	index, err := readObject(filepath.Join(store, "index.json"))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	version, err := decodeRequired[string](index, "version")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if version != "2.0" {
-		return nil, fmt.Errorf("unsupported review index version %q", version)
+		return nil, nil, fmt.Errorf("unsupported review index version %q", version)
 	}
-	return decodeRequired[map[string][]object](index, "entries")
+	entries, err := decodeRequired[map[string][]object](index, "entries")
+	if err != nil {
+		return nil, nil, err
+	}
+	return index, entries, nil
+}
+
+func readIndex(store string) (map[string][]object, error) {
+	_, entries, err := loadIndex(store)
+	return entries, err
 }
 
 func readStore(store string, scope Stack, selector string) (*SavedReview, error) {

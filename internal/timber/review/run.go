@@ -62,6 +62,7 @@ func (r Reviewer) Review(ctx context.Context, options ReviewOptions) (result Res
 	}
 	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository, lock)
 	defer stopMaintenance()
+	r.discardSuperseded(ctx)
 	result, err = r.reviewSequence(ctx, options, path, lock)
 	if err != nil {
 		return result, err
@@ -172,6 +173,49 @@ func (r Reviewer) bounds(ctx context.Context, view Snapshot, first, last string)
 	return view.Stacks[start : end+1], nil
 }
 
+// discardSuperseded removes the reviews of earlier stack versions. Their saved
+// sessions can no longer be resumed, and their unfinished attempts still look
+// recoverable, so nothing else would ever remove them.
+// Cleanup only warns: reviewing a current stack must still work.
+func (r Reviewer) discardSuperseded(ctx context.Context) {
+	view, err := r.Service.Repository.Snapshot(ctx)
+	if err != nil {
+		r.warnSupersededCleanup(err)
+		return
+	}
+	state, err := (Store{Path: view.Path}).Load()
+	if err != nil {
+		r.warnSupersededCleanup(err)
+		return
+	}
+	var sessions []Stack
+	for _, attempt := range state.Attempts {
+		if supersededAttempt(attempt, view) {
+			sessions = append(sessions, attempt.Stack)
+		}
+	}
+	if len(sessions) == 0 {
+		return
+	}
+	err = (Store{Path: view.Path}).Update(func(state *State) error {
+		state.Attempts = slices.DeleteFunc(state.Attempts, func(attempt Attempt) bool {
+			return unfinished(attempt) && supersededAttempt(attempt, view)
+		})
+		return nil
+	})
+	if err != nil {
+		r.warnSupersededCleanup(err)
+		return
+	}
+	writer := SavedWriter{Stores: r.Reader.Stores}
+	for _, stack := range sessions {
+		if _, err := writer.Delete(stack); err != nil {
+			r.warnSupersededCleanup(err)
+			return
+		}
+	}
+}
+
 func (r Reviewer) execute(ctx context.Context, plan reviewPlan, options ReviewOptions, path string, lock *os.File) (result Result, err error) {
 	if plan.stack == nil {
 		return result, fmt.Errorf("no stack selected")
@@ -227,7 +271,7 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 	if len(active) > 1 {
 		return plan, fmt.Errorf("multiple active attempts in state; resolve them before review")
 	}
-	if len(active) == 1 {
+	if len(active) == 1 && !supersededAttempt(active[0], view) {
 		prior := active[0]
 		plan.prior = &prior
 		plan.stack = &prior.Stack
@@ -248,7 +292,7 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 		plan.stack = &selected
 	}
 	if plan.stack != nil {
-		plan.prior = recoverablePrior(state, *plan.stack)
+		plan.prior = recoverablePrior(state, view, *plan.stack)
 	}
 	return plan, nil
 }
@@ -418,6 +462,10 @@ type reviewPlan struct {
 	exhausted bool
 }
 
+func (r Reviewer) warnSupersededCleanup(cause error) {
+	r.Service.Repository.logger().Warn("Superseded review cleanup failed", "error", cause)
+}
+
 func (plan reviewPlan) rangeComplete() bool {
 	if !plan.automatic {
 		return false
@@ -508,22 +556,37 @@ func nextStack(view Snapshot, state State) *Stack {
 	return nil
 }
 
-func recoverablePrior(state State, stack Stack) *Attempt {
-	prior := state.latest(stack)
-	if prior != nil {
-		// A model result has no saved session to recover or replace.
-		if prior.Status == "approved" || isSame(prior.ApprovalSource, "model") {
+// recoverablePrior returns the attempt that a review of stack can reopen.
+func recoverablePrior(state State, view Snapshot, stack Stack) *Attempt {
+	if prior := state.latest(stack); prior != nil {
+		if !recoverableAttempt(*prior, view) {
 			return nil
 		}
 		return prior
 	}
-	prior = state.previous(stack)
-	if prior != nil {
-		if prior.Status == "incomplete" {
-			return prior
+	if prior := state.previous(stack); prior != nil {
+		if !isSame(prior.Status, "incomplete") {
+			return nil
 		}
+		if !recoverableAttempt(*prior, view) {
+			return nil
+		}
+		return prior
 	}
 	return nil
+}
+
+// recoverableAttempt reports whether a review can reopen the attempt. A model
+// result has no saved session to reopen, and a stack version that a feedback
+// commit extended is no longer a range that the review can select.
+func recoverableAttempt(attempt Attempt, view Snapshot) bool {
+	if attempt.Status == "approved" {
+		return false
+	}
+	if isSame(attempt.ApprovalSource, "model") {
+		return false
+	}
+	return !supersededAttempt(attempt, view)
 }
 
 func recordFailure(path, id string, cause error) error {

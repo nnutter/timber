@@ -158,3 +158,86 @@ func TestSavedReviewScopeAndDiscovery(t *testing.T) {
 	require.NotNil(t, saved)
 	require.Equal(t, "second-session", saved.ID)
 }
+
+func savedSession(t *testing.T, store string, stack Stack, name string) string {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Join(store, "sessions"), 0o700))
+	relative := "sessions/" + name + ".json"
+	writeJSON(t, filepath.Join(store, relative), map[string]any{
+		"version": "1.3", "id": name, "repo_path": stack.Repo,
+		"base_commit": stack.Commits[0], "diff_source": "commit_range", "commit_range": stack.Commits,
+		"files": map[string]any{
+			"main.go":       map[string]any{"path": "main.go", "reviewed": true, "file_comments": []any{}, "line_comments": map[string]any{}},
+			"CommitMessage": map[string]any{"path": "CommitMessage", "reviewed": true, "file_comments": []any{}, "line_comments": map[string]any{}},
+		},
+	})
+	return relative
+}
+
+type savedEntry struct{ slug, canonical, relative string }
+
+func writeSavedIndex(t *testing.T, store string, entries ...savedEntry) {
+	t.Helper()
+	index := map[string]any{}
+	for _, entry := range entries {
+		index[entry.slug] = []any{map[string]any{
+			"kind":                map[string]any{"type": "local"},
+			"canonical_repo_path": entry.canonical,
+			"path":                entry.relative,
+			"display":             map[string]any{"reviewed_count": 1, "comment_count": 0},
+		}}
+	}
+	writeJSON(t, filepath.Join(store, "index.json"), map[string]any{"version": "2.0", "entries": index})
+}
+
+func TestSavedWriterDeletesCapturedSession(t *testing.T) {
+	r := testRepo(t)
+	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
+	first, err := r.Snapshot(t.Context())
+	require.NoError(t, err)
+	checkout, err := WorktreePath(first.Stacks[0].Repo)
+	require.NoError(t, err)
+	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "fixup! Feature")
+	current, err := r.Snapshot(t.Context())
+	require.NoError(t, err)
+	store := t.TempDir()
+	writer := SavedWriter{Stores: []string{store}}
+	superseded := Stack{Repo: checkout, Commits: first.Stacks[0].Commits}
+	captured := Stack{Repo: checkout, Commits: current.Stacks[0].Commits}
+	elsewhere := Stack{Repo: t.TempDir(), Commits: current.Stacks[0].Commits}
+	// A review names the feature checkout, not the checkout it saved under.
+	target := Stack{Repo: r.Dir, Commits: first.Stacks[0].Commits}
+	old := savedSession(t, store, superseded, "aaaaaaaaaaaaaaaa")
+	kept := savedSession(t, store, captured, "bbbbbbbbbbbbbbbb")
+	other := savedSession(t, store, elsewhere, "cccccccccccccccc")
+	writeSavedIndex(t, store,
+		savedEntry{"nnutter/timber@~aaaa/commits/first", checkout, old},
+		savedEntry{"nnutter/timber@~bbbb/commits/current", checkout, kept},
+		savedEntry{"nnutter/other@~cccc/commits/other", elsewhere.Repo, other},
+	)
+	// Only the session that captured the earlier commits is removed.
+	deleted, err := writer.Delete(target)
+	require.NoError(t, err)
+	require.Equal(t, 1, deleted)
+	require.NoFileExists(t, filepath.Join(store, old))
+	require.FileExists(t, filepath.Join(store, kept))
+	require.FileExists(t, filepath.Join(store, other))
+	_, entries, err := loadIndex(store)
+	require.NoError(t, err)
+	require.NotContains(t, entries, "nnutter/timber@~aaaa/commits/first")
+	require.Contains(t, entries, "nnutter/timber@~bbbb/commits/current")
+	require.Contains(t, entries, "nnutter/other@~cccc/commits/other")
+	deleted, err = writer.Delete(target)
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+}
+
+func TestSavedWriterToleratesMissingStore(t *testing.T) {
+	r := testRepo(t)
+	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
+	view, err := r.Snapshot(t.Context())
+	require.NoError(t, err)
+	deleted, err := (SavedWriter{Stores: []string{t.TempDir()}}).Delete(view.Stacks[0])
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+}
