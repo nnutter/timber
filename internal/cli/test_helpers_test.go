@@ -2,10 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -108,6 +111,66 @@ type testRepository struct {
 	worktreeRoot string
 }
 
+func (x testRepository) assertBranchMissing(t *testing.T, branch string) {
+	t.Helper()
+	command := gitCommand(t, x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	err := command.Run()
+	var exitError *exec.ExitError
+	require.ErrorAs(t, err, &exitError)
+	require.Equal(t, 1, exitError.ExitCode())
+}
+
+func (x testRepository) assertPathMissing(t *testing.T, path string) {
+	t.Helper()
+	_, err := os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func (x testRepository) assertPathPresent(t *testing.T, path string) {
+	t.Helper()
+	_, err := os.Stat(path)
+	require.NoError(t, err)
+}
+
+func (x testRepository) commitFileInWorktree(t *testing.T, branch, name, contents string) {
+	t.Helper()
+	x.writeFileInWorktree(t, branch, name, contents)
+	path := x.worktreePath(branch)
+	runGitCommand(t, path, "add", name)
+	runGitCommand(t, path, "commit", "-m", "change")
+}
+
+func (x testRepository) mergeWorktreeBranch(t *testing.T, branch string) {
+	t.Helper()
+	mergePath := filepath.Join(resolvedTempDir(t), "merge-main")
+	runGitCommand(t, x.barePath, "worktree", "add", mergePath, "main")
+	runGitCommand(t, mergePath, "merge", "--ff-only", branch)
+	runGitCommand(t, mergePath, "push", "origin", "main")
+	runGitCommand(t, x.barePath, "fetch", "origin")
+	runGitCommand(t, x.barePath, "worktree", "remove", mergePath)
+}
+
+func (x testRepository) runTimber(t *testing.T, args ...string) commandResult {
+	t.Helper()
+	return runTimberCommandWithRuntime(t, x.runtime, args...)
+}
+
+func (x testRepository) runTimberFrom(t *testing.T, directory string, args ...string) commandResult {
+	t.Helper()
+	return runTimberFromWithRuntime(t, x.runtime, directory, args...)
+}
+
+func (x testRepository) worktreePath(branch string) string {
+	return filepath.Join(x.worktreeRoot, testRepoName, branch, testRepoName)
+}
+
+func (x testRepository) writeFileInWorktree(t *testing.T, branch, name, contents string) {
+	t.Helper()
+	path := filepath.Join(x.worktreePath(branch), name)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
+}
+
 func newTestRepository(t *testing.T) testRepository {
 	t.Helper()
 	runtime := testRuntime(t)
@@ -138,66 +201,6 @@ func registerAdditionalRepo(t *testing.T, repository testRepository, name string
 	t.Helper()
 	result := repository.runTimber(t, "repo", "add", "--name", name, repository.remotePath)
 	require.NoError(t, result.err, result.stderr)
-}
-
-func (x testRepository) runTimber(t *testing.T, args ...string) commandResult {
-	t.Helper()
-	return runTimberCommandWithRuntime(t, x.runtime, args...)
-}
-
-func (x testRepository) runTimberFrom(t *testing.T, directory string, args ...string) commandResult {
-	t.Helper()
-	return runTimberFromWithRuntime(t, x.runtime, directory, args...)
-}
-
-func (x testRepository) commitFileInWorktree(t *testing.T, branch, name, contents string) {
-	t.Helper()
-	x.writeFileInWorktree(t, branch, name, contents)
-	path := x.worktreePath(branch)
-	runGitCommand(t, path, "add", name)
-	runGitCommand(t, path, "commit", "-m", "change")
-}
-
-func (x testRepository) writeFileInWorktree(t *testing.T, branch, name, contents string) {
-	t.Helper()
-	path := filepath.Join(x.worktreePath(branch), name)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
-}
-
-func (x testRepository) worktreePath(branch string) string {
-	return filepath.Join(x.worktreeRoot, testRepoName, branch, testRepoName)
-}
-
-func (x testRepository) mergeWorktreeBranch(t *testing.T, branch string) {
-	t.Helper()
-	mergePath := filepath.Join(resolvedTempDir(t), "merge-main")
-	runGitCommand(t, x.barePath, "worktree", "add", mergePath, "main")
-	runGitCommand(t, mergePath, "merge", "--ff-only", branch)
-	runGitCommand(t, mergePath, "push", "origin", "main")
-	runGitCommand(t, x.barePath, "fetch", "origin")
-	runGitCommand(t, x.barePath, "worktree", "remove", mergePath)
-}
-
-func (x testRepository) assertBranchMissing(t *testing.T, branch string) {
-	t.Helper()
-	command := gitCommand(t, x.barePath, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
-	err := command.Run()
-	var exitError *exec.ExitError
-	require.ErrorAs(t, err, &exitError)
-	require.Equal(t, 1, exitError.ExitCode())
-}
-
-func (x testRepository) assertPathPresent(t *testing.T, path string) {
-	t.Helper()
-	_, err := os.Stat(path)
-	require.NoError(t, err)
-}
-
-func (x testRepository) assertPathMissing(t *testing.T, path string) {
-	t.Helper()
-	_, err := os.Stat(path)
-	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func at(repo, name string) string {
@@ -244,6 +247,27 @@ func gitTestEnv() []string {
 		"GIT_CONFIG_KEY_1=init.templateDir",
 		"GIT_CONFIG_VALUE_1=",
 	}
+}
+
+// requireGitIdentity stops Git from guessing a commit identity from the host.
+// Git falls back to the password database and the network hostname when no
+// identity is configured, and that guess succeeds on some hosts and fails on
+// others. A test that expects an identity error must disable the guess.
+func requireGitIdentity(environment []string) []string {
+	count := 0
+	updated := make([]string, 0, len(environment)+3)
+	for _, entry := range environment {
+		if value, ok := strings.CutPrefix(entry, "GIT_CONFIG_COUNT="); ok {
+			count, _ = strconv.Atoi(value)
+			continue
+		}
+		updated = append(updated, entry)
+	}
+	return append(updated,
+		"GIT_CONFIG_COUNT="+strconv.Itoa(count+1),
+		fmt.Sprintf("GIT_CONFIG_KEY_%d=user.useConfigOnly", count),
+		fmt.Sprintf("GIT_CONFIG_VALUE_%d=true", count),
+	)
 }
 
 func resolvedTempDir(t *testing.T) string {

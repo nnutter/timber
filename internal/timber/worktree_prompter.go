@@ -23,18 +23,6 @@ type WorktreePrompter interface {
 	Prompt(io.Reader, io.Writer, []WorktreeRef) ([]WorktreeRef, error)
 }
 
-func (x managedWorktree) ref() WorktreeRef {
-	return WorktreeRef{
-		Repo:        x.Repo,
-		Name:        x.Name,
-		Path:        x.Path,
-		DisplayPath: x.DisplayPath,
-		Status:      x.Status,
-		Clean:       x.Clean,
-		Merged:      x.Merged,
-	}
-}
-
 func worktreeRefKey(ref WorktreeRef) string {
 	return ref.Repo + "\x00" + ref.Name
 }

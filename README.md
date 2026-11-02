@@ -253,19 +253,19 @@ This repository uses [mise](https://mise.jdx.dev) for tools and tasks.
 
 ```bash
 mise install
-mise run install-hooks
+mise run setup
 mise run all
 ```
 
-`mise run all` runs formatting, fixes, tests, and static analysis.
+`mise run all` runs fixes, tests, and checks.
 `mise run format` (or `mise run fmt`) formats Go files.
-`mise run fix` applies `go fix`, tidies the modules, and runs `go vet -fix`.
-`mise run tests` (or `mise run test`) runs the Go and plugin shell tests with the race detector and shuffled test order.
-Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-tests` requires these dependencies rather than silently skipping those tests.
-`mise run static-analysis` runs the configured static-analysis tools, including gitleaks.
+`mise run fix` applies every configured fixer, including `go fix` and `go mod tidy`.
+`mise run test` runs the Go and plugin shell tests with coverage.
+Zsh completion tests also need `zsh`, `python3`, and PTY support; `mise run ci-test` requires these dependencies rather than silently skipping those tests.
+`mise run check` runs the configured checks, including gitleaks, and validates skills.
 `mise run coverage` (or `mise run cover`) runs the tests and prints coverage.
 `mise run demo` re-renders the [demo](#demo) GIF, MP4, and still from `docs/demo/demo.tape` (needs a working Chrome for VHS).
-`mise run install-hooks` replaces existing Lefthook hooks with the hooks in `hk.pkl`.
+`mise run setup` installs the hk Git hooks from `hk.pkl` without removing other hook managers.
 The commit-message hook requires `timber` on `PATH`.
 
 ## Shell integration

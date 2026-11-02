@@ -236,6 +236,11 @@ func renderAttempt(out *strings.Builder, attempt review.Attempt, prefix string) 
 		return fmt.Errorf("invalid stored review %s: %w", attempt.ID, err)
 	}
 	fmt.Fprintf(out, "%sReview %s: %d/%d files reviewed\n", prefix, safeText(attempt.ID), saved.Reviewed, saved.Files)
+	renderSavedComments(out, saved)
+	return nil
+}
+
+func renderSavedComments(out *strings.Builder, saved review.SavedReview) {
 	for _, comment := range saved.Comments {
 		content, _ := comment["content"].(string)
 		path, _ := comment["path"].(string)
@@ -250,12 +255,13 @@ func renderAttempt(out *strings.Builder, attempt review.Attempt, prefix string) 
 		}
 		fmt.Fprintf(out, "  %s: %s\n", safeText(label), safeText(content))
 	}
-	if saved.SessionNotes != nil {
-		if *saved.SessionNotes != "" {
-			fmt.Fprintln(out, "  Session notes: "+safeText(*saved.SessionNotes))
-		}
+	if saved.SessionNotes != nil && isNonEmptyNote(saved.SessionNotes) {
+		fmt.Fprintln(out, "  Session notes: "+safeText(*saved.SessionNotes))
 	}
-	return nil
+}
+
+func isNonEmptyNote(note *string) bool {
+	return *note != ""
 }
 
 func resultMessage(result review.Result) string {
@@ -307,7 +313,7 @@ func ShortStack(stack review.Stack) string {
 
 // EntryStatusLabel names a model result separately from a user result.
 func EntryStatusLabel(entry review.Entry) string {
-	if entry.Status == "approved" && entry.Attempt != nil && entry.Attempt.ApprovalSource == "model" {
+	if entry.Status == "approved" && !isSame(entry.Attempt, nil) && isSame(entry.Attempt.ApprovalSource, "model") {
 		return "Auto-Approved"
 	}
 	return StatusLabel(entry.Status)

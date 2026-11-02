@@ -14,6 +14,29 @@ import (
 
 type bubbleteaRepoPrompter struct{}
 
+func (x bubbleteaRepoPrompter) Prompt(input io.Reader, repos []timber.RepoRef) (timber.RepoRef, error) {
+	model := newRepoPickerModel(repos)
+	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
+	if input != nil {
+		programOptions = append(programOptions, tea.WithInput(input))
+	}
+
+	program := tea.NewProgram(model, programOptions...)
+	finalModel, err := program.Run()
+	if err != nil {
+		return timber.RepoRef{}, fmt.Errorf("repository picker: %w", err)
+	}
+
+	result, ok := finalModel.(repoPickerModel)
+	if !ok {
+		return timber.RepoRef{}, errors.New("repository picker returned unexpected model")
+	}
+	if result.cancelled || isEmpty(result.choice.Name) {
+		return timber.RepoRef{}, errors.New("repository selection cancelled")
+	}
+	return result.choice, nil
+}
+
 func newRepoPickerModel(repos []timber.RepoRef) repoPickerModel {
 	items := make([]list.Item, 0, len(repos))
 	for _, repo := range repos {
@@ -32,36 +55,15 @@ func newRepoPickerModel(repos []timber.RepoRef) repoPickerModel {
 	return repoPickerModel{list: repoList}
 }
 
-func (x bubbleteaRepoPrompter) Prompt(input io.Reader, repos []timber.RepoRef) (timber.RepoRef, error) {
-	model := newRepoPickerModel(repos)
-	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
-	if input != nil {
-		programOptions = append(programOptions, tea.WithInput(input))
-	}
-
-	program := tea.NewProgram(model, programOptions...)
-	finalModel, err := program.Run()
-	if err != nil {
-		return timber.RepoRef{}, fmt.Errorf("repository picker: %w", err)
-	}
-
-	result, ok := finalModel.(repoPickerModel)
-	if !ok {
-		return timber.RepoRef{}, errors.New("repository picker returned unexpected model")
-	}
-	if result.cancelled || result.choice.Name == "" {
-		return timber.RepoRef{}, errors.New("repository selection cancelled")
-	}
-	return result.choice, nil
-}
-
 type repoListItem struct {
 	repo timber.RepoRef
 }
 
-func (x repoListItem) FilterValue() string { return x.repo.Name }
-func (x repoListItem) Title() string       { return x.repo.Name }
 func (x repoListItem) Description() string { return x.repo.BarePath }
+
+func (x repoListItem) FilterValue() string { return x.repo.Name }
+
+func (x repoListItem) Title() string { return x.repo.Name }
 
 type repoPickerModel struct {
 	list      list.Model

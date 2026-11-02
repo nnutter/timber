@@ -20,23 +20,10 @@ type listStatusFormatter struct {
 	behindCountWidth int
 }
 
-func newListStatusFormatter(worktrees []timber.ListWorktreeView) listStatusFormatter {
-	var formatter listStatusFormatter
-	for _, worktree := range worktrees {
-		if worktree.Ahead > 0 {
-			formatter.aheadCountWidth = max(formatter.aheadCountWidth, len(strconv.Itoa(worktree.Ahead)))
-		}
-		if worktree.Behind > 0 {
-			formatter.behindCountWidth = max(formatter.behindCountWidth, len(strconv.Itoa(worktree.Behind)))
-		}
-	}
-	return formatter
-}
-
 func (x listStatusFormatter) format(worktree timber.ListWorktreeView) string {
 	// Merged work needs no divergence detail; name the state instead.
 	if worktree.Merged {
-		if worktree.Upstream != "" && worktree.Upstream != worktree.DefaultUpstream {
+		if worktree.Upstream != "" && !isSame(worktree.Upstream, worktree.DefaultUpstream) {
 			return "merged [" + worktree.Upstream + "]"
 		}
 		return "merged"
@@ -58,10 +45,23 @@ func (x listStatusFormatter) format(worktree timber.ListWorktreeView) string {
 	}
 	// The default upstream (repo HEAD) is noise; only call out an
 	// upstream when the worktree tracks something else.
-	if worktree.Upstream != "" && worktree.Upstream != worktree.DefaultUpstream {
+	if worktree.Upstream != "" && !isSame(worktree.Upstream, worktree.DefaultUpstream) {
 		parts = append(parts, "["+worktree.Upstream+"]")
 	}
 	return strings.TrimRight(strings.Join(parts, " "), " ")
+}
+
+func newListStatusFormatter(worktrees []timber.ListWorktreeView) listStatusFormatter {
+	var formatter listStatusFormatter
+	for _, worktree := range worktrees {
+		if worktree.Ahead > 0 {
+			formatter.aheadCountWidth = max(formatter.aheadCountWidth, len(strconv.Itoa(worktree.Ahead)))
+		}
+		if worktree.Behind > 0 {
+			formatter.behindCountWidth = max(formatter.behindCountWidth, len(strconv.Itoa(worktree.Behind)))
+		}
+	}
+	return formatter
 }
 
 func formatListStatusIndicator(arrow string, count int, countWidth int) string {

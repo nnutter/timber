@@ -35,6 +35,13 @@ func validateRepoName(name string) error {
 	if name == "" {
 		return fmt.Errorf("repository name is required")
 	}
+	if err := validateRepoNameCharacters(name); err != nil {
+		return err
+	}
+	return validateRepoNameSegments(name)
+}
+
+func validateRepoNameCharacters(name string) error {
 	if strings.HasSuffix(name, bareRepoSuffix) {
 		return fmt.Errorf("repository name %q must not end with %s", name, bareRepoSuffix)
 	}
@@ -50,11 +57,15 @@ func validateRepoName(name string) error {
 	if strings.HasPrefix(name, "/") || strings.HasSuffix(name, "/") || strings.Contains(name, "//") {
 		return fmt.Errorf("repository name %q must not have empty path segments", name)
 	}
+	return nil
+}
+
+func validateRepoNameSegments(name string) error {
 	for segment := range strings.SplitSeq(name, "/") {
 		if segment == "" {
 			return fmt.Errorf("repository name %q must not have empty path segments", name)
 		}
-		if segment == "." || segment == ".." {
+		if isSame(segment, ".") || isSame(segment, "..") {
 			return fmt.Errorf("repository name %q is invalid", name)
 		}
 	}

@@ -7,10 +7,6 @@ import (
 	"os"
 	"strings"
 
-	json "encoding/json/v2"
-
-	"github.com/spf13/cobra"
-
 	"github.com/nnutter/timber/internal/timber/todo"
 )
 
@@ -67,7 +63,7 @@ func todoEntriesToJSON(entries []todo.Entry) todoJSONOutput {
 	output := todoJSONOutput{Todos: []todoJSONItem{}}
 	var stack []todo.Entry
 	for _, entry := range entries {
-		for len(stack) > 0 && stack[len(stack)-1].Indent >= entry.Indent {
+		for len(stack) > 0 && !isLess(stack[len(stack)-1].Indent, entry.Indent) {
 			stack = stack[:len(stack)-1]
 		}
 		item := todoJSONItem{
@@ -88,17 +84,4 @@ func todoEntriesToJSON(entries []todo.Entry) todoJSONOutput {
 		}
 	}
 	return output
-}
-
-func (x *todoCommandOptions) reportTodoJSON(command *cobra.Command, path string) error {
-	output, err := readTodoJSON(path)
-	if err != nil {
-		return err
-	}
-	encoded, err := json.Marshal(output)
-	if err != nil {
-		return fmt.Errorf("encode TODO.md as JSON: %w", err)
-	}
-	_, err = fmt.Fprintln(command.OutOrStdout(), string(encoded))
-	return err
 }

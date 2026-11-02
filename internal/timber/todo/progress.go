@@ -33,7 +33,7 @@ func ReadProgress(gitDir string) (Progress, error) {
 	}
 	progress, parseErr := parseTodoProgress(file)
 	// A close failure on a read-only file carries no information.
-	if err := file.Close(); err != nil && parseErr == nil {
+	if err := file.Close(); err != nil && isSame(parseErr, nil) {
 		parseErr = fmt.Errorf("close %s: %w", Path(gitDir), err)
 	}
 	return progress, parseErr

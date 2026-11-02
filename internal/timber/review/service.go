@@ -3,7 +3,11 @@ package review
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/nnutter/timber/internal/timber/review/autoreview"
 )
 
 // Entry presents the status of one current stack and optional prior lineage.
@@ -116,6 +120,23 @@ func (s Service) ApproveAll(ctx context.Context) (Result, error) {
 	return s.recordApproval(ctx, view, view.Stacks)
 }
 
+// Auto evaluates captured stacks. It never lets the evaluator mutate review state.
+func (s Service) Auto(ctx context.Context, evaluator autoreview.Evaluator, options AutoOptions) (result AutoResult, err error) {
+	if err = validateAutoEvaluator(evaluator, &options); err != nil {
+		return result, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, options.Timeout)
+	defer cancel()
+	lock, err := autoLock(s, options)
+	if err != nil {
+		return result, err
+	}
+	if lock != nil {
+		defer func() { err = errors.Join(err, lock.Close()) }()
+	}
+	return runAuto(ctx, s, evaluator, options, lock)
+}
+
 // Feedback reads saved commit and file feedback without changing either store.
 func (s Service) Feedback(ctx context.Context) (Result, error) {
 	view, repo, err := s.Repository.checkoutView(ctx)
@@ -179,6 +200,31 @@ func (s Service) Status(ctx context.Context, needsReview bool) (Result, error) {
 	return result, nil
 }
 
+func (s Service) evaluateAuto(ctx context.Context, evaluator autoreview.Evaluator, stack Stack, state State, report func()) (AutoEntry, error) {
+	entry := AutoEntry{Stack: stack}
+	if previous := state.latest(stack); previous != nil {
+		entry.Reason = alreadyReviewed(previous)
+		return entry, nil
+	}
+	messages, err := autoCommitMessages(ctx, s.Repository, stack)
+	if err != nil {
+		return entry, err
+	}
+	subject, _, _ := strings.Cut(messages[0], "\n")
+	if !strings.HasPrefix(subject, "Refactor:") {
+		entry.Reason = "Original subject does not start with the literal Refactor: prefix"
+		return entry, nil
+	}
+	if skipped, err := sensitiveAutoNames(ctx, s.Repository, stack); err != nil || isTrue(skipped) {
+		if skipped {
+			entry.Reason = "Changed paths require human review"
+			return entry, nil
+		}
+		return entry, err
+	}
+	return finishAutoEvaluation(ctx, s, evaluator, stack, entry, subject, messages, report)
+}
+
 // File annotation does not require an upstream or linear commit history.
 // Preserve stack validation when there are commit-review attempts to classify.
 func (s Service) feedbackView(ctx context.Context, view Snapshot, state State) (Snapshot, error) {
@@ -229,6 +275,48 @@ func (s Service) recordApproval(ctx context.Context, view Snapshot, selected []S
 		result.Entries = append(result.Entries, entryFor(state, stack))
 	}
 	return result, nil
+}
+
+// recordAutomatic appends the model result for one evaluated stack. An approve
+// verdict records an approval; any other verdict records an auto_reviewed result
+// that later runs report instead of asking again.
+func (s Service) recordAutomatic(ctx context.Context, view Snapshot, entry *AutoEntry) error {
+	verdict := entry.Evaluation
+	status := "auto_reviewed"
+	if verdict.Decision == "approve" {
+		status = "approved"
+	}
+	attempt := newAttempt(entry.Stack, status)
+	attempt.ApprovalSource = "model"
+	attempt.Automatic = &AutomaticReview{
+		PolicyVersion: autoreview.PolicyVersion,
+		Decision:      verdict.Decision,
+		Model:         verdict.Model,
+		ResponseID:    verdict.ResponseID,
+		Reason:        verdict.Reason,
+		Evidence:      verdict.Evidence,
+	}
+	err := (Store{Path: view.Path}).Update(func(state *State) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if status == "approved" {
+			// Only an approval needs the state and feedback checks.
+			if err := approvalAllowed([]Stack{entry.Stack}, *state); err != nil {
+				return err
+			}
+		}
+		if err := s.unchanged(ctx, view); err != nil {
+			return err
+		}
+		state.Attempts = append(state.Attempts, attempt)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	entry.Approved = status == "approved"
+	return nil
 }
 
 func (s Service) selectRange(ctx context.Context, view Snapshot, first, last string) ([]Stack, error) {

@@ -1,6 +1,4 @@
 tmp/
 .tmp/
-lefthook-local.yml
-.lefthook-local.yml
-
-
+coverage.out
+coverage.html

@@ -10,6 +10,7 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,47 +29,34 @@ func TestOpenAIToolContinuation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++
 		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Error(err)
+		if !assert.NoError(t, err) {
 			return
 		}
 		var request map[string]any
-		if err := json.Unmarshal(body, &request); err != nil {
-			t.Error(err)
+		if !assert.NoError(t, json.Unmarshal(body, &request)) {
 			return
 		}
-		if request["store"] != false {
-			t.Errorf("store = %#v, want false", request["store"])
-		}
+		assert.Equal(t, false, request["store"])
 		w.Header().Set("Content-Type", "application/json")
 		if requests == 1 {
 			tools, _ := request["tools"].([]any)
-			if len(tools) != 2 {
-				t.Errorf("tools = %d, want 2", len(tools))
-			}
+			assert.Len(t, tools, 2)
 			_, err = io.WriteString(w, `{"id":"one","model":"m","status":"completed","output":[{"type":"reasoning","id":"rs1","summary":[],"encrypted_content":"opaque"},{"type":"function_call","id":"fc1","call_id":"call1","name":"read_file","arguments":"{\"revision\":\"base\",\"path\":\"a.go\"}","status":"completed"}]}`)
-			if err != nil {
-				t.Error(err)
-			}
+			assert.NoError(t, err)
 			return
 		}
 		items, _ := request["input"].([]any)
-		if len(items) != 4 {
-			t.Errorf("input items = %d, want 4", len(items))
+		if !assert.Len(t, items, 4) {
 			return
 		}
 		reasoning, _ := items[1].(map[string]any)
-		if reasoning["type"] != "reasoning" {
-			t.Errorf("reasoning item = %#v", reasoning)
-		}
+		assert.Equal(t, "reasoning", reasoning["type"], "reasoning item = %#v", reasoning)
 		result, _ := items[3].(map[string]any)
-		if result["type"] != "function_call_output" || result["call_id"] != "call1" || result["output"] != "base:a.go" {
-			t.Errorf("tool result = %#v", result)
-		}
+		assert.Equal(t, "function_call_output", result["type"], "tool result = %#v", result)
+		assert.Equal(t, "call1", result["call_id"], "tool result = %#v", result)
+		assert.Equal(t, "base:a.go", result["output"], "tool result = %#v", result)
 		_, err = io.WriteString(w, `{"id":"two","model":"m","status":"completed","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"{\"decision\":\"approve\",\"reason\":\"same\",\"evidence\":[\"file\"]}"}]}]}`)
-		if err != nil {
-			t.Error(err)
-		}
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 	o := OpenAI{Client: openai.NewClient(option.WithAPIKey("test"), option.WithBaseURL(server.URL+"/")), Model: "m"}

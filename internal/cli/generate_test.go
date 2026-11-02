@@ -161,7 +161,7 @@ func buildTestTimberBinary(t *testing.T) string {
 	// caches; keep the real Go toolchain directories so the build stays
 	// offline and fast.
 	for index, line := range strings.Split(strings.TrimSpace(string(envOutput)), "\n") {
-		if index < len(envKeys) && line != "" {
+		if index < len(envKeys) && !isEmpty(line) {
 			build.Env = shellTestEnvironment(build.Env, envKeys[index]+"="+line)
 		}
 	}
@@ -192,6 +192,7 @@ func TestGeneratedCreateCompletesUniqueRepoPrefix(t *testing.T) {
 
 	scriptPath := filepath.Join(resolvedTempDir(t), "complete.py")
 	script := `import os, pty, select, time, sys
+import struct, fcntl, termios
 
 compdir = sys.argv[1]
 zdot = sys.argv[2]
@@ -206,6 +207,7 @@ os.environ["PATH"] = sys.argv[6] + ":" + os.environ["PATH"]
 pid, fd = pty.fork()
 if pid == 0:
     os.execvp("zsh", ["zsh", "-f", "-i"])
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 200, 0, 0))
 
 def recv(timeout=1.0):
     buf = b""
@@ -307,6 +309,7 @@ func TestGeneratedSwitchCompletesWorktreeNamesAcrossRepos(t *testing.T) {
 
 	scriptPath := filepath.Join(resolvedTempDir(t), "complete.py")
 	script := `import os, pty, select, time, sys
+import struct, fcntl, termios
 
 compdir, zdot, home, data_home, worktree_root, line, bindir = sys.argv[1:8]
 os.makedirs(zdot, exist_ok=True)
@@ -320,6 +323,7 @@ os.environ["PATH"] = bindir + ":" + os.environ["PATH"]
 pid, fd = pty.fork()
 if pid == 0:
     os.execvp("zsh", ["zsh", "-f", "-i"])
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 200, 0, 0))
 
 def recv(timeout=1.0):
     buf = b""
@@ -431,6 +435,7 @@ func TestGeneratedSwitchSubcommandCompletesInZsh(t *testing.T) {
 
 	scriptPath := filepath.Join(resolvedTempDir(t), "complete.py")
 	script := `import os, pty, select, time, sys
+import struct, fcntl, termios
 
 compdir, zdot, home, data_home, worktree_root, bindir, line = sys.argv[1:8]
 wants = sys.argv[8:]
@@ -445,6 +450,7 @@ os.environ["PATH"] = bindir + ":" + os.environ["PATH"]
 pid, fd = pty.fork()
 if pid == 0:
     os.execvp("zsh", ["zsh", "-f", "-i"])
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 200, 0, 0))
 
 def recv(timeout=1.0):
     buf = b""
@@ -546,6 +552,7 @@ func TestGeneratedDelegatedCompletionEndToEnd(t *testing.T) {
 
 	scriptPath := filepath.Join(resolvedTempDir(t), "complete.py")
 	script := `import os, pty, select, time, sys
+import struct, fcntl, termios
 
 compdir, zdot, home, data_home, worktree_root, bindir, line = sys.argv[1:8]
 wants = sys.argv[8:]
@@ -560,6 +567,7 @@ os.environ["PATH"] = bindir + ":" + os.environ["PATH"]
 pid, fd = pty.fork()
 if pid == 0:
     os.execvp("zsh", ["zsh", "-f", "-i"])
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 200, 0, 0))
 
 def recv(timeout=1.0):
     buf = b""
@@ -922,6 +930,7 @@ func TestGeneratedRepoCompletionInsertsSlashInSharedPrefix(t *testing.T) {
 
 	scriptPath := filepath.Join(resolvedTempDir(t), "complete.py")
 	script := `import os, pty, select, time, sys
+import struct, fcntl, termios
 
 compdir, zdot, home, data_home, worktree_root, bindir, line, tabs = sys.argv[1:9]
 want = sys.argv[9]
@@ -936,6 +945,7 @@ os.environ["PATH"] = bindir + ":" + os.environ["PATH"]
 pid, fd = pty.fork()
 if pid == 0:
     os.execvp("zsh", ["zsh", "-f", "-i"])
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 200, 0, 0))
 
 def recv(timeout=1.0):
     buf = b""

@@ -73,6 +73,67 @@ type herdrSpace struct {
 	alreadyOpen    bool
 }
 
+func (x herdrSpace) close(ctx context.Context) error {
+	_, err := x.runtime.runHerdr(ctx, "workspace", "close", x.workspaceID)
+	return err
+}
+
+func (x herdrSpace) configure(ctx context.Context) error {
+	if _, err := x.runtime.runHerdr(ctx, "tab", "rename", x.agentTabID, agentTabLabel); err != nil {
+		return err
+	}
+	if _, err := x.runtime.runHerdr(ctx, "pane", "rename", x.agentPaneID, x.agentPaneLabel); err != nil {
+		return err
+	}
+	if err := x.createTab(ctx, shellTabLabel); err != nil {
+		return err
+	}
+	return x.startCommands(ctx)
+}
+
+func (x herdrSpace) createTab(ctx context.Context, label string) error {
+	output, err := x.runtime.runHerdr(
+		ctx,
+		"tab", "create", "--workspace", x.workspaceID, "--cwd", x.worktreePath,
+		"--label", label, "--no-focus",
+	)
+	if err != nil {
+		return err
+	}
+	return parseHerdrTabCreateResponse(output)
+}
+
+func (x herdrSpace) focus(ctx context.Context) error {
+	if _, err := x.runtime.runHerdr(ctx, "workspace", "focus", x.workspaceID); err != nil {
+		return err
+	}
+	_, err := x.runtime.runHerdr(ctx, "tab", "focus", x.agentTabID)
+	return err
+}
+
+func (x herdrSpace) focusWorkspace(ctx context.Context) error {
+	_, err := x.runtime.runHerdr(ctx, "workspace", "focus", x.workspaceID)
+	return err
+}
+
+func (x herdrSpace) startCommands(ctx context.Context) error {
+	_, err := x.runtime.runHerdr(ctx, "pane", "run", x.agentPaneID, "pi")
+	return err
+}
+
+func (x herdrSpace) validateInitialResources() error {
+	if x.workspaceID == "" {
+		return errors.New("herdr workspace create response has no workspace ID")
+	}
+	if x.agentTabID == "" {
+		return errors.New("herdr workspace create response has no tab ID")
+	}
+	if x.agentPaneID == "" {
+		return errors.New("herdr workspace create response has no root pane ID")
+	}
+	return nil
+}
+
 func parseHerdrSpace(runtime Runtime, output []byte, worktreePath string, agentPaneLabel string) (herdrSpace, error) {
 	var response herdrWorkspaceCreateResponse
 	if err := json.Unmarshal(output, &response); err != nil {
@@ -146,48 +207,10 @@ func parseCurrentHerdrSpace(runtime Runtime, output []byte, worktreePath string,
 		agentPaneID:    response.Result.Pane.PaneID,
 		agentPaneLabel: agentPaneLabel,
 	}
-	if space.workspaceID == "" || space.agentTabID == "" || space.agentPaneID == "" {
+	if isEmpty(space.workspaceID) || isEmpty(space.agentTabID) || isEmpty(space.agentPaneID) {
 		return herdrSpace{}, errors.New("herdr pane current response has incomplete pane resources")
 	}
 	return space, nil
-}
-
-func (x herdrSpace) validateInitialResources() error {
-	if x.workspaceID == "" {
-		return errors.New("herdr workspace create response has no workspace ID")
-	}
-	if x.agentTabID == "" {
-		return errors.New("herdr workspace create response has no tab ID")
-	}
-	if x.agentPaneID == "" {
-		return errors.New("herdr workspace create response has no root pane ID")
-	}
-	return nil
-}
-
-func (x herdrSpace) configure(ctx context.Context) error {
-	if _, err := x.runtime.runHerdr(ctx, "tab", "rename", x.agentTabID, agentTabLabel); err != nil {
-		return err
-	}
-	if _, err := x.runtime.runHerdr(ctx, "pane", "rename", x.agentPaneID, x.agentPaneLabel); err != nil {
-		return err
-	}
-	if err := x.createTab(ctx, shellTabLabel); err != nil {
-		return err
-	}
-	return x.startCommands(ctx)
-}
-
-func (x herdrSpace) createTab(ctx context.Context, label string) error {
-	output, err := x.runtime.runHerdr(
-		ctx,
-		"tab", "create", "--workspace", x.workspaceID, "--cwd", x.worktreePath,
-		"--label", label, "--no-focus",
-	)
-	if err != nil {
-		return err
-	}
-	return parseHerdrTabCreateResponse(output)
 }
 
 func parseHerdrTabCreateResponse(output []byte) error {
@@ -195,28 +218,10 @@ func parseHerdrTabCreateResponse(output []byte) error {
 	if err := json.Unmarshal(output, &response); err != nil {
 		return fmt.Errorf("decode herdr tab create response: %w", err)
 	}
-	if response.Result.Tab.TabID == "" || response.Result.RootPane.PaneID == "" {
+	if response.Result.Tab.TabID == "" || isEmpty(response.Result.RootPane.PaneID) {
 		return errors.New("herdr tab create response has incomplete tab resources")
 	}
 	return nil
-}
-
-func (x herdrSpace) startCommands(ctx context.Context) error {
-	_, err := x.runtime.runHerdr(ctx, "pane", "run", x.agentPaneID, "pi")
-	return err
-}
-
-func (x herdrSpace) focus(ctx context.Context) error {
-	if _, err := x.runtime.runHerdr(ctx, "workspace", "focus", x.workspaceID); err != nil {
-		return err
-	}
-	_, err := x.runtime.runHerdr(ctx, "tab", "focus", x.agentTabID)
-	return err
-}
-
-func (x herdrSpace) focusWorkspace(ctx context.Context) error {
-	_, err := x.runtime.runHerdr(ctx, "workspace", "focus", x.workspaceID)
-	return err
 }
 
 // parentDashboardCommand builds the refresh loop a parent workspace runs in
@@ -235,9 +240,4 @@ func shellQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
-}
-
-func (x herdrSpace) close(ctx context.Context) error {
-	_, err := x.runtime.runHerdr(ctx, "workspace", "close", x.workspaceID)
-	return err
 }

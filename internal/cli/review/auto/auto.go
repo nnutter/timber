@@ -30,6 +30,92 @@ type Command struct {
 	Options     review.AutoOptions
 }
 
+// RunE resolves the model and its provider before sending committed source.
+func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
+	if c.Options.Timeout <= 0 || !isLess(0, c.MaxRequests) {
+		return fmt.Errorf("--timeout and --max-requests must be positive")
+	}
+	models, err := c.models()
+	if err != nil {
+		return err
+	}
+	selector, err := selectModel(models, c.Model)
+	if err != nil {
+		return err
+	}
+	resolved, err := resolveAutoModel(models, selector)
+	if err != nil {
+		return err
+	}
+	apiKey, err := autoAPIKey(resolved)
+	if err != nil {
+		return err
+	}
+	headers, err := coreconfig.Values(resolved.Headers)
+	if err != nil {
+		return err
+	}
+	client := openai.NewClient(clientOptions(apiKey, cmp.Or(os.Getenv("OPENAI_BASE_URL"), resolved.BaseURL), headers)...)
+	evaluator := autoreview.OpenAI{
+		Client:          client,
+		Model:           cmp.Or(resolved.Model, selector),
+		MaxRequests:     c.MaxRequests,
+		MaxOutputTokens: resolved.MaxTokens,
+	}
+	// A stack assessment takes long enough that silence looks like a hang.
+	progress := cmd.ErrOrStderr()
+	c.Options.Progress = func(p review.AutoProgress) {
+		// Progress is best effort; a failed write must not stop the run.
+		_, _ = fmt.Fprintf(progress, "Stack %d/%d: assessing %s\n", p.Index, p.Total, display.ShortStack(p.Stack))
+	}
+	result, err := c.Service.Auto(cmd.Context(), evaluator, c.Options)
+	if err != nil {
+		return err
+	}
+	return display.WriteAuto(c.Output, autoJSON(cmd), result)
+}
+
+func (c *Command) models() (coreconfig.Models, error) {
+	if c.LoadModels == nil {
+		return coreconfig.Models{}, nil
+	}
+	return c.LoadModels()
+}
+
+func resolveAutoModel(models coreconfig.Models, selector string) (coreconfig.Resolved, error) {
+	if len(models.Providers) == 0 {
+		return coreconfig.Resolved{}, nil
+	}
+	resolved, err := models.Resolve(selector)
+	if err != nil {
+		return coreconfig.Resolved{}, err
+	}
+	if err := resolved.Validate(); err != nil {
+		return coreconfig.Resolved{}, err
+	}
+	return resolved, nil
+}
+
+func autoAPIKey(resolved coreconfig.Resolved) (string, error) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = coreconfig.Value(resolved.APIKey)
+		if err != nil {
+			return "", fmt.Errorf("api key: %w", err)
+		}
+	}
+	if apiKey == "" {
+		return "", fmt.Errorf("auto requires OPENAI_API_KEY or a provider apiKey in the models file")
+	}
+	return apiKey, nil
+}
+
+func autoJSON(cmd *cobra.Command) bool {
+	flag, err := cmd.Flags().GetBool("json")
+	return err == nil && isTrue(flag)
+}
+
 // New builds a noninteractive automatic refactor assessment command.
 func New(svc review.Service, out io.Writer, loadModels func() (coreconfig.Models, error)) *cobra.Command {
 	c := &Command{
@@ -54,73 +140,6 @@ func New(svc review.Service, out io.Writer, loadModels func() (coreconfig.Models
 // Install adds the automatic assessment command to parent.
 func Install(parent *cobra.Command, svc review.Service, out io.Writer, loadModels func() (coreconfig.Models, error)) {
 	parent.AddCommand(New(svc, out, loadModels))
-}
-
-// RunE resolves the model and its provider before sending committed source.
-func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
-	if c.Options.Timeout <= 0 || c.MaxRequests <= 0 {
-		return fmt.Errorf("--timeout and --max-requests must be positive")
-	}
-	models, err := c.models()
-	if err != nil {
-		return err
-	}
-	selector, err := selectModel(models, c.Model)
-	if err != nil {
-		return err
-	}
-	resolved := coreconfig.Resolved{}
-	if len(models.Providers) > 0 {
-		resolved, err = models.Resolve(selector)
-		if err != nil {
-			return err
-		}
-		if err := resolved.Validate(); err != nil {
-			return err
-		}
-	}
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		if apiKey, err = coreconfig.Value(resolved.APIKey); err != nil {
-			return fmt.Errorf("api key: %w", err)
-		}
-	}
-	if apiKey == "" {
-		return fmt.Errorf("auto requires OPENAI_API_KEY or a provider apiKey in the models file")
-	}
-	headers, err := coreconfig.Values(resolved.Headers)
-	if err != nil {
-		return err
-	}
-	client := openai.NewClient(clientOptions(apiKey, cmp.Or(os.Getenv("OPENAI_BASE_URL"), resolved.BaseURL), headers)...)
-	evaluator := autoreview.OpenAI{
-		Client:          client,
-		Model:           cmp.Or(resolved.Model, selector),
-		MaxRequests:     c.MaxRequests,
-		MaxOutputTokens: resolved.MaxTokens,
-	}
-	// A stack assessment takes long enough that silence looks like a hang.
-	progress := cmd.ErrOrStderr()
-	c.Options.Progress = func(p review.AutoProgress) {
-		// Progress is best effort; a failed write must not stop the run.
-		_, _ = fmt.Fprintf(progress, "Stack %d/%d: assessing %s\n", p.Index, p.Total, display.ShortStack(p.Stack))
-	}
-	result, err := c.Service.Auto(cmd.Context(), evaluator, c.Options)
-	if err != nil {
-		return err
-	}
-	asJSON := false
-	if flag, err := cmd.Flags().GetBool("json"); err == nil {
-		asJSON = flag
-	}
-	return display.WriteAuto(c.Output, asJSON, result)
-}
-
-func (c *Command) models() (coreconfig.Models, error) {
-	if c.LoadModels == nil {
-		return coreconfig.Models{}, nil
-	}
-	return c.LoadModels()
 }
 
 // selectModel prefers the flag, then the environment, then the only model the

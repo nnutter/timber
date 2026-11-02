@@ -319,7 +319,7 @@ func applyCreateWizardCmdBudget(t *testing.T, model tea.Model, command tea.Cmd, 
 
 	result, ok := model.(*createWizardModel)
 	require.True(t, ok)
-	if budget <= 0 || command == nil {
+	if budget <= 0 || isNilCmd(command) {
 		return result
 	}
 
@@ -338,7 +338,7 @@ func applyCreateWizardCmdBudget(t *testing.T, model tea.Model, command tea.Cmd, 
 
 func flattenImmediateCmds(command tea.Cmd) []tea.Msg {
 	message, ok := runCmdNonBlocking(command)
-	if !ok || message == nil {
+	if !ok || isSame(message, nil) {
 		return nil
 	}
 	batch, isBatch := message.(tea.BatchMsg)

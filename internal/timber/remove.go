@@ -3,88 +3,13 @@ package timber
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 )
 
-// RemoveWorktree resolves a worktree selector and removes it. It returns the
-// data the CLI reports and avoids Timber command types in its signature.
-func (runtime Runtime) RemoveWorktree(input io.Reader, raw string, force bool) (string, string, string, bool, error) {
-	selection := repoSelection{runtime: runtime}
-	_, repository, worktree, err := selection.resolveQualifiedWorktree(input, raw)
-	if err != nil {
-		return "", "", "", false, err
-	}
-	result, err := runtime.removeResolvedWorktree(repository, worktree, force)
-	if err != nil {
-		return "", "", "", false, err
-	}
-	return result.worktree.Name, result.worktree.shortCommitHash(), result.worktree.Path, result.removingCurrentDirectory, nil
-}
-
 type worktreeRemovalResult struct {
 	worktree                 managedWorktree
 	removingCurrentDirectory bool
-}
-
-func (runtime Runtime) removeResolvedWorktree(repository *Repository, worktree managedWorktree, force bool) (worktreeRemovalResult, error) {
-	name := worktree.Name
-	standardLayout, err := samePath(worktree.Path, runtime.managedWorktreePath(worktree.Repo, worktree.branchName()))
-	if err != nil {
-		return worktreeRemovalResult{}, err
-	}
-
-	if !force {
-		if err := repository.fetchOrigin(); err != nil {
-			return worktreeRemovalResult{}, err
-		}
-	}
-
-	if !force {
-		worktree, err = runtime.enrichManagedWorktree(repository, worktree)
-		if err != nil {
-			return worktreeRemovalResult{}, err
-		}
-		if !worktree.Clean {
-			return worktreeRemovalResult{}, fmt.Errorf("worktree %q is not clean", name)
-		}
-		if worktree.UpstreamRef == "" {
-			return worktreeRemovalResult{}, fmt.Errorf("branch %q has no upstream branch; use --force to remove it", worktree.branchName())
-		}
-		if !worktree.Merged {
-			return worktreeRemovalResult{}, fmt.Errorf("branch %q is not merged to %s", worktree.branchName(), shortReference(worktree.UpstreamRef))
-		}
-	}
-
-	currentDirectory := runtime.CurrentDirectory
-	removingCurrentDirectory := currentDirectory != "" && pathIsWithin(worktree.Path, currentDirectory)
-
-	removeArguments := []string{"worktree", "remove"}
-	if force {
-		removeArguments = append(removeArguments, "--force")
-	}
-	removeArguments = append(removeArguments, worktree.Path)
-	if _, err := repository.git(removeArguments...); err != nil {
-		return worktreeRemovalResult{}, err
-	}
-	if standardLayout {
-		if err := removeEmptyParents(worktree.Path, runtime.HomeDirectory); err != nil {
-			return worktreeRemovalResult{}, err
-		}
-	}
-
-	branchExists, err := repository.branchStillExists(worktree.BranchReference)
-	if err != nil {
-		return worktreeRemovalResult{}, err
-	}
-	if branchExists {
-		if _, err := repository.git("branch", branchDeleteFlag(force), worktree.branchName()); err != nil {
-			return worktreeRemovalResult{}, err
-		}
-	}
-
-	return worktreeRemovalResult{worktree: worktree, removingCurrentDirectory: removingCurrentDirectory}, nil
 }
 
 // removeEmptyParents removes path and empty ancestor directories up to (but not
@@ -94,7 +19,7 @@ func removeEmptyParents(path string, stopPath string) error {
 	stopPath = canonicalPath(stopPath)
 
 	for {
-		if current == stopPath || current == string(filepath.Separator) {
+		if current == stopPath || isSame(current, string(filepath.Separator)) {
 			return nil
 		}
 		if !pathIsWithin(stopPath, current) {

@@ -1,7 +1,6 @@
 package timber
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -52,24 +51,6 @@ type ImportMove struct {
 	Name       string
 	SourcePath string
 	TargetPath string
-}
-
-// ImportRepo converts an existing clone into a managed Timber repository.
-// Both reporter callbacks are required.
-func (runtime Runtime) ImportRepo(source, name string, reporter ImportReporter) error {
-	if reporter.Registered == nil || reporter.Summary == nil {
-		return errors.New("repository import requires registration and summary reporters")
-	}
-	sourcePath, err := runtime.absolutePath(source)
-	if err != nil {
-		return err
-	}
-
-	plan, err := runtime.buildImportPlan(sourcePath, normalizeRepoName(name))
-	if err != nil {
-		return err
-	}
-	return plan.run(reporter)
 }
 
 // rejectRegisteredSource refuses to import a repository that is already
