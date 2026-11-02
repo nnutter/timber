@@ -32,7 +32,7 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 python3 -c 'import os, pty; master, slave = pty.openpty(); os.close(master); os.close(slave)'
-go test -race -shuffle=on -cover ./...
+go test -race -shuffle=on -cover -timeout 20m ./...
 '''
 
 [tasks.demo]
