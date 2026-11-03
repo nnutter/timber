@@ -51,10 +51,6 @@ run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cov
 description = "Install hk git hooks"
 run = "hk install --mise"
 
-[tasks.refresh-template]
-description = "Refresh from template"
-run = "git tpl update && git tpl merge"
-
 [tasks.test]
 description = "Run tests with coverage"
 run = "go test -cover ./..."
