@@ -1,7 +1,13 @@
 package timber
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/nnutter/timber/internal/timber/bump"
@@ -18,6 +24,18 @@ type TagBump struct {
 	Pattern string
 	// NoPush creates the tag locally and leaves it unpushed.
 	NoPush bool
+	// Release creates a draft GitHub release for the new tag.
+	Release bool
+	// NoOpen keeps the browser closed after Timber reports the draft URL.
+	NoOpen bool
+}
+
+// BumpResult reports what one version bump produced.
+type BumpResult struct {
+	// Tag is the new tag.
+	Tag string
+	// ReleaseURL is the draft release URL, empty without request.Release.
+	ReleaseURL string
 }
 
 // createBumpedTag creates the next tag on HEAD and pushes it unless the
@@ -40,6 +58,18 @@ func createBumpedTag(runtime Runtime, directory string, request TagBump) (string
 		}
 	}
 	return tag, nil
+}
+
+// reportBrowserWarning tells the user the browser stayed closed without
+// failing the bump.
+func reportBrowserWarning(output io.Writer, err error) error {
+	if output == nil {
+		return nil
+	}
+	if _, writeErr := fmt.Fprintf(output, "warning: could not open browser: %v\n", err); writeErr != nil {
+		return writeErr
+	}
+	return nil
 }
 
 // latestVersionTag returns the highest strict semantic version tag that
@@ -94,4 +124,85 @@ func pushVersionTag(runtime Runtime, directory string, tag string) error {
 		return fmt.Errorf("push tag %q: %w", tag, err)
 	}
 	return nil
+}
+
+// createDraftRelease creates a draft GitHub release for tag with the gh CLI
+// so authentication behaves like a manual release, and returns its URL.
+func createDraftRelease(ctx context.Context, runtime Runtime, directory string, tag string) (string, error) {
+	if _, err := bump.Parse(tag); err != nil {
+		return "", err
+	}
+	command := runtime.command(ctx, "gh", "release", "create", tag, "--draft", "--title", tag, "--generate-notes")
+	command.Dir = directory
+	var stdout, stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		return "", fmt.Errorf("create draft release for %q: %w: %s", tag, err, strings.TrimSpace(stderr.String()))
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	url := strings.TrimSpace(lines[len(lines)-1])
+	if url == "" {
+		return "", fmt.Errorf("create draft release for %q: no URL in output", tag)
+	}
+	return url, nil
+}
+
+// openURL opens url in the browser. Without an opener, opening is a quiet
+// no-op so headless hosts still bump tags.
+func openURL(ctx context.Context, runtime Runtime, url string) error {
+	opener := browserOpener(runtime)
+	if opener == "" {
+		return nil
+	}
+	output, err := runtime.command(ctx, opener, url).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("open %q: %w: %s", url, err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+// browserOpener returns the browser opener on the runtime PATH, preferring
+// open (macOS) and falling back to xdg-open (Linux).
+func browserOpener(runtime Runtime) string {
+	for _, name := range []string{"open", "xdg-open"} {
+		if path := lookPath(runtime, name); path != "" {
+			return path
+		}
+	}
+	return ""
+}
+
+// lookPath searches the runtime PATH for an executable file. The runtime
+// environment decides the search, not the process that runs Timber.
+func lookPath(runtime Runtime, name string) string {
+	path := ""
+	for _, entry := range runtime.Environment {
+		if value, found := strings.CutPrefix(entry, "PATH="); found {
+			path = value
+		}
+	}
+	if path == "" {
+		// Without a runtime PATH, defer to the process environment.
+		if resolved, err := exec.LookPath(name); err == nil {
+			return resolved
+		}
+		return ""
+	}
+	for directory := range strings.SplitSeq(path, string(os.PathListSeparator)) {
+		candidate := filepath.Join(directory, name)
+		info, err := os.Stat(candidate)
+		if err == nil && isExecutableFile(info) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// isExecutableFile reports whether info describes a file that can run.
+func isExecutableFile(info os.FileInfo) bool {
+	if info.IsDir() {
+		return false
+	}
+	return info.Mode()&0o111 != 0
 }

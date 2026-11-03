@@ -63,13 +63,19 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 	}
 	return []*cobra.Command{
 		clibump.New(clibump.Dependencies{
-			Bump: func(input io.Reader, raw string, request clibump.Request) (string, error) {
-				return runtime.BumpTag(input, timber.TagBump{
+			Bump: func(ctx context.Context, input io.Reader, output io.Writer, raw string, request clibump.Request) (clibump.Result, error) {
+				result, err := runtime.BumpTag(ctx, input, output, timber.TagBump{
 					Raw:     raw,
 					Kind:    request.Kind,
 					Pattern: request.Pattern,
 					NoPush:  request.NoPush,
+					Release: request.Release,
+					NoOpen:  request.NoOpen,
 				})
+				if err != nil {
+					return clibump.Result{}, err
+				}
+				return clibump.Result{Tag: result.Tag, ReleaseURL: result.ReleaseURL}, nil
 			},
 			Complete: cliComplete.QualifiedWorktreeNames(runtime),
 		}),

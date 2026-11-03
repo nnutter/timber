@@ -129,18 +129,39 @@ func (runtime Runtime) AddRepo(source, name, alias string) (string, string, erro
 }
 
 // BumpTag creates the next semantic version tag on the commit of the selected
-// worktree and pushes it to origin unless request.NoPush is set. It returns
-// the new tag.
+// worktree and pushes it to origin unless request.NoPush is set.
 //
 // Tags belong to the repository, not to one worktree, so any worktree of a
 // repository sees and bumps the same tags.
-func (runtime Runtime) BumpTag(input io.Reader, request TagBump) (string, error) {
+//
+// With request.Release it also creates a draft GitHub release for the new tag
+// and opens its URL in the browser unless request.NoOpen is set. A missing or
+// failing browser is a warning on output, not a failed bump.
+func (runtime Runtime) BumpTag(ctx context.Context, input io.Reader, output io.Writer, request TagBump) (BumpResult, error) {
 	selection := repoSelection{runtime: runtime}
 	_, _, worktree, err := selection.resolveQualifiedWorktree(input, request.Raw)
 	if err != nil {
-		return "", err
+		return BumpResult{}, err
 	}
-	return createBumpedTag(runtime, worktree.Path, request)
+	tag, err := createBumpedTag(runtime, worktree.Path, request)
+	if err != nil {
+		return BumpResult{}, err
+	}
+	if !request.Release {
+		return BumpResult{Tag: tag}, nil
+	}
+	url, err := createDraftRelease(ctx, runtime, worktree.Path, tag)
+	if err != nil {
+		return BumpResult{}, err
+	}
+	if !request.NoOpen {
+		if err := openURL(ctx, runtime, url); err != nil {
+			if writeErr := reportBrowserWarning(output, err); writeErr != nil {
+				return BumpResult{}, writeErr
+			}
+		}
+	}
+	return BumpResult{Tag: tag, ReleaseURL: url}, nil
 }
 
 // ConfigureWorktreeHooks moves one worktree to its own Git hooks directory so

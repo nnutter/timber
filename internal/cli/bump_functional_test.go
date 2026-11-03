@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -54,4 +57,34 @@ func TestBumpRequiresExactlyOneKind(t *testing.T) {
 	t.Parallel()
 	result := runTimberCommand(t, "bump", "--major", "--minor")
 	require.ErrorContains(t, result.err, "exactly one of --major, --minor, or --patch is required")
+}
+
+// installFakeReleaseGh installs a gh stub that prints url for a release.
+func installFakeReleaseGh(t *testing.T, url string) string {
+	t.Helper()
+	scriptPath := filepath.Join(resolvedTempDir(t), "gh")
+	script := fmt.Sprintf(`#!/bin/sh
+if [ "$1 $2" = "release create" ]; then
+  printf '%%s\n' %q
+  exit 0
+fi
+echo "unexpected gh call: $*" >&2
+exit 1
+`, url)
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755))
+	return scriptPath
+}
+
+func TestBumpReleasePrintsDraftURL(t *testing.T) {
+	t.Parallel()
+	const branchName = "release"
+	const releaseURL = "https://github.com/owner/timber/releases/tag/v0.0.1"
+
+	repository := bumpTestRepository(t)
+	repository.runtime.GhExecutable = installFakeReleaseGh(t, releaseURL)
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, branchName)).err)
+
+	result := repository.runTimber(t, "bump", "--patch", "--release", "--no-open", at(testRepoName, branchName))
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, "v0.0.1\n"+releaseURL+"\n", result.stdout)
 }

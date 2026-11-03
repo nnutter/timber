@@ -2,6 +2,7 @@
 package bump
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,11 +17,19 @@ type Request struct {
 	Kind    versionbump.Kind
 	Pattern string
 	NoPush  bool
+	Release bool
+	NoOpen  bool
+}
+
+// Result reports the new tag and, with --release, the draft release URL.
+type Result struct {
+	Tag        string
+	ReleaseURL string
 }
 
 // Dependencies connects the bump command to version tag operations.
 type Dependencies struct {
-	Bump     func(io.Reader, string, Request) (string, error)
+	Bump     func(context.Context, io.Reader, io.Writer, string, Request) (Result, error)
 	Complete func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
 }
 
@@ -39,6 +48,8 @@ func New(deps Dependencies) *cobra.Command {
 	command.Flags().BoolVar(&options.patch, "patch", false, "Bump the patch version")
 	command.Flags().StringVar(&options.pattern, "pattern", "", "Only consider tags matching `git tag -l <pattern>`")
 	command.Flags().BoolVar(&options.noPush, "no-push", false, "Do not push the new tag")
+	command.Flags().BoolVar(&options.release, "release", false, "Create a draft GitHub release for the new tag")
+	command.Flags().BoolVar(&options.noOpen, "no-open", false, "Do not open the draft release URL in the browser")
 	return command
 }
 
@@ -49,6 +60,8 @@ type flagOptions struct {
 	patch   bool
 	pattern string
 	noPush  bool
+	release bool
+	noOpen  bool
 }
 
 // request validates the flags and turns them into a bump request.
@@ -70,7 +83,13 @@ func (options *flagOptions) request() (Request, error) {
 	if count != 1 {
 		return Request{}, errors.New("exactly one of --major, --minor, or --patch is required")
 	}
-	return Request{Kind: kind, Pattern: options.pattern, NoPush: options.noPush}, nil
+	return Request{
+		Kind:    kind,
+		Pattern: options.pattern,
+		NoPush:  options.noPush,
+		Release: options.release,
+		NoOpen:  options.noOpen,
+	}, nil
 }
 
 func run(deps Dependencies, options *flagOptions) func(*cobra.Command, []string) error {
@@ -83,11 +102,19 @@ func run(deps Dependencies, options *flagOptions) func(*cobra.Command, []string)
 		if len(args) == 1 {
 			raw = args[0]
 		}
-		tag, err := deps.Bump(command.InOrStdin(), raw, request)
+		result, err := deps.Bump(command.Context(), command.InOrStdin(), command.ErrOrStderr(), raw, request)
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintln(command.OutOrStdout(), tag)
+		// The tag, and the draft release URL, are the machine-readable result,
+		// so they stay plain on stdout.
+		if _, err := fmt.Fprintln(command.OutOrStdout(), result.Tag); err != nil {
+			return err
+		}
+		if result.ReleaseURL == "" {
+			return nil
+		}
+		_, err = fmt.Fprintln(command.OutOrStdout(), result.ReleaseURL)
 		return err
 	}
 }
