@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	clibump "github.com/nnutter/timber/internal/cli/bump"
 	cliComplete "github.com/nnutter/timber/internal/cli/complete"
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
 	clicreate "github.com/nnutter/timber/internal/cli/create"
@@ -61,6 +62,17 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 		return runtime.CreateManagedWorktree(ctx, input, output, repoName, raw, explicitPath, hasExplicitPath, upstream, herdr, noHerdr, createReporters)
 	}
 	return []*cobra.Command{
+		clibump.New(clibump.Dependencies{
+			Bump: func(input io.Reader, raw string, request clibump.Request) (string, error) {
+				return runtime.BumpTag(input, timber.TagBump{
+					Raw:     raw,
+					Kind:    request.Kind,
+					Pattern: request.Pattern,
+					NoPush:  request.NoPush,
+				})
+			},
+			Complete: cliComplete.QualifiedWorktreeNames(runtime),
+		}),
 		cliconfig.New(runtime),
 		clicreate.New(clicreate.Dependencies{
 			Create:     create,
