@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/nnutter/timber/internal/timber/bump"
@@ -36,6 +37,115 @@ type BumpResult struct {
 	Tag string
 	// ReleaseURL is the draft release URL, empty without request.Release.
 	ReleaseURL string
+}
+
+// refreshBeforeBump fetches the tags and branch tips that the bump depends on,
+// then refuses to tag a commit that its upstream has moved past.
+//
+// Without the fetch, a tag created on another machine is missing from the
+// candidates, so the bump repeats or precedes a version that already exists.
+// Without the comparison, the tag points at a commit that origin no longer has
+// at the tip, which is not the commit a release should name.
+func refreshBeforeBump(runtime Runtime, directory, branch string) error {
+	upstream, err := upstreamReference(runtime, directory)
+	if err != nil {
+		return err
+	}
+	for _, remote := range remotesToRefresh(upstream) {
+		if !hasRemote(runtime, directory, remote) {
+			continue
+		}
+		if _, err := gitOutput(runtime, directory, "fetch", "--tags", remote); err != nil {
+			return fmt.Errorf("fetch %s: %w", remote, err)
+		}
+	}
+	if upstream == "" {
+		return nil
+	}
+	behind, err := commitsBehind(runtime, directory, upstream)
+	if err != nil {
+		return err
+	}
+	if behind == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"branch %q is %s behind %s; update the worktree before bumping so the tag points at the latest commit",
+		branch, commitCount(behind), upstream,
+	)
+}
+
+// upstreamReference returns the branch that HEAD tracks, or "" when HEAD has
+// no upstream branch or does not point at a branch.
+func upstreamReference(runtime Runtime, directory string) (string, error) {
+	result, err := gitOutput(runtime, directory, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+	if err != nil {
+		return "", nil
+	}
+	return result.stdout, nil
+}
+
+// remotesToRefresh lists the remotes whose refs matter: origin, which receives
+// the tag, and the remote of the tracked branch when it is a different one.
+func remotesToRefresh(upstream string) []string {
+	remotes := []string{"origin"}
+	if remote := upstreamRemote(upstream); isAnotherRemote(remote) {
+		remotes = append(remotes, remote)
+	}
+	return remotes
+}
+
+// upstreamRemote returns the remote part of an upstream reference, or "" when
+// the upstream is a local branch.
+func upstreamRemote(upstream string) string {
+	remote, _, found := strings.Cut(upstream, "/")
+	if !found {
+		return ""
+	}
+	return remote
+}
+
+// isAnotherRemote reports whether remote is a remote other than origin.
+func isAnotherRemote(remote string) bool {
+	if remote == "" {
+		return false
+	}
+	return remote != "origin"
+}
+
+// commitsBehind counts the upstream commits that HEAD does not have.
+func commitsBehind(runtime Runtime, directory, upstream string) (int, error) {
+	result, err := gitOutput(runtime, directory, "rev-list", "--count", "HEAD.."+upstream)
+	if err != nil {
+		return 0, fmt.Errorf("compare HEAD with %s: %w", upstream, err)
+	}
+	count, err := strconv.Atoi(result.stdout)
+	if err != nil {
+		return 0, fmt.Errorf("parse behind count for %s: %w", upstream, err)
+	}
+	return count, nil
+}
+
+// commitCount renders a count with the noun that matches it.
+func commitCount(count int) string {
+	if count == 1 {
+		return "1 commit"
+	}
+	return strconv.Itoa(count) + " commits"
+}
+
+// hasRemote reports whether the repository configures the named remote.
+func hasRemote(runtime Runtime, directory, name string) bool {
+	result, err := gitOutput(runtime, directory, "remote")
+	if err != nil {
+		return false
+	}
+	for remote := range strings.SplitSeq(result.stdout, "\n") {
+		if isSame(remote, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // createBumpedTag creates the next tag on HEAD and pushes it unless the

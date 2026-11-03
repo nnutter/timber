@@ -230,3 +230,92 @@ func TestBumpTagReportsReleaseFailure(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "no URL in output")
 }
+
+func TestBumpTagFetchesTagsFromOrigin(t *testing.T) {
+	t.Parallel()
+	repository := newBumpTestRepository(t)
+	createTestWorktree(t, repository.runtime, testRepoName, bumpTestBranch)
+	// The tag exists on the remote only, as it does when another machine
+	// released a version after this checkout was made.
+	runGitCommand(t, repository.remotePath, "tag", "--annotate", "v1.2.3", "--message", "v1.2.3")
+
+	result, err := repository.runtime.BumpTag(t.Context(), nil, io.Discard, TagBump{
+		Raw:    at(testRepoName, bumpTestBranch),
+		Kind:   bump.Patch,
+		NoPush: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "v1.2.4", result.Tag)
+}
+
+func TestBumpTagRejectsAWorktreeBehindItsUpstream(t *testing.T) {
+	t.Parallel()
+	repository := newBumpTestRepository(t)
+	createTestWorktree(t, repository.runtime, testRepoName, bumpTestBranch)
+	pushCommitToOriginMain(t, repository.remotePath)
+
+	_, err := repository.runtime.BumpTag(t.Context(), nil, io.Discard, TagBump{
+		Raw:    at(testRepoName, bumpTestBranch),
+		Kind:   bump.Patch,
+		NoPush: true,
+	})
+	require.ErrorContains(t, err, `branch "release" is 1 commit behind origin/main`)
+}
+
+func TestBumpTagAcceptsAWorktreeAheadOfItsUpstream(t *testing.T) {
+	t.Parallel()
+	repository := newBumpTestRepository(t)
+	worktreePath := createTestWorktree(t, repository.runtime, testRepoName, bumpTestBranch)
+	repository.commitFileInWorktree(t, bumpTestBranch, "next.txt", "next\n")
+
+	result, err := repository.runtime.BumpTag(t.Context(), nil, io.Discard, TagBump{
+		Raw:    at(testRepoName, bumpTestBranch),
+		Kind:   bump.Patch,
+		NoPush: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "v0.0.1", result.Tag)
+	assert.Equal(t, gitLine(t, worktreePath, "rev-parse", "HEAD"), gitLine(t, repository.barePath, "rev-parse", result.Tag+"^{commit}"))
+}
+
+func TestBumpTagWorksWithoutARemote(t *testing.T) {
+	t.Parallel()
+	repository := newBumpTestRepository(t)
+	createTestWorktree(t, repository.runtime, testRepoName, bumpTestBranch)
+	runGitCommand(t, repository.barePath, "remote", "remove", "origin")
+
+	result, err := repository.runtime.BumpTag(t.Context(), nil, io.Discard, TagBump{
+		Raw:    at(testRepoName, bumpTestBranch),
+		Kind:   bump.Patch,
+		NoPush: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "v0.0.1", result.Tag)
+}
+
+func TestBumpTagReportsFetchFailure(t *testing.T) {
+	t.Parallel()
+	repository := newBumpTestRepository(t)
+	createTestWorktree(t, repository.runtime, testRepoName, bumpTestBranch)
+	runGitCommand(t, repository.barePath, "remote", "set-url", "origin", filepath.Join(resolvedTempDir(t), "missing"))
+
+	_, err := repository.runtime.BumpTag(t.Context(), nil, io.Discard, TagBump{
+		Raw:    at(testRepoName, bumpTestBranch),
+		Kind:   bump.Patch,
+		NoPush: true,
+	})
+	require.ErrorContains(t, err, "fetch origin:")
+}
+
+// pushCommitToOriginMain adds a commit to the remote's main branch through a
+// separate clone, as another machine would.
+func pushCommitToOriginMain(t *testing.T, remotePath string) {
+	t.Helper()
+	cloneParent := resolvedTempDir(t)
+	clonePath := filepath.Join(cloneParent, "clone")
+	runGitCommand(t, cloneParent, "clone", remotePath, clonePath)
+	require.NoError(t, os.WriteFile(filepath.Join(clonePath, "next.txt"), []byte("next\n"), 0o644))
+	runGitCommand(t, clonePath, "add", "next.txt")
+	runGitCommand(t, clonePath, "commit", "-m", "next")
+	runGitCommand(t, clonePath, "push", "origin", "main")
+}

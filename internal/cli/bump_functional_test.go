@@ -88,3 +88,29 @@ func TestBumpReleasePrintsDraftURL(t *testing.T) {
 	require.NoError(t, result.err, result.stderr)
 	assert.Equal(t, "v0.0.1\n"+releaseURL+"\n", result.stdout)
 }
+
+// pushCommitToOriginMain adds a commit to the remote's main branch through a
+// separate clone, as another machine would.
+func pushCommitToOriginMain(t *testing.T, remotePath string) {
+	t.Helper()
+	cloneParent := resolvedTempDir(t)
+	clonePath := filepath.Join(cloneParent, "clone")
+	runGitCommand(t, cloneParent, "clone", remotePath, clonePath)
+	require.NoError(t, os.WriteFile(filepath.Join(clonePath, "next.txt"), []byte("next\n"), 0o644))
+	runGitCommand(t, clonePath, "add", "next.txt")
+	runGitCommand(t, clonePath, "commit", "-m", "next")
+	runGitCommand(t, clonePath, "push", "origin", "main")
+}
+
+func TestBumpRefusesAWorktreeBehindItsUpstream(t *testing.T) {
+	t.Parallel()
+	const branchName = "release"
+
+	repository := bumpTestRepository(t)
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	pushCommitToOriginMain(t, repository.remotePath)
+
+	result := repository.runTimber(t, "bump", "--patch", at(testRepoName, branchName))
+	require.ErrorContains(t, result.err, `branch "release" is 1 commit behind origin/main`)
+	assert.Empty(t, strings.TrimSpace(runGitCommand(t, repository.remotePath, "tag")))
+}
