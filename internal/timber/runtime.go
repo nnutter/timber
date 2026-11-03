@@ -362,7 +362,7 @@ func (runtime Runtime) InitRepo(name, initialBranch string) (string, string, err
 		return "", "", err
 	}
 
-	if err := initializeBranch(runtime, targetPath, branch); err != nil {
+	if err := prepareInitialRepository(runtime, targetPath, branch); err != nil {
 		// A repository without its initial commit cannot serve worktrees and
 		// would block a retry by existing, so discard the half-made repository.
 		removeFailedInit(targetPath, runtime.worktreeRoot())
