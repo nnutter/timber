@@ -448,6 +448,14 @@ func replaceGitRemotePath(barePath string, oldPath string, newPath string) error
 	return os.WriteFile(configPath, updated, 0o644)
 }
 
+// createTestWorktree creates a managed worktree and returns its checkout path.
+func createTestWorktree(t *testing.T, runtime Runtime, repo, branch string) string {
+	t.Helper()
+	_, _, err := runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(repo, branch), "", false, "", false, false, testCreateReporters())
+	require.NoError(t, err)
+	return filepath.Join(runtime.WorktreeRoot, repo, branch, repo)
+}
+
 func testCreateReporters() CreateReporters {
 	return CreateReporters{
 		Created: func(output io.Writer, path string) error {
