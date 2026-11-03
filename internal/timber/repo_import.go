@@ -112,6 +112,10 @@ func setupImportedBareOrigin(runtime Runtime, source *Repository, barePath strin
 		return err
 	}
 
+	if _, err := configurePushDefault(runtime, barePath); err != nil {
+		return err
+	}
+
 	originURL := ""
 	if result, err := source.git("remote", "get-url", remoteName); err == nil {
 		originURL = result.stdout

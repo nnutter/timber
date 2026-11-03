@@ -31,9 +31,11 @@ func (x importFixture) assertImportedBareSetup(t *testing.T, repoName string) {
 	_, err := os.Stat(barePath)
 	require.NoError(t, err)
 
-	// Import must install the same origin tracking setup as repo add.
+	// Import must install the same repository setup as repo add.
 	fetch := strings.TrimSpace(runGitCommand(t, barePath, "config", "--get", "remote.origin.fetch"))
 	assert.Equal(t, "+refs/heads/*:refs/remotes/origin/*", fetch)
+	pushDefault := strings.TrimSpace(runGitCommand(t, barePath, "config", "--get", "push.default"))
+	assert.Equal(t, "current", pushDefault)
 	originURL := strings.TrimSpace(runGitCommand(t, barePath, "remote", "get-url", "origin"))
 	assert.Equal(t, x.remotePath, originURL)
 	originHead := strings.TrimSpace(runGitCommand(t, barePath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"))

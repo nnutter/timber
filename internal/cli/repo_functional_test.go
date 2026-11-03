@@ -27,6 +27,8 @@ func TestRepoAddListRemove(t *testing.T) {
 	assert.Equal(t, "+refs/heads/*:refs/remotes/origin/*", fetch)
 	originHead := strings.TrimSpace(runGitCommand(t, barePath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"))
 	assert.Equal(t, "origin/main", originHead)
+	pushDefault := strings.TrimSpace(runGitCommand(t, barePath, "config", "--get", "push.default"))
+	assert.Equal(t, "current", pushDefault)
 
 	listResult := runTimberCommandWithRuntime(t, runtime, "repo", "list")
 	require.NoError(t, listResult.err, listResult.stderr)
