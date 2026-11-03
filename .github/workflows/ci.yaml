@@ -41,5 +41,14 @@ jobs:
         with:
           version: 2026.10.25
           install_args: go
+      - name: Find the Go build cache
+        id: go-cache
+        run: echo "dir=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+      - name: Cache the Go build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.go-cache.outputs.dir }}
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-build-${{ runner.os }}-
       - name: Run tests
         run: mise run ci-test
