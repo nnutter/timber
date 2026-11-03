@@ -125,6 +125,7 @@ timber remove feature/login@owner/repo
    Report the printed URL.
 1. For a release tag, name the worktree that has the commit to tag.
    `bump` tags that worktree's commit, so do not run it on an arbitrary worktree.
+   The command fetches first and refuses a worktree that is behind its upstream: update the worktree, then run it again.
    Push the branch first; a tag never replaces a branch push.
    Use `--no-push` only when the user wants a local tag.
    Use `--release` only when the user wants a draft release.
@@ -161,6 +162,7 @@ timber remove feature/login@owner/repo
   Resolve the path instead of writing a checkout-root TODO.md.
   Notes are local Git state, not committed source; preserve worktree notes before removal.
 - `bump` changes shared repository state: it creates a tag, and pushes it to `origin` unless `--no-push` is set.
+  It fetches the tracked remote and `origin` first, and fails when the worktree is behind its upstream; never force a tag onto a stale checkout.
   Tags belong to the repository, so several worktrees see the same tag.
   The highest tag can be on another branch, so check the refs first when the answer matters.
   `--pattern` limits candidates; a pattern that matches no tag is an error.

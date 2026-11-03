@@ -217,6 +217,10 @@ Exactly one of `--major`, `--minor`, or `--patch` is required.
 The command reads the highest strict `vMAJOR.MINOR.PATCH` tag in the repository, creates the next tag as an annotated tag on the selected worktree's commit, and pushes it to `origin`.
 Tags belong to the repository rather than to one checkout, so every worktree of a repository sees the same tags; the selector names the commit that the new tag points at, and defaults to the current worktree.
 
+Before it reads tags or creates one, the command fetches the remote of the tracked branch, and `origin`, so a tag created on another machine is in the candidate list.
+It refuses a worktree that is behind its upstream, because the new tag would name an outdated commit; update the worktree and run the command again.
+A repository without a remote still bumps locally.
+
 - `--pattern` limits candidates the way `git tag -l <pattern>` does.
   Tags that are not strict semver are skipped.
   A pattern that matches no tag is an error, so a typo cannot invent a fresh version; without a pattern, a repository without a usable tag starts at `v0.0.0`.
