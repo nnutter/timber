@@ -47,6 +47,9 @@ func cloneBareRepo(runtime Runtime, remoteURL, targetPath, alias string) error {
 	if err := configureBareOriginTracking(runtime, targetPath); err != nil {
 		return err
 	}
+	if _, err := configurePushDefault(runtime, targetPath); err != nil {
+		return err
+	}
 	return writeRepoAlias(runtime, targetPath, alias)
 }
 

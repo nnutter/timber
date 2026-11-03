@@ -249,9 +249,9 @@ func (x Runtime) DefineHerdrSpace(ctx context.Context, repo, name, path string) 
 	return x.defineCurrentHerdrSpace(ctx, managedWorktree{Repo: repo, Name: name, Path: path})
 }
 
-// FixRepos moves legacy bare repositories into the worktree root and
-// repairs stale worktrees. It returns one status message per action for CLI
-// reporting.
+// FixRepos moves legacy bare repositories into the worktree root, records the
+// repository settings Timber expects, and repairs stale worktrees. It returns
+// one status message per action for CLI reporting.
 func (runtime Runtime) FixRepos() ([]string, error) {
 	var messages []string
 	legacyRepos, err := runtime.listLegacyRepos()
@@ -274,14 +274,11 @@ func (runtime Runtime) FixRepos() ([]string, error) {
 		return nil, err
 	}
 	for _, repo := range repos {
-		repaired, err := runtime.repairStaleWorktrees(repo)
+		repoMessages, err := runtime.fixRegisteredRepo(repo)
 		if err != nil {
 			return nil, err
 		}
-		if !repaired {
-			continue
-		}
-		messages = append(messages, "repaired worktrees for "+repo.Name)
+		messages = append(messages, repoMessages...)
 	}
 	return messages, nil
 }
@@ -362,7 +359,7 @@ func (runtime Runtime) InitRepo(name, initialBranch string) (string, string, err
 		return "", "", err
 	}
 
-	if err := initializeBranch(runtime, targetPath, branch); err != nil {
+	if err := prepareInitialRepository(runtime, targetPath, branch); err != nil {
 		// A repository without its initial commit cannot serve worktrees and
 		// would block a retry by existing, so discard the half-made repository.
 		removeFailedInit(targetPath, runtime.worktreeRoot())
@@ -1302,6 +1299,28 @@ func (x Runtime) fetchGitHubIdentity(ctx context.Context) (githubIdentity, error
 		return githubIdentity{}, errors.New("GitHub returned an invalid identity")
 	}
 	return identity, nil
+}
+
+// fixRegisteredRepo records the repository settings Timber expects and repairs
+// stale worktrees. It returns one status message per action.
+func (runtime Runtime) fixRegisteredRepo(repo registeredRepo) ([]string, error) {
+	var messages []string
+	changed, err := configurePushDefault(runtime, repo.BarePath)
+	if err != nil {
+		return nil, err
+	}
+	if changed {
+		messages = append(messages, "set push.default to current for "+repo.Name)
+	}
+
+	repaired, err := runtime.repairStaleWorktrees(repo)
+	if err != nil {
+		return nil, err
+	}
+	if repaired {
+		messages = append(messages, "repaired worktrees for "+repo.Name)
+	}
+	return messages, nil
 }
 
 // ghActiveUser returns the GitHub CLI user for github.com. The keyring slot

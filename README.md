@@ -19,6 +19,10 @@ Existing installs keep bare repositories under `$XDG_DATA_HOME/timber/repos` (fa
 
 For Timber-created worktrees, the worktree name and branch name are identical (including `/`).
 
+Timber-created branches track the repository's default branch, so the upstream names the base branch of the worktree's pull request.
+A plain `git push` would then push to that tracked branch, so each registered repository records `push.default=current`: `git push` sends the checked-out branch to the branch of the same name on the remote, and leaves tracking alone.
+`timber repo add`, `repo init`, and `repo import` record the setting; `timber repo fix` records it in repositories registered before it existed.
+
 Pass an optional second argument to create a worktree at an exact checkout path instead of using the shared root:
 
 ```bash
@@ -374,7 +378,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo init` | Create a local repository with an empty initial commit (`-b`/`--initial-branch`, default `main`) |
 | `repo list` | List registered repositories with aliases and origin URLs |
 | `repo import` | Convert an existing clone into a managed repository |
-| `repo fix` | Move bare repositories from the old data directory into the worktree root and repair worktree links |
+| `repo fix` | Move bare repositories from the old data directory into the worktree root, repair worktree links, and set `push.default=current` |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
 | `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` / `--auto-hk-install` / `--no-auto-hk-install` |

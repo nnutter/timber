@@ -56,6 +56,7 @@ func TestRepoInitCreatesRepositoryWithEmptyInitialCommit(t *testing.T) {
 			assert.Equal(t, fixture.want+"\n", runGitCommand(t, barePath, "symbolic-ref", "--short", "HEAD"))
 			assert.Equal(t, "1\n", runGitCommand(t, barePath, "rev-list", "--count", "refs/heads/"+fixture.want))
 			assert.Equal(t, emptyTreeHash+"\n", runGitCommand(t, barePath, "rev-parse", "refs/heads/"+fixture.want+"^{tree}"))
+			assert.Equal(t, "current\n", runGitCommand(t, barePath, "config", "--get", "push.default"))
 			assert.Empty(t, runGitCommand(t, barePath, "remote"))
 		})
 	}

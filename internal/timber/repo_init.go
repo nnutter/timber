@@ -16,6 +16,15 @@ const (
 	initialCommitMessage = "Initial commit"
 )
 
+// prepareInitialRepository records the settings a new repository needs and
+// gives it the initial branch and the commit that worktrees attach to.
+func prepareInitialRepository(runtime Runtime, barePath, branch string) error {
+	if _, err := configurePushDefault(runtime, barePath); err != nil {
+		return err
+	}
+	return initializeBranch(runtime, barePath, branch)
+}
+
 // initializeBranch points HEAD at the initial branch and records the empty
 // commit that the branch starts from.
 func initializeBranch(runtime Runtime, barePath, branch string) error {
