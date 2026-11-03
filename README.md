@@ -374,7 +374,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo init` | Create a local repository with an empty initial commit (`-b`/`--initial-branch`, default `main`) |
 | `repo list` | List registered repositories with aliases and origin URLs |
 | `repo import` | Convert an existing clone into a managed repository |
-| `repo fix` | Move bare repositories from the old data directory into the worktree root and repair worktree links |
+| `repo fix` | Move bare repositories from the old data directory into the worktree root, repair worktree links, and set `push.default=current` |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
 | `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` / `--auto-hk-install` / `--no-auto-hk-install` |

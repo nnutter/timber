@@ -23,6 +23,8 @@ func TestRepoFixMovesLegacyRepositoryAndRepairsWorktree(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(legacyPath), 0o755))
 	require.NoError(t, os.CopyFS(legacyPath, os.DirFS(fixture.barePath)))
 	runGitCommand(t, legacyPath, "remote", "set-url", "origin", remotePath)
+	// A repository from before push.default handling keeps its own push rule.
+	runGitCommand(t, legacyPath, "config", "push.default", "simple")
 
 	worktreePath := repoTestWorktreePath(runtime, repoName, "feature")
 	require.NoError(t, os.MkdirAll(filepath.Dir(worktreePath), 0o755))
@@ -33,10 +35,12 @@ func TestRepoFixMovesLegacyRepositoryAndRepairsWorktree(t *testing.T) {
 	result := runTimberCommandWithRuntime(t, runtime, "repo", "fix")
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stderr, "moved repository "+repoName)
+	assert.Contains(t, result.stderr, "set push.default to current for "+repoName)
 	assert.Contains(t, result.stderr, "repaired worktrees for "+repoName)
 	assert.DirExists(t, repoTestBarePath(runtime, repoName))
 	assert.NoDirExists(t, legacyPath)
 	assert.NoDirExists(t, filepath.Join(home, ".local", "share", "timber", "repos", "nnutter"))
+	assert.Equal(t, "current\n", runGitCommand(t, repoTestBarePath(runtime, repoName), "config", "--get", "push.default"))
 
 	content, err := os.ReadFile(filepath.Join(worktreePath, ".git"))
 	require.NoError(t, err)
@@ -49,6 +53,7 @@ func TestRepoFixMovesLegacyRepositoryAndRepairsWorktree(t *testing.T) {
 	require.NoError(t, again.err, again.stderr)
 	assert.NotContains(t, again.stderr, "moved")
 	assert.NotContains(t, again.stderr, "repaired")
+	assert.NotContains(t, again.stderr, "push.default")
 }
 
 func TestRepoFixLeavesUnmatchedInternalCheckoutUntouched(t *testing.T) {

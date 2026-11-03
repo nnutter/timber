@@ -13,11 +13,11 @@ type Dependencies struct {
 }
 
 // New constructs the command that moves bare repositories into the worktree
-// root and repairs worktrees.
+// root, repairs worktrees, and records the settings Timber expects.
 func New(deps Dependencies) *cobra.Command {
 	return &cobra.Command{
 		Use:   "fix",
-		Short: "Move bare repositories into the worktree root and repair worktrees",
+		Short: "Move bare repositories, repair worktrees, and set push.default",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			messages, err := deps.Fix()

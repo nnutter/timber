@@ -249,9 +249,9 @@ func (x Runtime) DefineHerdrSpace(ctx context.Context, repo, name, path string) 
 	return x.defineCurrentHerdrSpace(ctx, managedWorktree{Repo: repo, Name: name, Path: path})
 }
 
-// FixRepos moves legacy bare repositories into the worktree root and
-// repairs stale worktrees. It returns one status message per action for CLI
-// reporting.
+// FixRepos moves legacy bare repositories into the worktree root, records the
+// repository settings Timber expects, and repairs stale worktrees. It returns
+// one status message per action for CLI reporting.
 func (runtime Runtime) FixRepos() ([]string, error) {
 	var messages []string
 	legacyRepos, err := runtime.listLegacyRepos()
@@ -1301,17 +1301,26 @@ func (x Runtime) fetchGitHubIdentity(ctx context.Context) (githubIdentity, error
 	return identity, nil
 }
 
-// fixRegisteredRepo repairs the stale worktrees of one registered repository.
-// It returns one status message per action.
+// fixRegisteredRepo records the repository settings Timber expects and repairs
+// stale worktrees. It returns one status message per action.
 func (runtime Runtime) fixRegisteredRepo(repo registeredRepo) ([]string, error) {
+	var messages []string
+	changed, err := configurePushDefault(runtime, repo.BarePath)
+	if err != nil {
+		return nil, err
+	}
+	if changed {
+		messages = append(messages, "set push.default to current for "+repo.Name)
+	}
+
 	repaired, err := runtime.repairStaleWorktrees(repo)
 	if err != nil {
 		return nil, err
 	}
-	if !repaired {
-		return nil, nil
+	if repaired {
+		messages = append(messages, "repaired worktrees for "+repo.Name)
 	}
-	return []string{"repaired worktrees for " + repo.Name}, nil
+	return messages, nil
 }
 
 // ghActiveUser returns the GitHub CLI user for github.com. The keyring slot
