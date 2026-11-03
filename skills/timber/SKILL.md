@@ -37,6 +37,9 @@ For detailed checklist editing, use the separate `timber-todo` skill.
   `~/.config/timber/config.toml`.
 - Bare repositories live at `$TIMBER_WORKTREE_ROOT/<repo-name>/.git` (fallback `~/worktrees/<repo-name>/.git`). `TIMBER_WORKTREE_ROOT` overrides the default `~/worktrees` checkout root.
   Preserve the user's environment.
+- A registered repository records `push.default=current`, so `git push` sends the checked-out branch to the same-named branch on the remote.
+  A managed branch tracks the repository's default branch, which names the pull request base.
+  Never remove a branch's upstream to make pushing safe; the upstream is the design.
 - Each managed worktree uses its own Git hooks directory at `<git-dir>/hooks`.
   Timber copies the shared hooks first and sets `core.hooksPath` only when no Git scope sets it, so an existing hook manager keeps control.
   `create` and `switch` apply this setting; a `switch` that cannot apply it exits non-zero.
@@ -129,7 +132,7 @@ timber remove feature/login@owner/repo
   The base branch is the branch's upstream branch, or `--base`.
   A branch that tracks its own name, or tracks no remote branch, needs `--base`.
   Only `github.com` hosts are supported.
-- `list` and `prune` default to every registered repository: always qualify cleanup with `@<repo>`. `repo remove`, `repo rename`, `repo import`, and `repo fix` are broader operations requiring explicit approval. `repo fix` moves bare repositories into the worktree root and rewrites worktree links.
+- `list` and `prune` default to every registered repository: always qualify cleanup with `@<repo>`. `repo remove`, `repo rename`, `repo import`, and `repo fix` are broader operations requiring explicit approval. `repo fix` moves bare repositories into the worktree root, rewrites worktree links, and records `push.default=current`.
   Import relocates existing clean checkouts and requires a `trash`
   CLI.
   Do not use import as simple registration.
