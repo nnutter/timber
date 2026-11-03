@@ -128,6 +128,21 @@ func (runtime Runtime) AddRepo(source, name, alias string) (string, string, erro
 	return repoName, targetPath, nil
 }
 
+// BumpTag creates the next semantic version tag on the commit of the selected
+// worktree and pushes it to origin unless request.NoPush is set. It returns
+// the new tag.
+//
+// Tags belong to the repository, not to one worktree, so any worktree of a
+// repository sees and bumps the same tags.
+func (runtime Runtime) BumpTag(input io.Reader, request TagBump) (string, error) {
+	selection := repoSelection{runtime: runtime}
+	_, _, worktree, err := selection.resolveQualifiedWorktree(input, request.Raw)
+	if err != nil {
+		return "", err
+	}
+	return createBumpedTag(runtime, worktree.Path, request)
+}
+
 // ConfigureWorktreeHooks moves one worktree to its own Git hooks directory so
 // that every worktree can carry different hooks. It copies the hooks the
 // worktree had before the split.
