@@ -12,7 +12,7 @@ import (
 )
 
 type historyCommit struct {
-	sha, parent, subject, changeID string
+	sha, parent, subject, message, changeID string
 }
 
 // Read immutable objects through go-git. Keep Git's trailer parser in one batch:
@@ -58,7 +58,7 @@ func walkHistory(ctx context.Context, objects *git.Repository, base, head string
 			return nil, fmt.Errorf("review requires linear feature history; resolve merges first")
 		}
 		parent := commit.ParentHashes[0].String()
-		commits = append(commits, historyCommit{sha: sha, parent: parent, subject: commitSubject(commit.Message)})
+		commits = append(commits, historyCommit{sha: sha, parent: parent, subject: commitSubject(commit.Message), message: commit.Message})
 		sha = parent
 	}
 	slices.Reverse(commits)

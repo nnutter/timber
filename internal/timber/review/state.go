@@ -45,7 +45,7 @@ func (a Attempt) matches(stack Stack) bool {
 		// read, so unlike a user approval it must not transfer to a rewritten
 		// commit that happens to keep the same patch.
 		if a.Status == "approved" {
-			return sameStack(a.Stack, stack) && isSame(a.Stack.Subject, stack.Subject)
+			return sameStack(a.Stack, stack) && sameMessage(a.Stack, stack)
 		}
 	}
 	if sameStack(a.Stack, stack) {
@@ -53,9 +53,10 @@ func (a Attempt) matches(stack Stack) bool {
 	}
 	switch a.Status {
 	case "approved", "feedback", "auto_reviewed":
-		// A recorded model result only avoids asking again while the content is
-		// unchanged, so it resets exactly like a user result.
-		return samePatch(a.Stack, stack)
+		// A recorded result is evidence about the content the reviewer read, so
+		// a new message asks again just as a new patch does. A model result
+		// resets exactly like a user result.
+		return samePatch(a.Stack, stack) && sameMessage(a.Stack, stack)
 	default:
 		return false
 	}
@@ -68,7 +69,7 @@ func (a Attempt) resets(stack Stack) bool {
 	if a.Replacement == nil {
 		return false
 	}
-	return sameStack(*a.Replacement, stack) || samePatch(*a.Replacement, stack)
+	return sameStack(*a.Replacement, stack) || samePatch(*a.Replacement, stack) && sameMessage(*a.Replacement, stack)
 }
 
 func (a Attempt) validate() error {
@@ -321,23 +322,14 @@ func samePatch(a, b Stack) bool {
 	if a.PatchHash == "" {
 		return false
 	}
-	if a.PatchHash != b.PatchHash {
-		return false
-	}
-	// An appended amend! or reword! commit is a new version even when the
-	// aggregate diff is unchanged (for example an empty commit). An appended
-	// fixup! commit carries no message, so patch identity alone decides it.
-	if appendedAmends(a, b) || appendedAmends(b, a) {
-		return false
-	}
-	return true
+	return isSame(a.PatchHash, b.PatchHash)
 }
 
-func appendedAmends(old, current Stack) bool {
-	if !extendsStack(old, current) {
-		return false
-	}
-	return current.AmendCount > old.AmendCount
+// sameMessage reports whether both stacks carry the same reviewed message. An
+// attempt that predates message fingerprints cannot show that its message is
+// unchanged, so it asks for a new review.
+func sameMessage(a, b Stack) bool {
+	return a.MessageHash != "" && isSame(a.MessageHash, b.MessageHash)
 }
 
 // unfinished reports whether an attempt recorded no outcome. Only these

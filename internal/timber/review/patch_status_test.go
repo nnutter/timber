@@ -10,17 +10,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// An appended feedback commit that keeps the patch asks for a new review only
+// when the message that a review shows changes.
 func TestAppendedFeedbackWithUnchangedPatchRequiresReview(t *testing.T) {
 	for _, tc := range []struct {
-		subject string
-		want    string
+		name   string
+		append func(t *testing.T, dir string)
+		want   string
 	}{
-		{subject: "amend! Feature", want: "needs_review"},
-		{subject: "reword! Feature", want: "needs_review"},
+		{name: "amend with a new message", want: "needs_review", append: func(t *testing.T, dir string) {
+			gitTest(t, dir, "commit", "--allow-empty", "-m", "amend! Feature", "-m", "Improved message")
+		}},
+		{name: "reword with a new message", want: "needs_review", append: func(t *testing.T, dir string) {
+			gitTest(t, dir, "commit", "--allow-empty", "-m", "reword! Feature", "-m", "Improved message")
+		}},
+		{name: "amend without a message", want: "needs_review", append: func(t *testing.T, dir string) {
+			gitTest(t, dir, "commit", "--allow-empty", "-m", "amend! Feature")
+		}},
 		// A fixup! commit carries no message, so patch identity alone decides it.
-		{subject: "fixup! Feature", want: "approved"},
+		{name: "fixup", want: "approved", append: func(t *testing.T, dir string) {
+			gitTest(t, dir, "commit", "--allow-empty", "-m", "fixup! Feature")
+		}},
+		// An amend! that repeats the message asks nothing new of the reviewer.
+		{name: "amend with the same message", want: "approved", append: func(t *testing.T, dir string) {
+			t.Setenv("GIT_EDITOR", "true")
+			gitTest(t, dir, "commit", "--allow-empty", "--fixup=amend:HEAD")
+		}},
 	} {
-		t.Run(tc.subject, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			r := testRepo(t)
 			file := filepath.Join(r.Dir, "file")
 			require.NoError(t, os.WriteFile(file, []byte("one\n"), 0o600))
@@ -32,24 +49,22 @@ func TestAppendedFeedbackWithUnchangedPatchRequiresReview(t *testing.T) {
 			before, err := r.Snapshot(t.Context())
 			require.NoError(t, err)
 			require.NotEmpty(t, before.Stacks[0].PatchHash)
-			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", tc.subject)
+			tc.append(t, r.Dir)
 			after, err := r.Snapshot(t.Context())
 			require.NoError(t, err)
 			require.Len(t, after.Stacks, 1)
 			require.Equal(t, before.Stacks[0].PatchHash, after.Stacks[0].PatchHash)
+			result, err := service.Status(t.Context(), true)
+			require.NoError(t, err)
 			if tc.want == "approved" {
-				require.Equal(t, before.Stacks[0].AmendCount, after.Stacks[0].AmendCount)
-				result, err := service.Status(t.Context(), true)
-				require.NoError(t, err)
+				require.Equal(t, before.Stacks[0].MessageHash, after.Stacks[0].MessageHash)
 				require.Equal(t, "idle", result.Status)
 				require.Empty(t, result.Entries)
 				return
 			}
-			require.Equal(t, before.Stacks[0].AmendCount+1, after.Stacks[0].AmendCount)
-			result, err := service.Status(t.Context(), true)
-			require.NoError(t, err)
+			require.NotEqual(t, before.Stacks[0].MessageHash, after.Stacks[0].MessageHash)
 			require.Len(t, result.Entries, 1)
-			require.Equal(t, "needs_review", result.Entries[0].Status)
+			require.Equal(t, tc.want, result.Entries[0].Status)
 			require.Equal(t, "approved", result.Entries[0].Previous.Status)
 		})
 	}
@@ -61,10 +76,10 @@ func TestReviewStatusAfterStackRewrite(t *testing.T) {
 		legacy                      bool
 		v1                          bool
 	}{
-		{name: "approved reword", status: "approved", rewrite: "reword", want: "approved"},
+		{name: "approved reword", status: "approved", rewrite: "reword", want: "needs_review"},
 		{name: "approved rebase", status: "approved", rewrite: "rebase", want: "approved"},
-		{name: "approved squash", status: "approved", rewrite: "squash", want: "approved"},
-		{name: "feedback squash", status: "feedback", rewrite: "squash", want: "feedback"},
+		{name: "approved squash", status: "approved", rewrite: "squash", want: "needs_review"},
+		{name: "feedback squash", status: "feedback", rewrite: "squash", want: "needs_review"},
 		{name: "incomplete reword", status: "incomplete", rewrite: "reword", want: "needs_review"},
 		{name: "active reword", status: "reviewing", rewrite: "reword", want: "needs_review"},
 		{name: "changed content", status: "approved", rewrite: "content", want: "needs_review"},
