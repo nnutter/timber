@@ -274,14 +274,11 @@ func (runtime Runtime) FixRepos() ([]string, error) {
 		return nil, err
 	}
 	for _, repo := range repos {
-		repaired, err := runtime.repairStaleWorktrees(repo)
+		repoMessages, err := runtime.fixRegisteredRepo(repo)
 		if err != nil {
 			return nil, err
 		}
-		if !repaired {
-			continue
-		}
-		messages = append(messages, "repaired worktrees for "+repo.Name)
+		messages = append(messages, repoMessages...)
 	}
 	return messages, nil
 }
@@ -1302,6 +1299,19 @@ func (x Runtime) fetchGitHubIdentity(ctx context.Context) (githubIdentity, error
 		return githubIdentity{}, errors.New("GitHub returned an invalid identity")
 	}
 	return identity, nil
+}
+
+// fixRegisteredRepo repairs the stale worktrees of one registered repository.
+// It returns one status message per action.
+func (runtime Runtime) fixRegisteredRepo(repo registeredRepo) ([]string, error) {
+	repaired, err := runtime.repairStaleWorktrees(repo)
+	if err != nil {
+		return nil, err
+	}
+	if !repaired {
+		return nil, nil
+	}
+	return []string{"repaired worktrees for " + repo.Name}, nil
 }
 
 // ghActiveUser returns the GitHub CLI user for github.com. The keyring slot
