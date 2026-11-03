@@ -15,7 +15,8 @@ For detailed checklist editing, use the separate `timber-todo` skill.
 - Inspect worktree status and TODO progress across registered repositories.
 - Clean up a specific finished worktree after confirming what will be removed.
 - Open a pull request for a worktree branch when the user asks for one.
-- Do not use for detached worktrees, or for Git hosting work beyond creating a pull request (review, merge, or release).
+- Bump the newest semantic version tag of a repository, and create a draft GitHub release for it, when the user asks for a release tag.
+- Do not use for detached worktrees, or for Git hosting work beyond creating a pull request or a draft release (review or merge).
 
 ## Prerequisites and configuration
 
@@ -26,6 +27,7 @@ For detailed checklist editing, use the separate `timber-todo` skill.
   Use the user's existing Git authentication.
   Never embed credentials.
 - `gh` authenticated to GitHub is optional for `list --pr` and automatic mise trust / hk eligibility checks.
+  `timber bump --release` needs it.
   Herdr is optional; use `--no-herdr` for headless creation.
 - `timber pr create` needs a GitHub token for `github.com`.
   It reads `GH_TOKEN`, then `GITHUB_TOKEN`, then the credential that `gh auth login` stored in the system keyring.
@@ -89,6 +91,11 @@ timber pr create feature/login@owner/repo --title "Add login" --body "Adds login
 # Merge somewhere other than the branch's upstream, or open a draft:
 timber pr create feature/login@owner/repo --title "Add login" --base develop --draft
 
+# Create the next version tag and push it to origin.
+timber bump --patch feature/login@owner/repo
+# Create a draft GitHub release for the new tag, without opening a browser:
+timber bump --minor --release --no-open feature/login@owner/repo
+
 # Preview cleanup before proposing any deletion.
 timber prune @owner/repo --dry-run
 # Only after approval for this exact worktree and its branch:
@@ -116,6 +123,11 @@ timber remove feature/login@owner/repo
    Verify the branch and its commits first, then run `timber pr create` with an explicit selector, a `--title` that follows the repository's commit subject style, and a `--body` that explains why.
    The command never pushes: the branch must already be at the worktree's commit on GitHub, and only `github.com` remotes are supported.
    Report the printed URL.
+1. For a release tag, name the worktree that has the commit to tag.
+   `bump` tags that worktree's commit, so do not run it on an arbitrary worktree.
+   Push the branch first; a tag never replaces a branch push.
+   Use `--no-push` only when the user wants a local tag.
+   Use `--release` only when the user wants a draft release.
 1. For cleanup, inspect Git status, preserve needed commits/files/notes, and show the scoped `prune --dry-run` result before requesting approval.
    `prune` removes clean, merged worktrees; `remove` also deletes the branch.
    Never infer user approval from `merged`, and never retry with `--force` merely because normal removal refused.
@@ -148,6 +160,10 @@ timber remove feature/login@owner/repo
   Repository TODO items do not affect worktree status counts.
   Resolve the path instead of writing a checkout-root TODO.md.
   Notes are local Git state, not committed source; preserve worktree notes before removal.
+- `bump` changes shared repository state: it creates a tag, and pushes it to `origin` unless `--no-push` is set.
+  Tags belong to the repository, so several worktrees see the same tag.
+  The highest tag can be on another branch, so check the refs first when the answer matters.
+  `--pattern` limits candidates; a pattern that matches no tag is an error.
 - A failed create can leave a worktree behind (for example after optional setup fails).
   Re-list before retrying; do not force-remove it automatically.
 
@@ -155,5 +171,6 @@ timber remove feature/login@owner/repo
 
 Confirm the expected repository, name, and real checkout path in `list --json`; check the branch with Git inside that checkout.
 After `pr create`, confirm the printed URL is a pull request for the intended repository, branch, and base.
+After `bump`, confirm the printed tag is on the intended commit and, when reported, that the draft release URL names the right repository.
 After approved removal, confirm that selector is absent and unrelated worktrees remain.
 Report the path/branch and any warnings, not merely the command's exit status.

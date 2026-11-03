@@ -202,6 +202,37 @@ Install the review feedback skill with `timber review --install-skill`.
 Use `--force` to replace an existing installation.
 For the Pi extension and package installation, see [pi/README.md](pi/README.md).
 
+## Version tags
+
+`timber bump` creates the next semantic version tag for a worktree's repository and pushes it to `origin`.
+
+```bash
+timber bump --patch feature/login@timber
+timber bump --minor --pattern 'v1.*' feature/login@timber
+timber bump --major --no-push feature/login@timber
+timber bump --patch --release --no-open feature/login@timber
+```
+
+Exactly one of `--major`, `--minor`, or `--patch` is required.
+The command reads the highest strict `vMAJOR.MINOR.PATCH` tag in the repository, creates the next tag as an annotated tag on the selected worktree's commit, and pushes it to `origin`.
+Tags belong to the repository rather than to one checkout, so every worktree of a repository sees the same tags; the selector names the commit that the new tag points at, and defaults to the current worktree.
+
+- `--pattern` limits candidates the way `git tag -l <pattern>` does.
+  Tags that are not strict semver are skipped.
+  A pattern that matches no tag is an error, so a typo cannot invent a fresh version; without a pattern, a repository without a usable tag starts at `v0.0.0`.
+- `--no-push` leaves the new tag local.
+- `--release` creates a draft GitHub release for the new tag with authenticated `gh` and prints its URL after the tag.
+  The URL is opened with `open` or `xdg-open`; `--no-open` skips that.
+  A missing or failing browser warns and still reports the bump as successful.
+
+The new tag is on stdout, so `TAG=$(timber bump --patch feature/login@timber)` captures it.
+
+Entry points:
+
+- [internal/timber/bump/version.go](internal/timber/bump/version.go): parsing, ordering, and bumping of tags
+- [internal/timber/bump_tag.go](internal/timber/bump_tag.go): tag creation, push, draft release, and browser steps
+- [internal/cli/bump/bump.go](internal/cli/bump/bump.go): command flags and output
+
 ## Agent skills
 
 Install the bundled general-purpose Timber skill for agents with:
@@ -362,7 +393,7 @@ Worktree commands take an optional `<worktree>@<repo>` qualifier on the name arg
 `list` and `prune` use every registered repository unless `@<repo>` pins one.
 
 `create` (and `switch -c`) use the current repository when the cwd is a managed worktree of a registered repo, otherwise an interactive picker.
-`remove` and `herdr space` with no name target the managed worktree that contains the cwd.
+`remove`, `herdr space`, `pr create`, and `bump` with no name target the managed worktree that contains the cwd.
 
 In non-interactive environments commands that need a single repository fail unless `@<repo>` is set or the cwd auto-detects a managed repo.
 
@@ -391,6 +422,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `pr create` | Open a GitHub pull request for a pushed worktree branch (`--title`, `--body`, `--base`, `--draft`) |
+| `bump` | Create and push the next semantic version tag (`--major`/`--minor`/`--patch`, `--pattern`, `--no-push`, `--release`, `--no-open`) |
 | `hooks commit-msg` | Add a Gerrit-compatible `Change-Id` to a commit message (`timber review commit-msg` stays as a hidden alias) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |
 | `generate zsh` | Generate the `t` wrapper, completion, and autoload helper |
