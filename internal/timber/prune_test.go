@@ -139,6 +139,5 @@ func TestPruneRequiresReporterBeforeRemoval(t *testing.T) {
 
 func createPruneTestWorktree(t *testing.T, runtime Runtime, repo, branch string) {
 	t.Helper()
-	_, _, err := runtime.CreateManagedWorktree(t.Context(), &bytes.Buffer{}, io.Discard, "", at(repo, branch), "", false, "", false, false, testCreateReporters())
-	require.NoError(t, err)
+	createTestWorktree(t, runtime, repo, branch)
 }
