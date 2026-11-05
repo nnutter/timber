@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"os"
@@ -161,6 +162,38 @@ func TestInterruptedReviewRecoveryAndReplacement(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A saved session that still has work left belongs to a current stack, so a
+// recovery must resume that attempt and keep the progress it recorded.
+func TestInterruptedReviewResumesSavedProgress(t *testing.T) {
+	reviewer, view, store := testReviewer(t)
+	fakeTuicr(t, "exit 1")
+	_, err := reviewer.Review(t.Context(), ReviewOptions{})
+	require.ErrorContains(t, err, "tuicr interrupted")
+	path, err := WorktreePath(view.Stacks[0].Repo)
+	require.NoError(t, err)
+	scope := view.Stacks[0]
+	scope.Repo = path
+	session := savedFixture(t, scope, store, false)
+	session["files"].(map[string]any)["main.go"].(map[string]any)["reviewed"] = true
+	writeJSON(t, filepath.Join(store, "sessions/0123456789abcdef.json"), session)
+
+	fakeTuicr(t, "exit 0")
+	result, err := reviewer.Review(t.Context(), ReviewOptions{Choice: "recover"})
+	require.NoError(t, err)
+	require.Equal(t, "incomplete", result.Status)
+	require.NotNil(t, result.Decision)
+	require.Equal(t, result.Decision.AttemptID, result.Entries[0].Attempt.ID)
+	state, err := (Store{Path: view.Path}).Load()
+	require.NoError(t, err)
+	require.Len(t, state.Attempts, 1, "recovery must not discard a resumable attempt")
+	require.Equal(t, result.Decision.AttemptID, state.Attempts[0].ID)
+	var saved SavedReview
+	require.NoError(t, json.Unmarshal(state.Attempts[0].Review, &saved))
+	require.Equal(t, "incomplete", saved.Status())
+	require.Equal(t, 1, saved.Reviewed)
+	require.Equal(t, 2, saved.Files)
 }
 
 func TestReviewDiscardsUntouchedExit(t *testing.T) {

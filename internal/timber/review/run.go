@@ -62,7 +62,7 @@ func (r Reviewer) Review(ctx context.Context, options ReviewOptions) (result Res
 	}
 	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository, lock)
 	defer stopMaintenance()
-	r.discardSuperseded(ctx)
+	r.discardUnusable(ctx)
 	result, err = r.reviewSequence(ctx, options, path, lock)
 	if err != nil {
 		return result, err
@@ -173,24 +173,25 @@ func (r Reviewer) bounds(ctx context.Context, view Snapshot, first, last string)
 	return view.Stacks[start : end+1], nil
 }
 
-// discardSuperseded removes the reviews of earlier stack versions. Their saved
-// sessions can no longer be resumed, and their unfinished attempts still look
-// recoverable, so nothing else would ever remove them.
-// Cleanup only warns: reviewing a current stack must still work.
-func (r Reviewer) discardSuperseded(ctx context.Context) {
+// discardUnusable removes the reviews of stack versions that a current review
+// can no longer select: a stack that a fixup commit extended, and a stack that a
+// rewrite removed. Their saved sessions can no longer be resumed, and their
+// unfinished attempts still look recoverable, so nothing else would ever remove
+// them. Cleanup only warns: reviewing a current stack must still work.
+func (r Reviewer) discardUnusable(ctx context.Context) {
 	view, err := r.Service.Repository.Snapshot(ctx)
 	if err != nil {
-		r.warnSupersededCleanup(err)
+		r.warnCleanup(err)
 		return
 	}
 	state, err := (Store{Path: view.Path}).Load()
 	if err != nil {
-		r.warnSupersededCleanup(err)
+		r.warnCleanup(err)
 		return
 	}
 	var sessions []Stack
 	for _, attempt := range state.Attempts {
-		if supersededAttempt(attempt, view) {
+		if supersededAttempt(attempt, view) || lostAttempt(attempt, view) {
 			sessions = append(sessions, attempt.Stack)
 		}
 	}
@@ -199,18 +200,18 @@ func (r Reviewer) discardSuperseded(ctx context.Context) {
 	}
 	err = (Store{Path: view.Path}).Update(func(state *State) error {
 		state.Attempts = slices.DeleteFunc(state.Attempts, func(attempt Attempt) bool {
-			return unfinished(attempt) && supersededAttempt(attempt, view)
+			return unusableAttempt(attempt, view)
 		})
 		return nil
 	})
 	if err != nil {
-		r.warnSupersededCleanup(err)
+		r.warnCleanup(err)
 		return
 	}
 	writer := SavedWriter{Stores: r.Reader.Stores}
 	for _, stack := range sessions {
 		if _, err := writer.Delete(stack); err != nil {
-			r.warnSupersededCleanup(err)
+			r.warnCleanup(err)
 			return
 		}
 	}
@@ -462,8 +463,8 @@ type reviewPlan struct {
 	exhausted bool
 }
 
-func (r Reviewer) warnSupersededCleanup(cause error) {
-	r.Service.Repository.logger().Warn("Superseded review cleanup failed", "error", cause)
+func (r Reviewer) warnCleanup(cause error) {
+	r.Service.Repository.logger().Warn("Review cleanup failed", "error", cause)
 }
 
 func (plan reviewPlan) rangeComplete() bool {
@@ -577,8 +578,8 @@ func recoverablePrior(state State, view Snapshot, stack Stack) *Attempt {
 }
 
 // recoverableAttempt reports whether a review can reopen the attempt. A model
-// result has no saved session to reopen, and a stack version that a feedback
-// commit extended is no longer a range that the review can select.
+// result has no saved session to reopen, and a stack version that no current
+// stack continues is no longer a range that the review can select.
 func recoverableAttempt(attempt Attempt, view Snapshot) bool {
 	if attempt.Status == "approved" {
 		return false
@@ -586,7 +587,7 @@ func recoverableAttempt(attempt Attempt, view Snapshot) bool {
 	if isSame(attempt.ApprovalSource, "model") {
 		return false
 	}
-	return !supersededAttempt(attempt, view)
+	return !unusableAttempt(attempt, view)
 }
 
 func recordFailure(path, id string, cause error) error {

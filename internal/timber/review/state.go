@@ -355,6 +355,28 @@ func supersededAttempt(attempt Attempt, view Snapshot) bool {
 	return false
 }
 
+// lostAttempt reports whether no current stack continues the attempt's captured
+// commits. A rewrite that leaves no lineage removes the range that the attempt
+// and its saved session need, so no review can select it again.
+func lostAttempt(attempt Attempt, view Snapshot) bool {
+	for _, stack := range view.Stacks {
+		if sameStack(attempt.Stack, stack) || sharesLineage(attempt.Stack, stack) {
+			return false
+		}
+	}
+	return true
+}
+
+// unusableAttempt reports whether an unfinished attempt must be discarded, either
+// because a current stack extends its commits or because no current stack
+// continues them. Neither attempt asks the user for a recovery choice.
+func unusableAttempt(attempt Attempt, view Snapshot) bool {
+	if !unfinished(attempt) {
+		return false
+	}
+	return supersededAttempt(attempt, view) || lostAttempt(attempt, view)
+}
+
 func extendsStack(old, current Stack) bool {
 	if len(current.Commits) <= len(old.Commits) {
 		return false

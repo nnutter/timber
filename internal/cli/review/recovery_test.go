@@ -2,6 +2,9 @@ package cli
 
 import (
 	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -53,4 +56,50 @@ func TestRecoveryDecisionExplainsSavedWork(t *testing.T) {
 			require.NotContains(t, text, "internal-id")
 		})
 	}
+}
+
+// installFakeTuicr puts a scripted tuicr on PATH so a review can run without a
+// terminal.
+func installFakeTuicr(t *testing.T, body string) {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "tuicr"), []byte("#!/bin/sh\nset -eu\n"+body+"\n"), 0o700))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// An interrupted attempt whose captured commits a rewrite removed leaves no
+// range that a review can reopen or replace. The review must start on the
+// current stacks instead of asking for an impossible choice.
+func TestReviewDiscardsAttemptWhoseStackNoLongerExists(t *testing.T) {
+	dir := featureRepo(t)
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	installFakeTuicr(t, "exit 0")
+	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
+	require.NoError(t, err)
+	interrupted := review.Attempt{ID: "interrupted", Stack: view.Stacks[0], Status: "reviewing", StartedAt: "2026-01-01T00:00:00Z"}
+	store := review.Store{Path: view.Path}
+	require.NoError(t, store.Update(func(state *review.State) error {
+		state.Attempts = append(state.Attempts, interrupted)
+		return nil
+	}))
+	// The rewrite keeps the patch but leaves no lineage to the captured commits.
+	git(t, dir, "commit", "--amend", "--allow-empty", "-m", "Add feature again")
+	out, _, err := execute(t, dir, "commits", "--json")
+	require.NoError(t, err)
+	var result review.Result
+	require.NoError(t, json.Unmarshal([]byte(out), &result))
+	require.NotEqual(t, "decision_required", result.Status)
+	require.Nil(t, result.Decision)
+	state, err := store.Load()
+	require.NoError(t, err)
+	require.NotContains(t, attemptIDs(state), interrupted.ID)
+}
+
+func attemptIDs(state review.State) []string {
+	ids := make([]string, 0, len(state.Attempts))
+	for _, attempt := range state.Attempts {
+		ids = append(ids, attempt.ID)
+	}
+	return ids
 }
