@@ -216,6 +216,8 @@ func resultMessage(result review.Result) string {
 		return "Review is incomplete, not approved."
 	case "cancelled":
 		return "Review cancelled. The attempt remains unchanged."
+	case "reset":
+		return "Review state cleared."
 	default:
 		return ""
 	}

@@ -241,6 +241,7 @@ func TestHelpAndVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, out, "approve")
 	require.Contains(t, out, "commits")
+	require.Contains(t, out, "reset")
 	require.Contains(t, out, "files")
 	require.Contains(t, out, "--json")
 	require.NotContains(t, out, "confirm")
@@ -256,4 +257,44 @@ func TestHelpAndVersion(t *testing.T) {
 	out, _, err = execute(t, t.TempDir(), "--version")
 	require.NoError(t, err)
 	require.Contains(t, out, "test-version")
+}
+
+func TestResetClearsSelectedStacks(t *testing.T) {
+	dir := featureRepo(t)
+	git(t, dir, "commit", "--allow-empty", "-m", "Second\n\nChange-Id: I"+strings.Repeat("b", 40))
+	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
+	require.NoError(t, err)
+	store := review.Store{Path: view.Path}
+	attempts := func(state *review.State) error {
+		state.Attempts = nil
+		for i, stack := range view.Stacks {
+			state.Attempts = append(state.Attempts, review.Attempt{ID: stack.Key, Stack: stack, Status: "approved", StartedAt: "2026-01-01T00:00:00Z", ApprovalSource: "user-command"})
+			_ = i
+		}
+		return nil
+	}
+	require.NoError(t, store.Update(attempts))
+	out, _, err := execute(t, dir, "reset", "HEAD", "--json")
+	require.NoError(t, err)
+	var result review.Result
+	require.NoError(t, json.Unmarshal([]byte(out), &result))
+	require.Equal(t, "reset", result.Status)
+	state, err := store.Load()
+	require.NoError(t, err)
+	require.Len(t, state.Attempts, 1, "reset clears only the selected stack")
+	require.Equal(t, view.Stacks[0].Key, state.Attempts[0].ID)
+
+	require.NoError(t, store.Update(attempts))
+	out, _, err = execute(t, dir, "reset", "--json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(out), &result))
+	require.Equal(t, "reset", result.Status)
+	state, err = store.Load()
+	require.NoError(t, err)
+	require.Empty(t, state.Attempts, "reset without a selector clears the branch")
+	out, _, err = execute(t, dir, "status", "--needs-review", "--json")
+	require.NoError(t, err)
+	var listed review.Result
+	require.NoError(t, json.Unmarshal([]byte(out), &listed))
+	require.Equal(t, "pending", listed.Status)
 }

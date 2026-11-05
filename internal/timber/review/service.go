@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/nnutter/timber/internal/timber/review/autoreview"
@@ -158,6 +159,57 @@ func (s Service) Feedback(ctx context.Context) (Result, error) {
 	return result, nil
 }
 
+// Reset clears the review state of the selected stacks, or of every stack in
+// the feature range when no selector is given. It removes the attempts that a
+// stack can show and the saved sessions that name them, so tuicr and the agent
+// start clean.
+func (s Service) Reset(ctx context.Context, reader SavedReader, selector string) (Result, error) {
+	view, err := s.Repository.Snapshot(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	selected, err := s.resetStacks(ctx, view, selector)
+	if err != nil {
+		return Result{}, err
+	}
+	path, err := WorktreePath(s.Repository.Dir)
+	if err != nil {
+		return Result{}, err
+	}
+	lock, err := lockWorktree(path)
+	if err != nil {
+		return Result{}, err
+	}
+	defer func() {
+		if closeErr := lock.Close(); closeErr != nil {
+			s.Repository.logger().Warn("Review lock close failed", "error", closeErr)
+		}
+	}()
+	store := Store{Path: view.Path}
+	if err := store.Update(func(state *State) error {
+		state.Attempts = slices.DeleteFunc(state.Attempts, func(attempt Attempt) bool {
+			return resetsAttempt(attempt, selected)
+		})
+		return nil
+	}); err != nil {
+		return Result{}, err
+	}
+	writer := SavedWriter(reader)
+	for _, stack := range selected {
+		if _, err := writer.Delete(stack); err != nil {
+			return Result{}, err
+		}
+	}
+	state, err := store.Load()
+	if err != nil {
+		return Result{}, err
+	}
+	result := makeResult("reset", view, state)
+	result.Status = "reset"
+	result.Entries = nil
+	return result, nil
+}
+
 // ReviewRunning reports whether the current or rebasing branch owns the live review lock.
 // It does not create the lock file or infer activity from persisted attempts.
 func (s Service) ReviewRunning(ctx context.Context) (bool, error) {
@@ -306,6 +358,18 @@ func (s Service) recordAutomatic(ctx context.Context, view Snapshot, entry *Auto
 	}
 	entry.Approved = status == "approved"
 	return nil
+}
+
+// resetStacks returns the stacks that a reset selects.
+func (s Service) resetStacks(ctx context.Context, view Snapshot, selector string) ([]Stack, error) {
+	if selector == "" {
+		return view.Stacks, nil
+	}
+	stack, err := selectStack(ctx, s.Repository, view, selector)
+	if err != nil {
+		return nil, err
+	}
+	return []Stack{stack}, nil
 }
 
 func (s Service) selectRange(ctx context.Context, view Snapshot, first, last string) ([]Stack, error) {
@@ -458,4 +522,14 @@ func resultFromEntries(command string, view Snapshot, state State, entries []Ent
 		}
 	}
 	return result
+}
+
+// resetsAttempt reports whether an attempt describes a stack that reset clears.
+func resetsAttempt(attempt Attempt, selected []Stack) bool {
+	for _, stack := range selected {
+		if sameStack(attempt.Stack, stack) || attempt.matches(stack) || sharesLineage(attempt.Stack, stack) {
+			return true
+		}
+	}
+	return false
 }
