@@ -86,7 +86,7 @@ func (r Reviewer) begin(ctx context.Context, plan reviewPlan) (Attempt, error) {
 		if err := r.Service.unchanged(ctx, plan.view); err != nil {
 			return err
 		}
-		if err := checkActive(*state, plan.prior); err != nil {
+		if err := checkActive(plan.view, *state, plan.prior); err != nil {
 			return err
 		}
 		if plan.prior != nil {
@@ -268,11 +268,11 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 	}
 	selector := options.Stack
 	view, state := plan.view, plan.state
-	active := activeAttempts(state)
+	active := activeAttempts(view, state)
 	if len(active) > 1 {
 		return plan, fmt.Errorf("multiple active attempts in state; resolve them before review")
 	}
-	if len(active) == 1 && !supersededAttempt(active[0], view) {
+	if len(active) == 1 {
 		prior := active[0]
 		plan.prior = &prior
 		plan.stack = &prior.Stack
@@ -365,7 +365,7 @@ func (r Reviewer) resume(ctx context.Context, path string, plan reviewPlan, sess
 	if _, err := r.readAttempt(*plan.prior, session); err != nil {
 		return Result{}, err
 	}
-	attempt, err := resumeAttempt(plan.view.Path, *plan.prior)
+	attempt, err := resumeAttempt(plan.view, *plan.prior)
 	if err != nil {
 		return Result{}, err
 	}
@@ -474,10 +474,10 @@ func (plan reviewPlan) rangeComplete() bool {
 	return plan.exhausted
 }
 
-func resumeAttempt(path string, prior Attempt) (Attempt, error) {
+func resumeAttempt(view Snapshot, prior Attempt) (Attempt, error) {
 	var attempt Attempt
-	err := (Store{Path: path}).Update(func(state *State) error {
-		if err := checkActive(*state, &prior); err != nil {
+	err := (Store{Path: view.Path}).Update(func(state *State) error {
+		if err := checkActive(view, *state, &prior); err != nil {
 			return err
 		}
 		for i := range state.Attempts {
@@ -529,8 +529,8 @@ func finishAttempt(state *State, attempt Attempt, saved *SavedReview, raw []byte
 	return Attempt{}, fmt.Errorf("review attempt disappeared; retry")
 }
 
-func checkActive(state State, prior *Attempt) error {
-	for _, a := range activeAttempts(state) {
+func checkActive(view Snapshot, state State, prior *Attempt) error {
+	for _, a := range activeAttempts(view, state) {
 		if prior == nil {
 			return fmt.Errorf("another session started a review")
 		}

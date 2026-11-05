@@ -112,7 +112,10 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
 	require.Equal(t, []review.StateCount{{State: "needs_review"}, {State: "reviewing"}, {State: "feedback"}, {State: "incomplete"}, {State: "auto_reviewed"}, {State: "approved"}}, result.Summary)
 	require.Empty(t, result.Entries)
-	require.Equal(t, "pending", result.Status) // The historical active attempt still needs recovery.
+	// The removed stack can never reopen its attempt, so the attempt is not
+	// active and no review is pending.
+	require.Equal(t, "idle", result.Status)
+	require.Empty(t, result.Active)
 }
 
 func assertStatusVerbosity(t *testing.T, binary, dir, out string) {

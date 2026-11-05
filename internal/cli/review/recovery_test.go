@@ -96,6 +96,30 @@ func TestReviewDiscardsAttemptWhoseStackNoLongerExists(t *testing.T) {
 	require.NotContains(t, attemptIDs(state), interrupted.ID)
 }
 
+func TestApprovalIgnoresAttemptWhoseStackNoLongerExists(t *testing.T) {
+	dir := featureRepo(t)
+	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
+	require.NoError(t, err)
+	interrupted := review.Attempt{ID: "interrupted", Stack: view.Stacks[0], Status: "reviewing", StartedAt: "2026-01-01T00:00:00Z"}
+	require.NoError(t, (review.Store{Path: view.Path}).Update(func(state *review.State) error {
+		state.Attempts = append(state.Attempts, interrupted)
+		return nil
+	}))
+	git(t, dir, "commit", "--amend", "--allow-empty", "-m", "Add feature again")
+	out, _, err := execute(t, dir, "approve", "HEAD", "--json")
+	require.NoError(t, err)
+	var approved review.Result
+	require.NoError(t, json.Unmarshal([]byte(out), &approved))
+	require.Equal(t, "approved", approved.Status)
+	out, _, err = execute(t, dir, "status", "--needs-review", "--json")
+	require.NoError(t, err)
+	var listed review.Result
+	require.NoError(t, json.Unmarshal([]byte(out), &listed))
+	require.Equal(t, "idle", listed.Status)
+	require.Empty(t, listed.Entries)
+	require.Empty(t, listed.Active)
+}
+
 func attemptIDs(state review.State) []string {
 	ids := make([]string, 0, len(state.Attempts))
 	for _, attempt := range state.Attempts {

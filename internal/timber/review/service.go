@@ -159,7 +159,7 @@ func (s Service) Feedback(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	result := Result{Version: 1, Command: "feedback", Status: "idle", View: view, Entries: []Entry{}, Active: activeAttempts(state), FileFeedback: files}
+	result := Result{Version: 1, Command: "feedback", Status: "idle", View: view, Entries: []Entry{}, Active: activeAttempts(view, state), FileFeedback: files}
 	if len(files) > 0 {
 		result.Status = "pending"
 	}
@@ -248,7 +248,7 @@ func (s Service) feedbackView(ctx context.Context, view Snapshot, state State) (
 func (s Service) recordApproval(ctx context.Context, view Snapshot, selected []Stack) (Result, error) {
 	store := Store{Path: view.Path}
 	err := store.Update(func(state *State) error {
-		if err := approvalAllowed(selected, *state); err != nil {
+		if err := approvalAllowed(selected, view, *state); err != nil {
 			return err
 		}
 		if err := s.unchanged(ctx, view); err != nil {
@@ -302,7 +302,7 @@ func (s Service) recordAutomatic(ctx context.Context, view Snapshot, entry *Auto
 		}
 		if status == "approved" {
 			// Only an approval needs the state and feedback checks.
-			if err := approvalAllowed([]Stack{entry.Stack}, *state); err != nil {
+			if err := approvalAllowed([]Stack{entry.Stack}, view, *state); err != nil {
 				return err
 			}
 		}
@@ -381,18 +381,21 @@ func (s Service) unchanged(ctx context.Context, view Snapshot) error {
 	return nil
 }
 
-func activeAttempts(state State) []Attempt {
+// activeAttempts lists the attempts that can still hold their captured stack. An
+// attempt that no current stack continues cannot be reopened, so it blocks
+// neither another review nor an approval.
+func activeAttempts(view Snapshot, state State) []Attempt {
 	active := []Attempt{}
 	for _, a := range state.Attempts {
-		if a.Status == "reviewing" {
+		if a.Status == "reviewing" && !unusableAttempt(a, view) {
 			active = append(active, a)
 		}
 	}
 	return active
 }
 
-func approvalAllowed(selected []Stack, state State) error {
-	if len(activeAttempts(state)) > 0 {
+func approvalAllowed(selected []Stack, view Snapshot, state State) error {
+	if len(activeAttempts(view, state)) > 0 {
 		return fmt.Errorf("recover or replace the active review before approval")
 	}
 	for _, stack := range selected {
@@ -454,7 +457,7 @@ func makeResult(command string, view Snapshot, state State) Result {
 }
 
 func resultFromEntries(command string, view Snapshot, state State, entries []Entry) Result {
-	result := Result{Version: 1, Command: command, Status: "pending", View: view, Entries: []Entry{}, Active: activeAttempts(state)}
+	result := Result{Version: 1, Command: command, Status: "pending", View: view, Entries: []Entry{}, Active: activeAttempts(view, state)}
 	for _, entry := range entries {
 		if entry.Status != "approved" {
 			result.Entries = append(result.Entries, entry)
