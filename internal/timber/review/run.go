@@ -62,6 +62,7 @@ func (r Reviewer) Review(ctx context.Context, options ReviewOptions) (result Res
 	}
 	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository, lock)
 	defer stopMaintenance()
+	carrySavedReviews(ctx, r.Service.Repository, r.Reader)
 	r.discardUnusable(ctx)
 	result, err = r.reviewSequence(ctx, options, path, lock)
 	if err != nil {
@@ -298,31 +299,8 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 	return plan, nil
 }
 
-func (r Reviewer) readAttempt(attempt Attempt, selector string) (*SavedReview, error) {
-	path, err := WorktreePath(attempt.Stack.Repo)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := os.Stat(filepath.Join(path, ".git")); err == nil {
-		scope := attempt.Stack
-		scope.Repo = path
-		saved, err := r.Reader.Read(scope, selector)
-		if err != nil {
-			return nil, err
-		}
-		if saved != nil {
-			return saved, nil
-		}
-	} else {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
-	}
-	return r.Reader.Read(attempt.Stack, selector)
-}
-
 func (r Reviewer) recover(plan reviewPlan, attempt Attempt, selector string) (Result, error) {
-	saved, err := r.readAttempt(attempt, selector)
+	saved, err := readAttempt(r.Reader, attempt, selector)
 	if err != nil {
 		return Result{}, err
 	}
@@ -362,7 +340,7 @@ func (r Reviewer) recover(plan reviewPlan, attempt Attempt, selector string) (Re
 func (r Reviewer) resume(ctx context.Context, path string, plan reviewPlan, session string, lock *os.File) (Result, error) {
 	// Tuicr resumes the saved session for the same checkout and range.
 	// Validate selection before launch rather than opening an ambiguous review.
-	if _, err := r.readAttempt(*plan.prior, session); err != nil {
+	if _, err := readAttempt(r.Reader, *plan.prior, session); err != nil {
 		return Result{}, err
 	}
 	attempt, err := resumeAttempt(plan.view, *plan.prior)
@@ -465,6 +443,31 @@ type reviewPlan struct {
 
 func (r Reviewer) warnCleanup(cause error) {
 	r.Service.Repository.logger().Warn("Review cleanup failed", "error", cause)
+}
+
+// readAttempt reads the saved review that captured an attempt. A session lives
+// in the review checkout, but an older one can name the repository itself.
+func readAttempt(reader SavedReader, attempt Attempt, selector string) (*SavedReview, error) {
+	path, err := WorktreePath(attempt.Stack.Repo)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(filepath.Join(path, ".git")); err == nil {
+		scope := attempt.Stack
+		scope.Repo = path
+		saved, err := reader.Read(scope, selector)
+		if err != nil {
+			return nil, err
+		}
+		if saved != nil {
+			return saved, nil
+		}
+	} else {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+	return reader.Read(attempt.Stack, selector)
 }
 
 func (plan reviewPlan) rangeComplete() bool {
