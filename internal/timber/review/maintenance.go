@@ -47,10 +47,10 @@ func prunePatchCache(ctx context.Context, dir string) (err error) {
 		return err
 	}
 	folder, err := os.Open(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
 		return err
 	}
 	defer func() { err = errors.Join(err, folder.Close()) }()
