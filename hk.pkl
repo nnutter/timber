@@ -1,63 +1,20 @@
+// The hook templates from nnutter/hk-config, which amend hk's configuration.
+// Both package paths name the same hk-config version, and that version must
+// target the hk pin in mise.toml. The revision is the newest one released for
+// that hk version.
 amends
-  "package://github.com/nnutter/hk-config/releases/download/v2.11.1-0/hk-config@2.11.1-0#/Config.pkl"
+  "package://github.com/nnutter/hk-config/releases/download/v2.11.1-2/hk-config@2.11.1-2#/Config.pkl"
 
-import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl" as Hk
 import
-  "package://github.com/nnutter/hk-config/releases/download/v2.11.1-0/hk-config@2.11.1-0#/Builtins.pkl"
-  as Extra
+  "package://github.com/nnutter/hk-config/releases/download/v2.11.1-2/hk-config@2.11.1-2#/Hooks.pkl"
+  as Hooks
 
 /// Fixtures hold deliberately broken files, so every step skips them.
 exclude = List("**/testdata/**")
 
-/// Shared by the implicit check, fix, and pre-commit hooks.
-steps {
-  ["constable"] = Extra.constable
-  ["errcheck"] = Hk.err_check
-  ["gitleaks"] = Hk.gitleaks
-  ["go_check_sumtype"] = Extra.go_check_sumtype
-  ["go_fix"] = Hk.go_fix
-  ["go_fumpt"] = Hk.go_fumpt
-  ["go_imports"] = Extra.go_imports
-  ["go_sec"] = Extra.go_sec
-  ["go_vet"] = Hk.go_vet
-  ["go_vuln_check"] = Hk.go_vuln_check
-  ["gomod_tidy"] = Hk.gomod_tidy
-  ["mdlint"] = Extra.mdlint
-  ["newlines"] = Hk.newlines
-  ["nilaway"] = Extra.nilaway
-  ["pkl"] = Hk.pkl
-  ["pkl_format"] = Hk.pkl_format
-  ["skills_ref"] = Extra.skills_ref
-  ["staticcheck"] = Hk.staticcheck
-  ["testifylint"] = Extra.testifylint
-  ["tombi"] = Hk.tombi
-  ["tombi_format"] = Hk.tombi_format
-  ["trailing_whitespace"] = Hk.trailing_whitespace
-  ["yamlfmt"] = Hk.yamlfmt
-}
-
-hooks {
-  // A hook that hk does not create needs an explicit declaration.
-  ["commit-msg"] {
-    fix = true
-    steps {
-      ["change-id"] = Extra.timber_commit_msg
-    }
-  }
-  ["pre-commit"] {
-    fix = true
-    stage = true
-    stash = "git"
-    steps {
-      // No file filter: scan every staged change, including arbitrary types,
-      // binary files, deletions, and commits without Go or Markdown changes.
-      // The git-mode scan only sees text diffs, so staged binary bytes are
-      // checked out to a temporary directory and scanned explicitly.
-      ["gitleaks"] = (Hk.gitleaks) {
-        scan = "staged"
-        check =
-          "gitleaks git --redact --pre-commit --staged --verbose --no-banner && tmp=$(mktemp -d) || exit $?; trap 'rm -rf \"$tmp\"' EXIT INT TERM; git diff --cached --name-only -z --diff-filter=ACMRT > \"$tmp/list\" || exit $?; git checkout-index -z --stdin --prefix=\"$tmp/tree/\" < \"$tmp/list\" || exit $?; mkdir -p \"$tmp/tree\" || exit $?; gitleaks dir --redact --verbose --no-banner \"$tmp/tree\" || exit $?"
-      }
-    }
-  }
-}
+// The templates build the check, fix, pre-commit, and commit-msg hooks, and
+// they order the steps of each hook that fixes: the steps that rewrite files
+// run in the order their edits must land, and every step that only reads waits
+// for the last fixer, so the readers run together. `check` sets no order.
+// `go`, `toml`, `yaml`, and `agentskills` are the groups this repository needs.
+hooks = Hooks.all(List("go", "toml", "yaml", "agentskills"))
