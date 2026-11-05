@@ -315,5 +315,5 @@ func TestAutoRequiresNoActiveReview(t *testing.T) {
 		require.Fail(t, "an active review must block automatic approval")
 		return autoreview.Verdict{}, nil
 	}), AutoOptions{})
-	require.ErrorContains(t, err, "recover or replace the active review")
+	require.ErrorContains(t, err, "finish the active review")
 }

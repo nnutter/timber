@@ -67,7 +67,7 @@ func TestReviewSelectsWithinInclusiveBounds(t *testing.T) {
 }
 
 func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
-	for _, outcome := range []string{"approved", "feedback", "incomplete", "cancelled", "decision_required", "error"} {
+	for _, outcome := range []string{"approved", "feedback", "incomplete", "cancelled", "error"} {
 		t.Run(outcome, func(t *testing.T) {
 			reviewer, _, firstStore := testReviewer(t)
 			r := reviewer.Service.Repository
@@ -99,9 +99,6 @@ func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
 			prior := newAttempt(view.Stacks[1], "incomplete")
 			require.NoError(t, stateStore.Update(func(state *State) error {
 				state.Attempts = append(state.Attempts, prior)
-				if outcome == "decision_required" {
-					state.Attempts = append(state.Attempts, newAttempt(view.Stacks[2], "incomplete"))
-				}
 				return nil
 			}))
 			log := filepath.Join(t.TempDir(), "launch")
@@ -112,7 +109,7 @@ func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
 			}
 			fakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"
 if [ "$(git rev-parse HEAD)" = "$TEST_FAIL_TIP" ]; then exit 1; fi`)
-			result, err := reviewer.Review(t.Context(), ReviewOptions{Start: first.Tip, End: second.Tip, Choice: "recover", Session: "fixture-session"})
+			result, err := reviewer.Review(t.Context(), ReviewOptions{Start: first.Tip, End: second.Tip, Session: "fixture-session"})
 			if outcome == "error" {
 				require.ErrorContains(t, err, "tuicr interrupted")
 			} else {
@@ -125,10 +122,7 @@ if [ "$(git rev-parse HEAD)" = "$TEST_FAIL_TIP" ]; then exit 1; fi`)
 			}
 			launch, err := os.ReadFile(log)
 			require.NoError(t, err)
-			wantLaunch := first.Base + ".." + first.Tip + "\n"
-			if outcome != "decision_required" {
-				wantLaunch += second.Base + ".." + second.Tip + "\n"
-			}
+			wantLaunch := first.Base + ".." + first.Tip + "\n" + second.Base + ".." + second.Tip + "\n"
 			require.Equal(t, wantLaunch, string(launch))
 			state, err := stateStore.Load()
 			require.NoError(t, err)
@@ -185,14 +179,16 @@ func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
 			require.Contains(t, string(state.Attempts[i].Review), "Please revise")
 		}
 	}
-	// Feedback remains unresolved and needs an explicit choice on a later invocation.
+	// A later review resumes the captured feedback attempt without asking.
 	result, err = reviewer.Review(t.Context(), options)
 	require.NoError(t, err)
-	require.Equal(t, "decision_required", result.Status)
-	require.Equal(t, state.Attempts[0].ID, result.Decision.AttemptID)
+	require.Equal(t, "feedback", result.Status)
 	launch, err = os.ReadFile(log)
 	require.NoError(t, err)
-	require.Equal(t, wantLaunch, string(launch))
+	// The resumed run continues through the stacks whose feedback is unresolved.
+	resumed := view.Stacks[0].Base + ".." + view.Stacks[0].Tip + "\n"
+	resumed += view.Stacks[1].Base + ".." + view.Stacks[1].Tip + "\n"
+	require.Equal(t, wantLaunch+resumed, string(launch))
 }
 
 func TestReviewRejectsInvalidBoundsWithoutStateChanges(t *testing.T) {
@@ -241,17 +237,13 @@ func TestBoundedReviewRetainsDeferredAndActiveAttempts(t *testing.T) {
 		state.Attempts = append(state.Attempts, active)
 		return nil
 	}))
-	result, err = reviewer.Review(t.Context(), options)
-	require.NoError(t, err)
-	require.Equal(t, "decision_required", result.Status)
-	require.Equal(t, active.ID, result.Decision.AttemptID)
 	path, err := WorktreePath(r.Dir)
 	require.NoError(t, err)
 	scope := first
 	scope.Repo = path
 	savedFixture(t, scope, store, true)
 	fakeTuicr(t, "exit 0")
-	options.Choice = "recover"
+	// The active attempt resumes without asking, and the deferred stack stays.
 	result, err = reviewer.Review(t.Context(), options)
 	require.NoError(t, err)
 	require.Equal(t, "no_waiting", result.Status)

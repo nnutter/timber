@@ -111,7 +111,6 @@ func TestFeedbackDoesNotLaunchOrRecoverReviews(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(out), &result))
 		require.Equal(t, "idle", result.Status)
 		require.Empty(t, result.Feedback)
-		require.Nil(t, result.Decision)
 		after, err := os.ReadFile(view.Path)
 		require.NoError(t, err)
 		require.Equal(t, before, after)

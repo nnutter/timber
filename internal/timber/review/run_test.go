@@ -1,7 +1,6 @@
 package review
 
 import (
-	"context"
 	"encoding/json/v2"
 	"fmt"
 	"io"
@@ -9,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -124,42 +124,47 @@ func TestReviewContinuesThroughEligibleStacksByDefault(t *testing.T) {
 	}
 }
 
-func TestInterruptedReviewRecoveryAndReplacement(t *testing.T) {
-	for _, choice := range []string{"recover", "replace"} {
-		t.Run(choice, func(t *testing.T) {
+// A review resumes the attempt that captured the same stack, and a stack that a
+// fixup changed starts a new attempt.
+func TestInterruptedReviewResumesTheCapturedAttempt(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		amend      bool
+		wantStatus string
+		wantSame   bool
+	}{
+		{name: "same stack resumes", wantStatus: "range_complete", wantSame: true},
+		{name: "changed stack replaces", amend: true, wantStatus: "range_complete", wantSame: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			reviewer, view, store := testReviewer(t)
 			fakeTuicr(t, "exit 1")
 			_, err := reviewer.Review(t.Context(), ReviewOptions{})
 			require.ErrorContains(t, err, "tuicr interrupted")
-			result, err := reviewer.Review(t.Context(), ReviewOptions{})
-			require.NoError(t, err)
-			require.Equal(t, "decision_required", result.Status)
-			require.NotNil(t, result.Decision)
-			require.Equal(t, []string{"recover", "replace", "cancel"}, result.Decision.Choices)
-			before, err := (Store{Path: view.Path}).Load()
-			require.NoError(t, err)
-			require.Len(t, before.Attempts, 1)
-			require.Equal(t, before.Attempts[0], result.Decision.Attempt)
-			require.NotNil(t, result.Decision.Replacement)
-			require.Equal(t, view.Stacks[0], *result.Decision.Replacement)
 			path, err := WorktreePath(view.Stacks[0].Repo)
 			require.NoError(t, err)
 			scope := view.Stacks[0]
 			scope.Repo = path
+			if tc.amend {
+				gitTest(t, reviewer.Service.Repository.Dir, "commit", "--allow-empty", "--fixup=HEAD")
+				rewritten, err := reviewer.Service.Repository.Snapshot(t.Context())
+				require.NoError(t, err)
+				scope = rewritten.Stacks[0]
+				scope.Repo = path
+			}
 			savedFixture(t, scope, store, true)
-			fakeTuicr(t, "exit 0")
-			result, err = reviewer.Review(t.Context(), ReviewOptions{Choice: choice})
+			before, err := (Store{Path: view.Path}).Load()
 			require.NoError(t, err)
-			require.Equal(t, "range_complete", result.Status)
+			require.Len(t, before.Attempts, 1)
+			fakeTuicr(t, "exit 0")
+			result, err := reviewer.Review(t.Context(), ReviewOptions{})
+			require.NoError(t, err)
+			require.Equal(t, tc.wantStatus, result.Status)
 			after, err := (Store{Path: view.Path}).Load()
 			require.NoError(t, err)
-			if choice == "recover" {
-				require.Len(t, after.Attempts, 1)
-				require.Equal(t, before.Attempts[0].ID, after.Attempts[0].ID)
-			} else {
-				require.Len(t, after.Attempts, 2)
-				require.Equal(t, "incomplete", after.Attempts[0].Status)
-			}
+			require.Len(t, after.Attempts, 1)
+			resumed := after.Attempts[0].ID == before.Attempts[0].ID
+			require.Equal(t, tc.wantSame, resumed)
 		})
 	}
 }
@@ -180,15 +185,16 @@ func TestInterruptedReviewResumesSavedProgress(t *testing.T) {
 	writeJSON(t, filepath.Join(store, "sessions/0123456789abcdef.json"), session)
 
 	fakeTuicr(t, "exit 0")
-	result, err := reviewer.Review(t.Context(), ReviewOptions{Choice: "recover"})
+	before, err := (Store{Path: view.Path}).Load()
+	require.NoError(t, err)
+	result, err := reviewer.Review(t.Context(), ReviewOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "incomplete", result.Status)
-	require.NotNil(t, result.Decision)
-	require.Equal(t, result.Decision.AttemptID, result.Entries[0].Attempt.ID)
+	require.Equal(t, before.Attempts[0].ID, result.Entries[0].Attempt.ID)
 	state, err := (Store{Path: view.Path}).Load()
 	require.NoError(t, err)
 	require.Len(t, state.Attempts, 1, "recovery must not discard a resumable attempt")
-	require.Equal(t, result.Decision.AttemptID, state.Attempts[0].ID)
+	require.Equal(t, before.Attempts[0].ID, state.Attempts[0].ID)
 	var saved SavedReview
 	require.NoError(t, json.Unmarshal(state.Attempts[0].Review, &saved))
 	require.Equal(t, "incomplete", saved.Status())
@@ -212,7 +218,6 @@ func TestReviewDiscardsUntouchedExit(t *testing.T) {
 				result, err := reviewer.Review(t.Context(), ReviewOptions{})
 				require.NoError(t, err)
 				require.Equal(t, "cancelled", result.Status)
-				require.Nil(t, result.Decision)
 				state, err := (Store{Path: view.Path}).Load()
 				require.NoError(t, err)
 				require.Empty(t, state.Attempts)
@@ -271,42 +276,33 @@ func TestDeferredReviewsRemainPending(t *testing.T) {
 	require.Equal(t, "incomplete", result.Entries[0].Status)
 }
 
-func TestReviewHoldsActivityLockDuringRecoveryChoice(t *testing.T) {
-	reviewer, view, _ := testReviewer(t)
-	require.NoError(t, (Store{Path: view.Path}).Update(func(state *State) error {
-		state.Attempts = append(state.Attempts, newAttempt(view.Stacks[0], "reviewing"))
-		return nil
-	}))
-	called := false
-	reviewer.Choose = func(ctx context.Context, decision *Decision) (string, error) {
-		called = true
-		require.NotNil(t, decision)
-		running, err := reviewer.Service.ReviewRunning(ctx)
-		require.NoError(t, err)
-		require.True(t, running, "waiting for user input is part of the live review")
-		return "cancel", nil
-	}
-	result, err := reviewer.Review(t.Context(), ReviewOptions{})
-	require.NoError(t, err)
-	require.True(t, called)
-	require.Equal(t, "cancelled", result.Status)
+// A review holds the worktree lock for the whole of tuicr, so nothing else can
+// start a review, approve, or rewrite the state while the human reviews.
+func TestReviewHoldsActivityLockDuringLaunch(t *testing.T) {
+	reviewer, _, _ := testReviewer(t)
+	started := filepath.Join(t.TempDir(), "started")
+	released := filepath.Join(t.TempDir(), "released")
+	t.Setenv("TEST_STARTED", started)
+	t.Setenv("TEST_RELEASED", released)
+	fakeTuicr(t, `printf started > "$TEST_STARTED"
+while [ ! -f "$TEST_RELEASED" ]; do sleep 0.05; done`)
+	finished := make(chan error, 1)
+	go func() {
+		_, err := reviewer.Review(t.Context(), ReviewOptions{})
+		finished <- err
+	}()
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(started)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
 	running, err := reviewer.Service.ReviewRunning(t.Context())
 	require.NoError(t, err)
+	require.True(t, running, "the launch is part of the live review")
+	require.NoError(t, os.WriteFile(released, nil, 0o600))
+	require.NoError(t, <-finished)
+	running, err = reviewer.Service.ReviewRunning(t.Context())
+	require.NoError(t, err)
 	require.False(t, running)
-}
-
-func TestReviewRefusesConcurrentWorktreeUse(t *testing.T) {
-	reviewer, view, _ := testReviewer(t)
-	path, err := WorktreePath(view.Stacks[0].Repo)
-	require.NoError(t, err)
-	lock, err := lockWorktree(path)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, lock.Close()) }()
-	_, err = reviewer.Review(t.Context(), ReviewOptions{})
-	require.ErrorContains(t, err, "worktree is in use")
-	state, err := (Store{Path: view.Path}).Load()
-	require.NoError(t, err)
-	require.Empty(t, state.Attempts)
 }
 
 func TestRecoverablePriorIgnoresRecordedModelResults(t *testing.T) {

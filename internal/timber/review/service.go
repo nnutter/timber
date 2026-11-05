@@ -26,7 +26,6 @@ type Result struct {
 	View         Snapshot         `json:"view"`
 	Entries      []Entry          `json:"entries"`
 	Active       []Attempt        `json:"active"`
-	Decision     *Decision        `json:"decision,omitzero"`
 	Feedback     []FeedbackRecord `json:"feedback,omitempty"`
 	FileFeedback []FilesResult    `json:"fileFeedback,omitempty"`
 	Summary      []StateCount     `json:"summary,omitempty"`
@@ -36,16 +35,6 @@ type Result struct {
 type FeedbackRecord struct {
 	Attempt    Attempt `json:"attempt"`
 	Historical bool    `json:"historical"`
-}
-
-// Decision requires an explicit choice; it is not review approval.
-type Decision struct {
-	AttemptID string   `json:"attemptId"`
-	StackKey  string   `json:"stackKey"`
-	Choices   []string `json:"choices"`
-	Attempt   Attempt  `json:"attempt"`
-	// Replacement is the current scope a new attempt would review, if available.
-	Replacement *Stack `json:"replacement,omitzero"`
 }
 
 // StateCount counts current feature commits in one review state.
@@ -396,7 +385,7 @@ func activeAttempts(view Snapshot, state State) []Attempt {
 
 func approvalAllowed(selected []Stack, view Snapshot, state State) error {
 	if len(activeAttempts(view, state)) > 0 {
-		return fmt.Errorf("recover or replace the active review before approval")
+		return fmt.Errorf("finish the active review before approval")
 	}
 	for _, stack := range selected {
 		a := state.latest(stack)

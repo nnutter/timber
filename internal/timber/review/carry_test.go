@@ -151,7 +151,7 @@ func TestReviewRecordsCarriedProgress(t *testing.T) {
 	gitTest(t, reviewer.Service.Repository.Dir, "commit", "--amend", "--allow-empty", "--date", "2026-01-01T00:00:00Z", "-m", "Feature reworded")
 	fakeTuicr(t, "exit 0")
 
-	result, err := reviewer.Review(t.Context(), ReviewOptions{Choice: "replace"})
+	result, err := reviewer.Review(t.Context(), ReviewOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "feedback", result.Status)
 	require.Len(t, result.Entries, 1)

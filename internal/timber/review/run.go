@@ -16,7 +16,6 @@ import (
 // ReviewOptions selects a current stack and an explicit recovery choice.
 type ReviewOptions struct {
 	Stack   string
-	Choice  string
 	Session string
 	Start   string
 	End     string
@@ -35,8 +34,6 @@ type Reviewer struct {
 	Reader   SavedReader
 	Input    io.Reader
 	Terminal io.Writer
-	// Choose resolves recovery decisions while the review lock remains held.
-	Choose func(context.Context, *Decision) (string, error)
 }
 
 // Review continues automatic reviews after completed attempts, retaining feedback.
@@ -64,20 +61,6 @@ func (r Reviewer) Review(ctx context.Context, options ReviewOptions) (result Res
 	defer stopMaintenance()
 	carrySavedReviews(ctx, r.Service.Repository, r.Reader)
 	r.discardUnusable(ctx)
-	result, err = r.reviewSequence(ctx, options, path, lock)
-	if err != nil {
-		return result, err
-	}
-	if result.Status != "decision_required" {
-		return result, nil
-	}
-	if r.Choose == nil {
-		return result, nil
-	}
-	options.Choice, err = r.Choose(ctx, result.Decision)
-	if err != nil {
-		return result, err
-	}
 	return r.reviewSequence(ctx, options, path, lock)
 }
 
@@ -222,10 +205,7 @@ func (r Reviewer) execute(ctx context.Context, plan reviewPlan, options ReviewOp
 	if plan.stack == nil {
 		return result, fmt.Errorf("no stack selected")
 	}
-	if options.Choice == "recover" {
-		if plan.prior == nil {
-			return result, fmt.Errorf("no previous attempt to recover")
-		}
+	if plan.prior != nil && sameStack(plan.prior.Stack, *plan.stack) {
 		return r.resume(ctx, path, plan, options.Session, lock)
 	}
 	replacement, err := replacementStack(plan)
@@ -331,9 +311,6 @@ func (r Reviewer) recover(plan reviewPlan, attempt Attempt, selector string) (Re
 		return result, nil
 	}
 	result := Result{Version: 1, Command: "commits", Status: finished.Status, View: plan.view, Entries: []Entry{{Stack: finished.Stack, Status: finished.Status, Attempt: &finished}}, Active: []Attempt{}}
-	if finished.Status == "incomplete" {
-		result.Decision = recoveryDecision(plan, finished)
-	}
 	return result, nil
 }
 
@@ -378,8 +355,7 @@ func (r Reviewer) reviewSequence(ctx context.Context, options ReviewOptions, pat
 			return result, nil
 		}
 		visited[result.Entries[0].Stack.Key] = true
-		// Recovery and session selection apply only to the initial attempt.
-		options.Choice = ""
+		// Session selection applies only to the initial attempt.
 		options.Session = ""
 	}
 }
@@ -399,24 +375,6 @@ func (r Reviewer) reviewStack(ctx context.Context, options ReviewOptions, visite
 			result.Status = "no_waiting"
 		}
 		return result, nil
-	}
-	if plan.prior != nil {
-		if options.Choice == "" {
-			result.Status = "decision_required"
-			result.Decision = recoveryDecision(plan, *plan.prior)
-			return result, nil
-		}
-	} else {
-		if options.Choice == "recover" {
-			return result, fmt.Errorf("no previous attempt to recover")
-		}
-	}
-	if options.Choice == "cancel" {
-		result.Status = "cancelled"
-		return result, nil
-	}
-	if !slices.Contains([]string{"", "recover", "replace"}, options.Choice) {
-		return result, fmt.Errorf("invalid review choice %q", options.Choice)
 	}
 	return r.execute(ctx, plan, options, path, lock)
 }
@@ -607,19 +565,6 @@ func recordFailure(path, id string, cause error) error {
 		}
 		return fmt.Errorf("review attempt disappeared after launch failure")
 	})
-}
-
-func recoveryDecision(plan reviewPlan, attempt Attempt) *Decision {
-	decision := &Decision{
-		AttemptID: attempt.ID,
-		StackKey:  attempt.Stack.Key,
-		Choices:   []string{"recover", "replace", "cancel"},
-		Attempt:   attempt,
-	}
-	if stack, err := replacementStack(plan); err == nil {
-		decision.Replacement = &stack
-	}
-	return decision
 }
 
 func replacementStack(plan reviewPlan) (Stack, error) {

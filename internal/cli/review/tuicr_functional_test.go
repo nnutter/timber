@@ -144,17 +144,19 @@ func TestRealTuicrInterruptedRecovery(t *testing.T) {
 		}
 		return !saved[0].Active
 	}, 5*time.Second, 20*time.Millisecond)
-	before := runRealCommand(t, binary, dir, env, "commits", "--json")
-	var decision struct {
-		Status   string `json:"status"`
-		Decision struct {
-			AttemptID string `json:"attemptId"`
-		} `json:"decision"`
+	before := runRealCommand(t, binary, dir, env, "status", "--needs-review", "--json")
+	var interrupted struct {
+		Entries []struct {
+			Attempt struct {
+				ID string `json:"id"`
+			} `json:"attempt"`
+		} `json:"entries"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(before), &decision))
-	require.Equal(t, "decision_required", decision.Status)
-	require.NotEmpty(t, decision.Decision.AttemptID)
-	resumed := startTerminal(t, binary, dir, env, "commits", "HEAD", "--recover", "--json")
+	require.NoError(t, json.Unmarshal([]byte(before), &interrupted))
+	require.Len(t, interrupted.Entries, 1)
+	require.NotEmpty(t, interrupted.Entries[0].Attempt.ID)
+	// The next review resumes the captured attempt without asking.
+	resumed := startTerminal(t, binary, dir, env, "commits", "HEAD", "--json")
 	resumed.waitFor(t, "feature.txt")
 	resumed.waitFor(t, "1/2")
 	resumed.send(t, ":set noreviewed\rr")
@@ -176,84 +178,9 @@ func TestRealTuicrInterruptedRecovery(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
 	require.Equal(t, "approved", result.Status)
 	require.Len(t, result.Entries, 1)
-	require.Equal(t, decision.Decision.AttemptID, result.Entries[0].Attempt.ID)
+	require.Equal(t, interrupted.Entries[0].Attempt.ID, result.Entries[0].Attempt.ID)
 	require.True(t, result.Entries[0].Attempt.Review.Complete)
 	require.Equal(t, 2, result.Entries[0].Attempt.Review.Reviewed)
-}
-
-func TestRealTuicrRecoveryPrompt(t *testing.T) {
-	for _, choice := range []string{"recover", "replace", "cancel"} {
-		t.Run(choice, func(t *testing.T) {
-			env := realTuicrEnvironment(t)
-			binary := buildGitReview(t)
-			dir := realFeatureRepo(t)
-			initial := startTerminal(t, binary, dir, env, "commits", "--json")
-			initial.waitFor(t, "feature.txt")
-			initial.send(t, ":set noreviewed\rr")
-			initial.waitFor(t, "1/2")
-			initial.send(t, ":w\r:q!\r")
-			before := initial.waitExit(t)
-			var prior struct {
-				Status  string `json:"status"`
-				Entries []struct {
-					Attempt struct {
-						ID string `json:"id"`
-					} `json:"attempt"`
-				} `json:"entries"`
-			}
-			require.NoError(t, json.Unmarshal([]byte(before), &prior))
-			require.Equal(t, "incomplete", prior.Status)
-			require.Len(t, prior.Entries, 1)
-			prompt := startTerminal(t, binary, dir, env, "commits")
-			prompt.waitFor(t, "Resume a saved review?")
-			prompt.waitFor(t, "Saved commits (inclusive):")
-			prompt.waitFor(t, "Saved progress: 1/2 files reviewed")
-			prompt.waitFor(t, "Replace — create a new attempt (keep prior history)")
-			switch choice {
-			case "recover":
-				prompt.send(t, "kk\r")
-				prompt.waitFor(t, "feature.txt")
-				prompt.waitFor(t, "1/2")
-				prompt.send(t, ":set noreviewed\rr")
-				prompt.waitFor(t, "All files reviewed")
-				prompt.send(t, ":wq\r")
-			case "replace":
-				prompt.send(t, "k\r")
-				prompt.waitFor(t, "feature.txt")
-				prompt.send(t, ":set noreviewed\rr")
-				prompt.waitFor(t, "All files reviewed")
-				prompt.send(t, ":wq\r")
-			case "cancel":
-				prompt.send(t, "\r")
-			}
-			out := prompt.waitExit(t)
-			switch choice {
-			case "recover", "replace":
-				require.Contains(t, out, "No reviews pending in the selected range.")
-			case "cancel":
-				require.Contains(t, out, "Review cancelled. The attempt remains unchanged.")
-			}
-			after := runRealCommand(t, binary, dir, env, "status", "--needs-review", "--json")
-			var result struct {
-				Status  string `json:"status"`
-				Entries []struct {
-					Status  string `json:"status"`
-					Attempt struct {
-						ID string `json:"id"`
-					} `json:"attempt"`
-				} `json:"entries"`
-			}
-			require.NoError(t, json.Unmarshal([]byte(after), &result))
-			if choice != "cancel" {
-				require.Equal(t, "idle", result.Status)
-				require.Empty(t, result.Entries)
-			} else {
-				require.Len(t, result.Entries, 1)
-				require.Equal(t, "incomplete", result.Entries[0].Status)
-				require.Equal(t, prior.Entries[0].Attempt.ID, result.Entries[0].Attempt.ID)
-			}
-		})
-	}
 }
 
 func TestRealTuicrCleanReview(t *testing.T) {
@@ -291,4 +218,38 @@ func TestRealTuicrCleanReview(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(listed), &status))
 	require.Equal(t, "idle", status.Status)
+}
+
+// A reword keeps the patch, so the review that the reword interrupted moves its
+// saved marks onto the new commits and asks only for the new message.
+func TestRealTuicrCarriesReviewOverRewordedCommits(t *testing.T) {
+	env := realTuicrEnvironment(t)
+	binary := buildGitReview(t)
+	dir := realFeatureRepo(t)
+	initial := startTerminal(t, binary, dir, env, "commits", "--json")
+	initial.waitFor(t, "feature.txt")
+	// Review the file, not the message: a reword resets the message mark.
+	initial.send(t, "]r")
+	initial.waitFor(t, "1/2")
+	initial.send(t, ":w\r:q!\r")
+	before := initial.waitExit(t)
+	var interrupted struct {
+		Status string `json:"status"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(before), &interrupted))
+	require.Equal(t, "incomplete", interrupted.Status)
+
+	git(t, dir, "commit", "--amend", "--no-edit", "-m", "Carry the feature again\n\nChange-Id: I"+strings.Repeat("a", 40))
+	carried := startTerminal(t, binary, dir, env, "commits", "--json")
+	carried.waitFor(t, "Carry the feature again")
+	carried.waitFor(t, "1/2")
+	carried.send(t, ":set noreviewed\rr")
+	carried.waitFor(t, "All files reviewed")
+	carried.send(t, ":wq\r")
+	out := carried.waitExit(t)
+	var result struct {
+		Status string `json:"status"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &result))
+	require.Equal(t, "range_complete", result.Status)
 }

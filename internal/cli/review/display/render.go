@@ -52,10 +52,6 @@ func RenderResult(result review.Result, verbose bool) (string, error) {
 	if message := resultMessage(result); message != "" {
 		fmt.Fprintln(&out, message)
 	}
-	if result.Decision != nil {
-		fmt.Fprintln(&out, RecoveryDescription(result.Decision))
-		fmt.Fprintln(&out, "Choose timber review commits --recover, timber review commits --replace, or leave the attempt unchanged.")
-	}
 	return strings.TrimSpace(out.String()), nil
 }
 
@@ -80,59 +76,6 @@ func renderStackTable(entries []review.Entry) string {
 	return t.Render()
 }
 
-func RecoveryDescription(decision *review.Decision) string {
-	var out strings.Builder
-	attempt := decision.Attempt
-	fmt.Fprintf(&out, "Saved commits (inclusive): %s — %s\n", ShortStack(attempt.Stack), safeText(attempt.Stack.Subject))
-	started := safeText(attempt.StartedAt)
-	if started == "" {
-		started = "unavailable"
-	}
-	fmt.Fprintf(&out, "Started: %s · Status: %s\n", started, StatusLabel(attempt.Status))
-	var saved savedProgress
-	if !savedProgressAvailable(attempt.Review, &saved) {
-		fmt.Fprintln(&out, "Saved progress: unavailable")
-	} else {
-		fmt.Fprintf(&out, "Saved progress: %d/%d files reviewed · Comments: %d", *saved.Reviewed, *saved.Files, len(saved.Comments))
-		if hasSessionNotes(saved.SessionNotes) {
-			fmt.Fprint(&out, " · session notes saved")
-		}
-		fmt.Fprintln(&out)
-	}
-	if attempt.Error != "" {
-		fmt.Fprintln(&out, "Last error: "+safeText(attempt.Error))
-	}
-	if current := decision.Replacement; current != nil {
-		if scopeChanged(*current, attempt.Stack) {
-			fmt.Fprintf(&out, "New review commits (inclusive): %s — %s\n", ShortStack(*current), safeText(current.Subject))
-		}
-	} else {
-		fmt.Fprintln(&out, "No current replacement scope. Select one with timber review commits <commit>.")
-	}
-	fmt.Fprint(&out, "Replacement keeps the prior attempt in history. Tuicr may reuse its saved session.")
-	return out.String()
-}
-
-type savedProgress struct {
-	Reviewed     *int    `json:"reviewed"`
-	Files        *int    `json:"files"`
-	Comments     []any   `json:"comments"`
-	SessionNotes *string `json:"sessionNotes"`
-}
-
-func savedProgressAvailable(data []byte, saved *savedProgress) bool {
-	if len(data) == 0 {
-		return false
-	}
-	if err := json.Unmarshal(data, saved); err != nil {
-		return false
-	}
-	if saved.Reviewed == nil {
-		return false
-	}
-	return saved.Files != nil
-}
-
 func showStatusDetails(result review.Result, verbose bool) bool {
 	if !verbose {
 		return false
@@ -145,13 +88,6 @@ func hasSessionNotes(notes *string) bool {
 		return false
 	}
 	return *notes != ""
-}
-
-func scopeChanged(current, captured review.Stack) bool {
-	if current.Base != captured.Base {
-		return true
-	}
-	return current.Tip != captured.Tip
 }
 
 func renderDetails(out *strings.Builder, entries []review.Entry) error {
@@ -278,8 +214,6 @@ func resultMessage(result review.Result) string {
 		return "Feedback requires another review after the stack changes."
 	case "incomplete":
 		return "Review is incomplete, not approved."
-	case "decision_required":
-		return "A previous attempt requires an explicit recovery or replacement choice."
 	case "cancelled":
 		return "Review cancelled. The attempt remains unchanged."
 	default:
