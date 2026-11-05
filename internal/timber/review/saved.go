@@ -20,6 +20,7 @@ type SavedReview struct {
 	Scope        Stack            `json:"scope"`
 	Slug         string           `json:"slug"`
 	Path         string           `json:"path"`
+	Store        string           `json:"-"`
 	ID           string           `json:"id"`
 	Version      string           `json:"version"`
 	Reviewed     int              `json:"reviewed"`
@@ -686,10 +687,10 @@ func readEntry(store, repo, slug string, entry object, scope Stack, selector str
 	if err != nil {
 		return nil, err
 	}
-	return readCandidate(path, scope, repo, selector, slug, relative)
+	return readCandidate(store, path, scope, repo, selector, slug, relative)
 }
 
-func readCandidate(path string, scope Stack, repo, selector, slug, relative string) (*SavedReview, error) {
+func readCandidate(store, path string, scope Stack, repo, selector, slug, relative string) (*SavedReview, error) {
 	session, err := readObject(path)
 	if err != nil {
 		return nil, err
@@ -698,6 +699,7 @@ func readCandidate(path string, scope Stack, repo, selector, slug, relative stri
 	if saved != nil {
 		saved.Slug = slug
 		saved.Path = path
+		saved.Store = store
 	}
 	return saved, err
 }
