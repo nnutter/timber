@@ -1056,6 +1056,21 @@ func (x Runtime) currentHerdrSpace(ctx context.Context, worktree managedWorktree
 	return parseCurrentHerdrSpace(x, output, absolutePath, qualifiedWorktreeName(worktree.Name, worktree.Repo))
 }
 
+// defaultBranchBumpTarget tags the default branch of a repository. The bare
+// repository is the common Git directory of every worktree, so the tag lands
+// where all of them see it.
+func (runtime Runtime) defaultBranchBumpTarget(repoName string) (bumpTarget, error) {
+	repository, repo, err := runtime.openRegisteredRepository(repoName)
+	if err != nil {
+		return bumpTarget{}, err
+	}
+	ref, err := repository.defaultBranchRef()
+	if err != nil {
+		return bumpTarget{}, fmt.Errorf("repository %q: %w", repoName, err)
+	}
+	return bumpTarget{directory: repo.BarePath, ref: string(ref)}, nil
+}
+
 func (x Runtime) defineCurrentHerdrSpace(ctx context.Context, worktree managedWorktree) error {
 	space, err := x.currentHerdrSpace(ctx, worktree)
 	if err != nil {
@@ -2051,9 +2066,18 @@ func (x Runtime) reportRenamedCurrentPath(path string) error {
 
 // resolveBumpTarget turns the [name[@repo]] selector into the tagged commit.
 //
-// A worktree name tags that worktree's branch tip. Without a selector the bump
+// A worktree name tags that worktree's branch tip. @<repo> without a worktree
+// name tags the repository's default branch, so a release names the commit
+// that origin serves and needs no checkout at all. Without a selector the bump
 // tags the worktree that contains the current directory.
 func (runtime Runtime) resolveBumpTarget(input io.Reader, raw string) (bumpTarget, error) {
+	qualified, err := runtime.parseQualifiedName(raw)
+	if err != nil {
+		return bumpTarget{}, err
+	}
+	if qualified.isRepoOnly() {
+		return runtime.defaultBranchBumpTarget(qualified.Repo)
+	}
 	selection := repoSelection{runtime: runtime}
 	_, _, worktree, err := selection.resolveQualifiedWorktree(input, raw)
 	if err != nil {
