@@ -128,8 +128,13 @@ func (runtime Runtime) AddRepo(source, name, alias string) (string, string, erro
 	return repoName, targetPath, nil
 }
 
-// BumpTag creates the next semantic version tag on the commit of the selected
-// worktree and pushes it to origin unless request.NoPush is set.
+// BumpTag creates the next semantic version tag on the commit that the
+// selector names and pushes it to origin unless request.NoPush is set.
+//
+// A worktree name tags that worktree's commit. @<repo> without a worktree name
+// tags the repository's default branch, so a release names the commit that
+// origin serves and works outside a Git directory. Without a selector the bump
+// tags the worktree that contains the current directory.
 //
 // Tags belong to the repository, not to one worktree, so any worktree of a
 // repository sees and bumps the same tags.
@@ -142,22 +147,21 @@ func (runtime Runtime) AddRepo(source, name, alias string) (string, string, erro
 // and opens its URL in the browser unless request.NoOpen is set. A missing or
 // failing browser is a warning on output, not a failed bump.
 func (runtime Runtime) BumpTag(ctx context.Context, input io.Reader, output io.Writer, request TagBump) (BumpResult, error) {
-	selection := repoSelection{runtime: runtime}
-	_, _, worktree, err := selection.resolveQualifiedWorktree(input, request.Raw)
+	target, err := runtime.resolveBumpTarget(input, request.Raw)
 	if err != nil {
 		return BumpResult{}, err
 	}
-	if err := refreshBeforeBump(runtime, worktree.Path, worktree.branchName()); err != nil {
+	if err := refreshBeforeBump(runtime, target.directory, target.branch); err != nil {
 		return BumpResult{}, err
 	}
-	tag, err := createBumpedTag(runtime, worktree.Path, request)
+	tag, err := createBumpedTag(runtime, target, request)
 	if err != nil {
 		return BumpResult{}, err
 	}
 	if !request.Release {
 		return BumpResult{Tag: tag}, nil
 	}
-	url, err := createDraftRelease(ctx, runtime, worktree.Path, tag)
+	url, err := createDraftRelease(ctx, runtime, target.directory, tag)
 	if err != nil {
 		return BumpResult{}, err
 	}
@@ -1050,6 +1054,21 @@ func (x Runtime) currentHerdrSpace(ctx context.Context, worktree managedWorktree
 		return herdrSpace{}, err
 	}
 	return parseCurrentHerdrSpace(x, output, absolutePath, qualifiedWorktreeName(worktree.Name, worktree.Repo))
+}
+
+// defaultBranchBumpTarget tags the default branch of a repository. The bare
+// repository is the common Git directory of every worktree, so the tag lands
+// where all of them see it.
+func (runtime Runtime) defaultBranchBumpTarget(repoName string) (bumpTarget, error) {
+	repository, repo, err := runtime.openRegisteredRepository(repoName)
+	if err != nil {
+		return bumpTarget{}, err
+	}
+	ref, err := repository.defaultBranchRef()
+	if err != nil {
+		return bumpTarget{}, fmt.Errorf("repository %q: %w", repoName, err)
+	}
+	return bumpTarget{directory: repo.BarePath, ref: string(ref)}, nil
 }
 
 func (x Runtime) defineCurrentHerdrSpace(ctx context.Context, worktree managedWorktree) error {
@@ -2043,6 +2062,28 @@ func (x Runtime) reportRenamedCurrentPath(path string) error {
 		return fmt.Errorf("write renamed worktree path file: %w", err)
 	}
 	return nil
+}
+
+// resolveBumpTarget turns the [name[@repo]] selector into the tagged commit.
+//
+// A worktree name tags that worktree's branch tip. @<repo> without a worktree
+// name tags the repository's default branch, so a release names the commit
+// that origin serves and needs no checkout at all. Without a selector the bump
+// tags the worktree that contains the current directory.
+func (runtime Runtime) resolveBumpTarget(input io.Reader, raw string) (bumpTarget, error) {
+	qualified, err := runtime.parseQualifiedName(raw)
+	if err != nil {
+		return bumpTarget{}, err
+	}
+	if qualified.isRepoOnly() {
+		return runtime.defaultBranchBumpTarget(qualified.Repo)
+	}
+	selection := repoSelection{runtime: runtime}
+	_, _, worktree, err := selection.resolveQualifiedWorktree(input, raw)
+	if err != nil {
+		return bumpTarget{}, err
+	}
+	return bumpTarget{directory: worktree.Path, branch: worktree.branchName(), ref: "HEAD"}, nil
 }
 
 func (x Runtime) resolveCreateWorktreeName(repoName string, name string) (string, error) {

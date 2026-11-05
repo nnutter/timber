@@ -53,6 +53,69 @@ func TestBumpFromTheCurrentWorktreeWithoutPush(t *testing.T) {
 	assert.Empty(t, strings.TrimSpace(runGitCommand(t, repository.remotePath, "tag", "--list")))
 }
 
+// bumpedTagCommit returns the commit that tag points at.
+func bumpedTagCommit(t *testing.T, repository testRepository, tag string) string {
+	t.Helper()
+	return strings.TrimSpace(runGitCommand(t, repository.barePath, "rev-parse", tag+"^{commit}"))
+}
+
+// defaultBranchCommit returns the commit that origin/HEAD points at.
+func defaultBranchCommit(t *testing.T, repository testRepository) string {
+	t.Helper()
+	return strings.TrimSpace(runGitCommand(t, repository.barePath, "rev-parse", "origin/HEAD^{commit}"))
+}
+
+func TestBumpRepositorySelectorTagsTheDefaultBranchOutsideAnyWorktree(t *testing.T) {
+	t.Parallel()
+	const branchName = "release"
+
+	repository := bumpTestRepository(t)
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	// The worktree commits past the default branch, so the tag names one of
+	// two different commits and the assertion can tell them apart.
+	repository.commitFileInWorktree(t, branchName, "release.txt", "release\n")
+
+	// A release can run from a scratch directory, outside any Git worktree.
+	result := repository.runTimberFrom(t, resolvedTempDir(t), "bump", "--patch", "@"+testRepoName)
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, "v0.0.1\n", result.stdout)
+	assert.Equal(t, defaultBranchCommit(t, repository), bumpedTagCommit(t, repository, "v0.0.1"))
+	assert.Equal(t, "v0.0.1", strings.TrimSpace(runGitCommand(t, repository.remotePath, "tag", "--list", "v0.0.1")))
+}
+
+func TestBumpRepositorySelectorTagsTheDefaultBranchFromAWorktree(t *testing.T) {
+	t.Parallel()
+	const branchName = "release"
+
+	repository := bumpTestRepository(t)
+	worktreePath := repository.worktreePath(branchName)
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, branchName)).err)
+	repository.commitFileInWorktree(t, branchName, "release.txt", "release\n")
+
+	// The @repo selector names the repository, so it ignores the worktree that
+	// contains the cwd.
+	result := repository.runTimberFrom(t, worktreePath, "bump", "--major", "--no-push", "@"+testRepoName)
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, "v1.0.0\n", result.stdout)
+	assert.Equal(t, defaultBranchCommit(t, repository), bumpedTagCommit(t, repository, "v1.0.0"))
+}
+
+func TestBumpRepositorySelectorFallsBackWithoutOriginHead(t *testing.T) {
+	t.Parallel()
+
+	repository := bumpTestRepository(t)
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, "release")).err)
+	// A bare clone that never learned the remote default branch still has the
+	// remote-tracking branch to tag.
+	runGitCommand(t, repository.barePath, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+
+	result := repository.runTimberFrom(t, resolvedTempDir(t), "bump", "--patch", "@"+testRepoName)
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, "v0.0.1\n", result.stdout)
+	originMain := strings.TrimSpace(runGitCommand(t, repository.barePath, "rev-parse", "origin/main^{commit}"))
+	assert.Equal(t, originMain, bumpedTagCommit(t, repository, "v0.0.1"))
+}
+
 func TestBumpRequiresExactlyOneKind(t *testing.T) {
 	t.Parallel()
 	result := runTimberCommand(t, "bump", "--major", "--minor")

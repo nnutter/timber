@@ -208,17 +208,23 @@ For the Pi extension and package installation, see [pi/README.md](pi/README.md).
 
 ```bash
 timber bump --patch feature/login@timber
+timber bump --patch @timber
 timber bump --minor --pattern 'v1.*' feature/login@timber
 timber bump --major --no-push feature/login@timber
 timber bump --patch --release --no-open feature/login@timber
 ```
 
 Exactly one of `--major`, `--minor`, or `--patch` is required.
-The command reads the highest strict `vMAJOR.MINOR.PATCH` tag in the repository, creates the next tag as an annotated tag on the selected worktree's commit, and pushes it to `origin`.
-Tags belong to the repository rather than to one checkout, so every worktree of a repository sees the same tags; the selector names the commit that the new tag points at, and defaults to the current worktree.
+The command reads the highest strict `vMAJOR.MINOR.PATCH` tag in the repository, creates the next tag as an annotated tag on the selected commit, and pushes it to `origin`.
+Tags belong to the repository rather than to one checkout, so every worktree of a repository sees the same tags; the selector names the commit that the new tag points at.
+
+- `<worktree>@<repo>` tags that worktree's branch tip.
+- `@<repo>` tags the repository's default branch, so a release names the commit that `origin` serves and needs no checkout; the command works outside a Git directory.
+- No selector tags the worktree that contains the current directory.
 
 Before it reads tags or creates one, the command fetches the remote of the tracked branch, and `origin`, so a tag created on another machine is in the candidate list.
 It refuses a worktree that is behind its upstream, because the new tag would name an outdated commit; update the worktree and run the command again.
+The default branch is fetched, so the check does not apply to `@<repo>`.
 A repository without a remote still bumps locally.
 
 - `--pattern` limits candidates the way `git tag -l <pattern>` does.
@@ -397,7 +403,8 @@ Worktree commands take an optional `<worktree>@<repo>` qualifier on the name arg
 `list` and `prune` use every registered repository unless `@<repo>` pins one.
 
 `create` (and `switch -c`) use the current repository when the cwd is a managed worktree of a registered repo, otherwise an interactive picker.
-`remove`, `herdr space`, `pr create`, and `bump` with no name target the managed worktree that contains the cwd.
+`remove`, `herdr space`, and `pr create` with no name target the managed worktree that contains the cwd.
+`bump` with no name targets the same worktree, and `bump @<repo>` targets the repository's default branch.
 
 In non-interactive environments commands that need a single repository fail unless `@<repo>` is set or the cwd auto-detects a managed repo.
 

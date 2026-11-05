@@ -154,6 +154,25 @@ func (x *Repository) createEmptyCommit(branchName string) error {
 	return nil
 }
 
+// defaultBranchRef names the ref that holds the repository's default branch
+// commit, which is the commit that an @<repo> bump tags.
+func (x *Repository) defaultBranchRef() (referenceName, error) {
+	branch, err := x.remoteHeadBranch()
+	if err != nil {
+		return "", err
+	}
+	for _, ref := range defaultBranchCandidates(branch) {
+		exists, err := x.branchStillExists(ref)
+		if err != nil {
+			return "", err
+		}
+		if exists {
+			return ref, nil
+		}
+	}
+	return "", fmt.Errorf("default branch %q has no ref to tag", branch)
+}
+
 func (x *Repository) ensureOriginRemoteTracking() error {
 	hasOrigin, err := x.hasOriginRemote()
 	if err != nil {
@@ -463,6 +482,17 @@ func (x *Repository) upstreamRemoteURL(upstream string) (string, error) {
 		return "", fmt.Errorf("resolve upstream remote for mise trust: %w", err)
 	}
 	return remoteURL.stdout, nil
+}
+
+// defaultBranchCandidates lists the refs that can hold the default branch
+// commit, most authoritative first. remoteHeadBranch names either a
+// remote-tracking branch, such as origin/main, or a local branch, such as the
+// HEAD branch of a repository without a remote.
+func defaultBranchCandidates(branch string) []referenceName {
+	if localBranch, found := strings.CutPrefix(branch, remoteName+"/"); found {
+		return []referenceName{referenceName(remoteRefPrefix + branch), branchReference(localBranch)}
+	}
+	return []referenceName{referenceName(remoteRefPrefix + remoteName + "/" + branch), branchReference(branch)}
 }
 
 func longestRemotePrefix(remotes, ref string) string {

@@ -39,6 +39,17 @@ type BumpResult struct {
 	ReleaseURL string
 }
 
+// bumpTarget is the commit that the next version tag points at.
+type bumpTarget struct {
+	// directory is where the bump runs Git commands.
+	directory string
+	// branch is the branch that the behind-upstream guard compares. It is
+	// empty for the default branch, which the fetch before the bump refreshes.
+	branch string
+	// ref names the tagged commit.
+	ref string
+}
+
 // refreshBeforeBump fetches the tags and branch tips that the bump depends on,
 // then refuses to tag a commit that its upstream has moved past.
 //
@@ -148,10 +159,10 @@ func hasRemote(runtime Runtime, directory, name string) bool {
 	return false
 }
 
-// createBumpedTag creates the next tag on HEAD and pushes it unless the
-// request keeps it local.
-func createBumpedTag(runtime Runtime, directory string, request TagBump) (string, error) {
-	latest, err := latestVersionTag(runtime, directory, request.Pattern)
+// createBumpedTag creates the next tag on the target commit and pushes it
+// unless the request keeps it local.
+func createBumpedTag(runtime Runtime, target bumpTarget, request TagBump) (string, error) {
+	latest, err := latestVersionTag(runtime, target.directory, request.Pattern)
 	if err != nil {
 		return "", err
 	}
@@ -159,11 +170,11 @@ func createBumpedTag(runtime Runtime, directory string, request TagBump) (string
 	if err != nil {
 		return "", err
 	}
-	if err := createVersionTag(runtime, directory, tag); err != nil {
+	if err := createVersionTag(runtime, target.directory, target.ref, tag); err != nil {
 		return "", err
 	}
 	if !request.NoPush {
-		if err := pushVersionTag(runtime, directory, tag); err != nil {
+		if err := pushVersionTag(runtime, target.directory, tag); err != nil {
 			return "", err
 		}
 	}
@@ -215,12 +226,12 @@ func listVersionTags(runtime Runtime, directory string, pattern string) ([]strin
 	return strings.Fields(result.stdout), nil
 }
 
-// createVersionTag creates an annotated tag on HEAD whose message is the tag.
-func createVersionTag(runtime Runtime, directory string, tag string) error {
+// createVersionTag creates an annotated tag on ref whose message is the tag.
+func createVersionTag(runtime Runtime, directory string, ref string, tag string) error {
 	if _, err := bump.Parse(tag); err != nil {
 		return err
 	}
-	if _, err := gitOutput(runtime, directory, "tag", "--annotate", tag, "--message", tag); err != nil {
+	if _, err := gitOutput(runtime, directory, "tag", "--annotate", tag, ref, "--message", tag); err != nil {
 		return fmt.Errorf("create tag %q: %w", tag, err)
 	}
 	return nil
