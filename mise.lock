@@ -47,129 +47,129 @@ url = "https://github.com/alecthomas/go-check-sumtype/releases/download/v0.5.0/g
 url_api = "https://api.github.com/repos/alecthomas/go-check-sumtype/releases/assets/533663836"
 
 [[tools."github:nnutter/constable"]]
-version = "0.5.1"
+version = "0.6.0"
 backend = "github:nnutter/constable"
 
 [tools."github:nnutter/constable"."platforms.linux-arm64"]
-checksum = "sha256:f21b0d1f7001b1064bf041e7b9c8762a49573bc2bd7924342640568544d92cd7"
-url = "https://github.com/nnutter/constable/releases/download/v0.5.1/constable_v0.5.1_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/703879796"
+checksum = "sha256:38462fcb578d2c3d827a7836153b0690ede87d7445faf5d9d07998ee5cb4ed1a"
+url = "https://github.com/nnutter/constable/releases/download/v0.6.0/constable_v0.6.0_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/711924946"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.linux-arm64-musl"]
-checksum = "sha256:f21b0d1f7001b1064bf041e7b9c8762a49573bc2bd7924342640568544d92cd7"
-url = "https://github.com/nnutter/constable/releases/download/v0.5.1/constable_v0.5.1_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/703879796"
+checksum = "sha256:38462fcb578d2c3d827a7836153b0690ede87d7445faf5d9d07998ee5cb4ed1a"
+url = "https://github.com/nnutter/constable/releases/download/v0.6.0/constable_v0.6.0_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/711924946"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.linux-x64"]
-checksum = "sha256:4cecfcf2a123b27096e0394484413d824071d84acf97311a73c21f33ce53d3a3"
-url = "https://github.com/nnutter/constable/releases/download/v0.5.1/constable_v0.5.1_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/703879799"
+checksum = "sha256:741922d180d2ef3bf10c3a2f978deaaf57c36151bea1e599d5ac1bae92209ae9"
+url = "https://github.com/nnutter/constable/releases/download/v0.6.0/constable_v0.6.0_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/711924947"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.linux-x64-musl"]
-checksum = "sha256:4cecfcf2a123b27096e0394484413d824071d84acf97311a73c21f33ce53d3a3"
-url = "https://github.com/nnutter/constable/releases/download/v0.5.1/constable_v0.5.1_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/703879799"
+checksum = "sha256:741922d180d2ef3bf10c3a2f978deaaf57c36151bea1e599d5ac1bae92209ae9"
+url = "https://github.com/nnutter/constable/releases/download/v0.6.0/constable_v0.6.0_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/711924947"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.macos-arm64"]
-checksum = "sha256:ca0ef1037972e3637886ca72f09ea8aa57f44bfe1af7461187016bc9e87e79b4"
-url = "https://github.com/nnutter/constable/releases/download/v0.5.1/constable_v0.5.1_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/703879800"
+checksum = "sha256:301c131ac78c7a3ad0659ba67df37039c43fb1c52a85a6873a85c5f1320c82da"
+url = "https://github.com/nnutter/constable/releases/download/v0.6.0/constable_v0.6.0_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/711924943"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.macos-x64"]
-checksum = "sha256:fcdf2c4e7fdd319a49e0da8a8a7417ff616370e972b235c7ef2cd9f79f116daf"
-url = "https://github.com/nnutter/constable/releases/download/v0.5.1/constable_v0.5.1_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/703879798"
+checksum = "sha256:bc10abd786a6ffdc20568319416f9b87381155e2921f3ce403577d9b7c09725e"
+url = "https://github.com/nnutter/constable/releases/download/v0.6.0/constable_v0.6.0_darwin_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/711924945"
 provenance = "github-attestations"
 
 [[tools."github:nnutter/mdlint"]]
-version = "0.4.2"
+version = "0.4.4"
 backend = "github:nnutter/mdlint"
 
 [tools."github:nnutter/mdlint"."platforms.linux-arm64"]
-checksum = "sha256:88c9f42313f70c85616fbd248a65f6761a72dd2cc772741b8daeb1defc40c6c4"
-url = "https://github.com/nnutter/mdlint/releases/download/v0.4.2/mdlint-linux-aarch64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/683658882"
+checksum = "sha256:de0821efb99e633723a3785acc877383826692262ff3f67e76051bd4b2a9b00c"
+url = "https://github.com/nnutter/mdlint/releases/download/v0.4.4/mdlint-linux-aarch64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/696284146"
 provenance = "github-attestations"
 
 [tools."github:nnutter/mdlint"."platforms.linux-arm64-musl"]
-checksum = "sha256:1ce21f278f5be14dad1b3aad9437281ccaf02f8b770fa76a931cdc12244c5cf1"
-url = "https://github.com/nnutter/mdlint/releases/download/v0.4.2/mdlint-linux-aarch64-musl.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/683658578"
+checksum = "sha256:f1aa7ff4af612e9e8110b72b1f959fc146381178fb923fcbaecee759934133c1"
+url = "https://github.com/nnutter/mdlint/releases/download/v0.4.4/mdlint-linux-aarch64-musl.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/696283962"
 provenance = "github-attestations"
 
 [tools."github:nnutter/mdlint"."platforms.linux-x64"]
-checksum = "sha256:e74862f3b90007754d364dbf4349ca0937a6a1ccdd0f7e301c28b98b4b19a726"
-url = "https://github.com/nnutter/mdlint/releases/download/v0.4.2/mdlint-linux-x86_64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/683659374"
+checksum = "sha256:4e81e01dbc3f894fd2cee355d38e8a2f43ffc27243dd1257e5eee3bf08f11d75"
+url = "https://github.com/nnutter/mdlint/releases/download/v0.4.4/mdlint-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/696284698"
 provenance = "github-attestations"
 
 [tools."github:nnutter/mdlint"."platforms.linux-x64-musl"]
-checksum = "sha256:aa5cad62a1e9ded6f39003e769cfaff23ca0335a626cf9c0b94766565eca9417"
-url = "https://github.com/nnutter/mdlint/releases/download/v0.4.2/mdlint-linux-x86_64-musl.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/683658614"
+checksum = "sha256:f25cb3439f1edf67b53606acac549e5d4c8b3bab536bb57e3c0c6e4578f19465"
+url = "https://github.com/nnutter/mdlint/releases/download/v0.4.4/mdlint-linux-x86_64-musl.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/696284620"
 provenance = "github-attestations"
 
 [tools."github:nnutter/mdlint"."platforms.macos-arm64"]
-checksum = "sha256:60286f262b7f5717bbee30c2810d3aef462535b4a4bef692c74ff299020c5daf"
-url = "https://github.com/nnutter/mdlint/releases/download/v0.4.2/mdlint-macos-aarch64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/683659607"
+checksum = "sha256:fe55e59953ecbdc71191bfed202a07b54578158e7ff898e8cedcaac650d5655a"
+url = "https://github.com/nnutter/mdlint/releases/download/v0.4.4/mdlint-macos-aarch64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/696285699"
 provenance = "github-attestations"
 
 [tools."github:nnutter/mdlint"."platforms.macos-x64"]
-checksum = "sha256:60bd7d371c78ec6c0924b99d612344a267949ce2e7850e9461a0b90fe99e0da6"
-url = "https://github.com/nnutter/mdlint/releases/download/v0.4.2/mdlint-macos-x86_64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/683660233"
+checksum = "sha256:3dada344ea2323f157e7d2af1ddff5d73b3c6f319bc8493ab96591b835b47343"
+url = "https://github.com/nnutter/mdlint/releases/download/v0.4.4/mdlint-macos-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/696285555"
 provenance = "github-attestations"
 
 [tools."github:nnutter/mdlint"."platforms.windows-x64"]
-checksum = "sha256:e3cfe3cf4a2120d83d72515d50d3dd10a829da1449137784051813283dce8bf9"
-url = "https://github.com/nnutter/mdlint/releases/download/v0.4.2/mdlint-windows-x86_64.exe"
-url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/683662456"
+checksum = "sha256:cd7a45066c55997f9ad7fd51f2ec8f27e7d90f3fcf0f4a52091e20600ea10001"
+url = "https://github.com/nnutter/mdlint/releases/download/v0.4.4/mdlint-windows-x86_64.exe"
+url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/696288485"
 provenance = "github-attestations"
 
 [[tools."github:nnutter/timber"]]
-version = "0.22.2"
+version = "0.24.0"
 backend = "github:nnutter/timber"
 
 [tools."github:nnutter/timber"."platforms.linux-arm64"]
-checksum = "sha256:1d4c8bb78e8425ed7638035c23cf94ffa3b9245a6ae0b41f5092a2e5bfb4a25f"
-url = "https://github.com/nnutter/timber/releases/download/v0.22.2/timber_v0.22.2_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/703883740"
+checksum = "sha256:d986c44bffa9ac599444f664ebd059f4c64b6b7d260022ea64061af462e1b079"
+url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204601"
 provenance = "github-attestations"
 
 [tools."github:nnutter/timber"."platforms.linux-arm64-musl"]
-checksum = "sha256:1d4c8bb78e8425ed7638035c23cf94ffa3b9245a6ae0b41f5092a2e5bfb4a25f"
-url = "https://github.com/nnutter/timber/releases/download/v0.22.2/timber_v0.22.2_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/703883740"
+checksum = "sha256:d986c44bffa9ac599444f664ebd059f4c64b6b7d260022ea64061af462e1b079"
+url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204601"
 provenance = "github-attestations"
 
 [tools."github:nnutter/timber"."platforms.linux-x64"]
-checksum = "sha256:0761d0380a82c199130a25b0e189a951626be07e16c841f001928a1d64ac7331"
-url = "https://github.com/nnutter/timber/releases/download/v0.22.2/timber_v0.22.2_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/703883735"
+checksum = "sha256:72462e0d51336303bb7d8977e6b4f5a2bee81a7e5f4d2847b4d324bdb3cce2b7"
+url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204597"
 provenance = "github-attestations"
 
 [tools."github:nnutter/timber"."platforms.linux-x64-musl"]
-checksum = "sha256:0761d0380a82c199130a25b0e189a951626be07e16c841f001928a1d64ac7331"
-url = "https://github.com/nnutter/timber/releases/download/v0.22.2/timber_v0.22.2_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/703883735"
+checksum = "sha256:72462e0d51336303bb7d8977e6b4f5a2bee81a7e5f4d2847b4d324bdb3cce2b7"
+url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204597"
 provenance = "github-attestations"
 
 [tools."github:nnutter/timber"."platforms.macos-arm64"]
-checksum = "sha256:d48859f40ed86aa55fe2e00c6003e4a7350bd999c1f050553c51fe3f4b928eef"
-url = "https://github.com/nnutter/timber/releases/download/v0.22.2/timber_v0.22.2_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/703883736"
+checksum = "sha256:e53d47073ac67025eefd6441de6d819354f34e18a1e73c58789db8cf1f0177b3"
+url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204604"
 provenance = "github-attestations"
 
 [tools."github:nnutter/timber"."platforms.macos-x64"]
-checksum = "sha256:34338ffcf699a3384423757780215896e2bbf34be2d06a31b053698fd39852e4"
-url = "https://github.com/nnutter/timber/releases/download/v0.22.2/timber_v0.22.2_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/703883739"
+checksum = "sha256:c71e19274b8188e1f619e99be9e13e92d2b1bf82c384132d14026d9f6bb0bf0f"
+url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_darwin_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204603"
 provenance = "github-attestations"
 
 [[tools."github:securego/gosec"]]
@@ -301,11 +301,11 @@ version = "1.30.0"
 backend = "go:github.com/kisielk/errcheck"
 
 [[tools."go:github.com/kojah/gohawk"]]
-version = "0.7.1"
+version = "0.7.2"
 backend = "go:github.com/kojah/gohawk"
 
 [[tools."go:github.com/nnutter/testifylint"]]
-version = "0.0.0-20261101203540-577bf922d916"
+version = "0.0.1"
 backend = "go:github.com/nnutter/testifylint"
 
 [[tools."go:go.uber.org/nilaway/cmd/nilaway"]]
@@ -529,49 +529,49 @@ url = "https://github.com/dominikh/go-tools/releases/download/2026.2.2/staticche
 url_api = "https://api.github.com/repos/dominikh/go-tools/releases/assets/633962362"
 
 [[tools.tombi]]
-version = "1.9.8"
+version = "1.10.0"
 backend = "aqua:tombi-toml/tombi"
 
 [tools.tombi."platforms.linux-arm64"]
-checksum = "sha256:696d6b934fd0c4fa002ae905dc72a551d54677d9caa7b272adee3ea27e056307"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/688947510"
+checksum = "sha256:90950a01c67c061a0bc1d8180ef93bf9e741ba8d22a575c3efa0b943d4676516"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/709140219"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.linux-arm64-musl"]
-checksum = "sha256:696d6b934fd0c4fa002ae905dc72a551d54677d9caa7b272adee3ea27e056307"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/688947510"
+checksum = "sha256:90950a01c67c061a0bc1d8180ef93bf9e741ba8d22a575c3efa0b943d4676516"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/709140219"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.linux-x64"]
-checksum = "sha256:cf51b0f134e5b488212bb062538e0381a163a4f7db2330c58e3cf613637b3118"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/688947565"
+checksum = "sha256:47c80f210c2abc54f9a4c433b768378a321a0c53fcb907cb2563fe16f277f402"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/709140355"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.linux-x64-musl"]
-checksum = "sha256:cf51b0f134e5b488212bb062538e0381a163a4f7db2330c58e3cf613637b3118"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/688947565"
+checksum = "sha256:47c80f210c2abc54f9a4c433b768378a321a0c53fcb907cb2563fe16f277f402"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/709140355"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.macos-arm64"]
-checksum = "sha256:7d07cad962ad3de96113b92f40fbb59617a9214f263027c14a66fd08b61289ec"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/688947506"
+checksum = "sha256:b00ca00f24125c1fbb61c8a7940ebd56f78e390878f11cd43235e38d07426832"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/709140254"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.macos-x64"]
-checksum = "sha256:627ad53b286a48aa379a9d59648506266e5640df7b9936a416d972d4efb823df"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/688947509"
+checksum = "sha256:dfa9fe9d214435b41d6d4ccefb9ed878990349a2ee0edcd7e53dd05ef4e84a8c"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/709140250"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.windows-x64"]
-checksum = "sha256:df4be8cac00b00c5b0d421723fc25c959539a355a1407ac6ec97c9d30669c622"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/688947563"
+checksum = "sha256:e92d0f276682fb4ccc30d0edca4760151e4ddb0666b4ed71f0f59ac69aa42418"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/709140325"
 provenance = "github-attestations"
 
 [[tools.yamlfmt]]
