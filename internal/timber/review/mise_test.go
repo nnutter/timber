@@ -65,6 +65,16 @@ exit 64
 	return logPath, trustedPath
 }
 
+// resolvedTempDir returns a temporary directory with symlinks resolved. The
+// fake mise reports the physical working directory that the shell resolves, and
+// macOS makes the temporary directory reachable through a symlink.
+func resolvedTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	return dir
+}
+
 func writeMiseConfig(t *testing.T, dir string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mise.toml"), []byte("[env]\nTIMBER_TEST = \"1\"\n"), 0o600))
@@ -95,7 +105,7 @@ func TestMirrorMiseTrust(t *testing.T) {
 func testMirrorMiseTrust(t *testing.T, test mirrorMiseTrustCase) {
 	t.Helper()
 	logPath, trustedPath := fakeMise(t)
-	source, path := t.TempDir(), t.TempDir()
+	source, path := resolvedTempDir(t), resolvedTempDir(t)
 	writeMiseConfig(t, source)
 	writeMiseConfig(t, path)
 	var trusted []string
@@ -134,7 +144,7 @@ func assertMirrorMiseTrust(t *testing.T, test mirrorMiseTrustCase, err error, so
 
 func TestMirrorMiseTrustSkipsReviewWithoutConfig(t *testing.T) {
 	logPath, _ := fakeMise(t)
-	source, path := t.TempDir(), t.TempDir()
+	source, path := resolvedTempDir(t), resolvedTempDir(t)
 	writeMiseConfig(t, source)
 	require.NoError(t, mirrorMiseTrust(t.Context(), Repository{Dir: source, Environment: os.Environ()}, path))
 	require.NoFileExists(t, logPath)
