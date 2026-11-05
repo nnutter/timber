@@ -28,10 +28,10 @@ func WorktreePath(repo string) (string, error) {
 // reviewRunning probes an existing lock without creating it.
 func reviewRunning(ctx context.Context, path, branch string) (running bool, err error) {
 	file, err := os.OpenFile(path+".lock", os.O_RDONLY, 0)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
 		return false, err
 	}
 	defer func() { err = errors.Join(err, file.Close()) }()

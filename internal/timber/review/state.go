@@ -263,10 +263,10 @@ func (s Store) Update(action func(*State) error) (err error) {
 	}
 	lockPath := s.Path + ".lock"
 	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if errors.Is(err, os.ErrExist) {
-		return fmt.Errorf("review state is locked: %s; remove the lock only after confirming no writer is running", lockPath)
-	}
 	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("review state is locked: %s; remove the lock only after confirming no writer is running", lockPath)
+		}
 		return err
 	}
 	defer func() { err = errors.Join(err, lock.Close(), os.Remove(lockPath)) }()
