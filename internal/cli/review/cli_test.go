@@ -100,7 +100,7 @@ func TestJSONErrorsIncludeArgumentAndGitFailures(t *testing.T) {
 	for _, args := range [][]string{
 		{"status", "--needs-review", "--json"},
 		{"approve", "--json"},
-		{"commits", "--recover", "--replace", "--json"},
+		{"commits", "--unknown", "--json"},
 		{"not-a-command", "--json"},
 		{"--json", "status", "--needs-review", "--unknown"},
 	} {
@@ -126,16 +126,22 @@ func TestReviewBoundsReachAutomaticSelection(t *testing.T) {
 		state.Attempts = append(state.Attempts, review.Attempt{ID: "bounded", Stack: view.Stacks[1], Status: "incomplete", StartedAt: "2026-01-01T00:00:00Z"})
 		return nil
 	}))
+	log := filepath.Join(t.TempDir(), "launch")
+	t.Setenv("TEST_LAUNCH_LOG", log)
+	installFakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`)
 	out, terminal, err := execute(t, dir, "commits", "--start", "HEAD", "--end", "HEAD", "--json")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	var result review.Result
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
-	require.Equal(t, "decision_required", result.Status)
-	require.Equal(t, "bounded", result.Decision.AttemptID)
+	// The bounded stack resumes its captured attempt instead of asking.
+	require.Equal(t, "cancelled", result.Status)
+	launch, err := os.ReadFile(log)
+	require.NoError(t, err)
+	require.Equal(t, view.Stacks[1].Base+".."+view.Stacks[1].Tip+"\n", string(launch))
 }
 
-func TestReviewAliasProducesDecisionWithoutPromptOrStateChanges(t *testing.T) {
+func TestReviewAliasResumesTheInterruptedAttempt(t *testing.T) {
 	dir := featureRepo(t)
 	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
 	require.NoError(t, err)
@@ -144,23 +150,19 @@ func TestReviewAliasProducesDecisionWithoutPromptOrStateChanges(t *testing.T) {
 		state.Attempts = append(state.Attempts, review.Attempt{ID: "interrupted", Stack: view.Stacks[0], Status: "incomplete", StartedAt: "2026-01-01T00:00:00Z"})
 		return nil
 	}))
-	before, err := os.ReadFile(view.Path)
-	require.NoError(t, err)
+	log := filepath.Join(t.TempDir(), "launch")
+	t.Setenv("TEST_LAUNCH_LOG", log)
+	installFakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`)
 	out, terminal, err := execute(t, dir, "challenge", "--json")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	var result review.Result
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
-	require.Equal(t, "decision_required", result.Status)
+	require.Equal(t, "cancelled", result.Status)
 	require.Equal(t, "commits", result.Command)
-	require.NotNil(t, result.Decision)
-	require.Equal(t, []string{"recover", "replace", "cancel"}, result.Decision.Choices)
-	after, err := os.ReadFile(view.Path)
+	launch, err := os.ReadFile(log)
 	require.NoError(t, err)
-	require.Equal(t, before, after)
-	out, _, err = execute(t, dir, "run")
-	require.NoError(t, err)
-	require.Contains(t, out, "timber review commits --recover")
+	require.Equal(t, view.Stacks[0].Base+".."+view.Stacks[0].Tip+"\n", string(launch))
 }
 
 func TestTerminalRenderingRetainsFeedbackAndRemovesControlSequences(t *testing.T) {
@@ -227,7 +229,7 @@ func TestTuicrKeepsWorktreeLockedAfterGitReviewDies(t *testing.T) {
 	require.Eventually(t, func() bool { _, err := os.Stat(started); return err == nil }, 5*time.Second, 10*time.Millisecond)
 	require.NoError(t, cmd.Process.Kill())
 	require.Error(t, cmd.Wait())
-	out, _, err := execute(t, dir, "commits", "--replace", "--json")
+	out, _, err := execute(t, dir, "commits", "--json")
 	require.ErrorContains(t, err, "worktree is in use")
 	var result display.ErrorResult
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
@@ -239,6 +241,7 @@ func TestHelpAndVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, out, "approve")
 	require.Contains(t, out, "commits")
+	require.Contains(t, out, "reset")
 	require.Contains(t, out, "files")
 	require.Contains(t, out, "--json")
 	require.NotContains(t, out, "confirm")
@@ -254,4 +257,44 @@ func TestHelpAndVersion(t *testing.T) {
 	out, _, err = execute(t, t.TempDir(), "--version")
 	require.NoError(t, err)
 	require.Contains(t, out, "test-version")
+}
+
+func TestResetClearsSelectedStacks(t *testing.T) {
+	dir := featureRepo(t)
+	git(t, dir, "commit", "--allow-empty", "-m", "Second\n\nChange-Id: I"+strings.Repeat("b", 40))
+	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
+	require.NoError(t, err)
+	store := review.Store{Path: view.Path}
+	attempts := func(state *review.State) error {
+		state.Attempts = nil
+		for i, stack := range view.Stacks {
+			state.Attempts = append(state.Attempts, review.Attempt{ID: stack.Key, Stack: stack, Status: "approved", StartedAt: "2026-01-01T00:00:00Z", ApprovalSource: "user-command"})
+			_ = i
+		}
+		return nil
+	}
+	require.NoError(t, store.Update(attempts))
+	out, _, err := execute(t, dir, "reset", "HEAD", "--json")
+	require.NoError(t, err)
+	var result review.Result
+	require.NoError(t, json.Unmarshal([]byte(out), &result))
+	require.Equal(t, "reset", result.Status)
+	state, err := store.Load()
+	require.NoError(t, err)
+	require.Len(t, state.Attempts, 1, "reset clears only the selected stack")
+	require.Equal(t, view.Stacks[0].Key, state.Attempts[0].ID)
+
+	require.NoError(t, store.Update(attempts))
+	out, _, err = execute(t, dir, "reset", "--json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(out), &result))
+	require.Equal(t, "reset", result.Status)
+	state, err = store.Load()
+	require.NoError(t, err)
+	require.Empty(t, state.Attempts, "reset without a selector clears the branch")
+	out, _, err = execute(t, dir, "status", "--needs-review", "--json")
+	require.NoError(t, err)
+	var listed review.Result
+	require.NoError(t, json.Unmarshal([]byte(out), &listed))
+	require.Equal(t, "pending", listed.Status)
 }

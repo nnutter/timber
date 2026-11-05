@@ -73,8 +73,8 @@ func runAuto(ctx context.Context, s Service, evaluator autoreview.Evaluator, opt
 	if err := writeAutoLock(lock, view); err != nil {
 		return result, err
 	}
-	if len(activeAttempts(state)) != 0 {
-		return result, fmt.Errorf("recover or replace the active review before automatic approval")
+	if len(activeAttempts(view, state)) != 0 {
+		return result, fmt.Errorf("finish the active review before automatic approval")
 	}
 	selected, err := (Reviewer{Service: s}).bounds(ctx, view, options.Start, options.End)
 	if err != nil {

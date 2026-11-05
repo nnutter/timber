@@ -37,3 +37,13 @@ func isTrue(v bool) bool {
 func isSymlink(info os.FileInfo) bool {
 	return info.Mode()&os.ModeSymlink != 0
 }
+
+// isEmpty reports whether s holds no characters.
+func isEmpty(s string) bool {
+	return s == ""
+}
+
+// isNotEmpty reports whether s holds at least one character.
+func isNotEmpty(s string) bool {
+	return s != ""
+}

@@ -1,11 +1,11 @@
 package cli
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -48,34 +48,38 @@ func TestReviewRunningReportsLiveLockNotPersistedAttempt(t *testing.T) {
 		require.Error(t, err, string(output))
 		require.Empty(t, git(t, cwd, "branch", "--show-current"))
 	}
-	called := false
-	reviewer := review.Reviewer{
-		Service: review.Service{Repository: review.Repository{Dir: dir}},
-		Choose: func(context.Context, *review.Decision) (string, error) {
-			called = true
-			check(dir, true)
-			check(other, false)
-			// A paused replay must still identify its branch, including in a
-			// linked worktree, without treating another branch's lock as its own.
-			pause(dir)
-			pause(other)
-			check(dir, true)
-			check(other, false)
-			git(t, dir, "rebase", "--abort")
-			git(t, other, "rebase", "--abort")
-			return "cancel", nil
-		},
-	}
-	_, err = reviewer.Review(t.Context(), review.ReviewOptions{})
-	require.NoError(t, err)
-	require.True(t, called)
+	// A live review holds the lock for the whole of tuicr, so a paused replay
+	// must still identify its branch, including in a linked worktree, without
+	// treating another branch's lock as its own.
+	started := filepath.Join(t.TempDir(), "started")
+	released := filepath.Join(t.TempDir(), "released")
+	t.Setenv("TEST_STARTED", started)
+	t.Setenv("TEST_RELEASED", released)
+	installFakeTuicr(t, `printf started > "$TEST_STARTED"
+while [ ! -f "$TEST_RELEASED" ]; do sleep 0.05; done`)
+	reviewer := review.Reviewer{Service: review.Service{Repository: review.Repository{Dir: dir}}}
+	finished := make(chan error, 1)
+	go func() {
+		_, err := reviewer.Review(t.Context(), review.ReviewOptions{})
+		finished <- err
+	}()
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(started)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
+	check(dir, true)
+	check(other, false)
 	pause(dir)
 	pause(other)
-	check(dir, false)
+	check(dir, true)
 	check(other, false)
 	for _, cwd := range []string{dir, other} {
 		git(t, cwd, "rebase", "--abort")
 	}
+	require.NoError(t, os.WriteFile(released, nil, 0o600))
+	require.NoError(t, <-finished)
+	check(dir, false)
+	check(other, false)
 	// A detached checkout without rebase metadata has no branch to check.
 	git(t, dir, "checkout", "--detach")
 	out, terminal, err := executeBinary(t, binary, dir, "status", "--is-reviewing", "--json")

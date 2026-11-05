@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/nnutter/timber/internal/timber/review/autoreview"
@@ -26,7 +27,6 @@ type Result struct {
 	View         Snapshot         `json:"view"`
 	Entries      []Entry          `json:"entries"`
 	Active       []Attempt        `json:"active"`
-	Decision     *Decision        `json:"decision,omitzero"`
 	Feedback     []FeedbackRecord `json:"feedback,omitempty"`
 	FileFeedback []FilesResult    `json:"fileFeedback,omitempty"`
 	Summary      []StateCount     `json:"summary,omitempty"`
@@ -36,16 +36,6 @@ type Result struct {
 type FeedbackRecord struct {
 	Attempt    Attempt `json:"attempt"`
 	Historical bool    `json:"historical"`
-}
-
-// Decision requires an explicit choice; it is not review approval.
-type Decision struct {
-	AttemptID string   `json:"attemptId"`
-	StackKey  string   `json:"stackKey"`
-	Choices   []string `json:"choices"`
-	Attempt   Attempt  `json:"attempt"`
-	// Replacement is the current scope a new attempt would review, if available.
-	Replacement *Stack `json:"replacement,omitzero"`
 }
 
 // StateCount counts current feature commits in one review state.
@@ -159,13 +149,64 @@ func (s Service) Feedback(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	result := Result{Version: 1, Command: "feedback", Status: "idle", View: view, Entries: []Entry{}, Active: activeAttempts(state), FileFeedback: files}
+	result := Result{Version: 1, Command: "feedback", Status: "idle", View: view, Entries: []Entry{}, Active: activeAttempts(view, state), FileFeedback: files}
 	if len(files) > 0 {
 		result.Status = "pending"
 	}
 	if err := appendCommitFeedback(&result, state); err != nil {
 		return Result{}, err
 	}
+	return result, nil
+}
+
+// Reset clears the review state of the selected stacks, or of every stack in
+// the feature range when no selector is given. It removes the attempts that a
+// stack can show and the saved sessions that name them, so tuicr and the agent
+// start clean.
+func (s Service) Reset(ctx context.Context, reader SavedReader, selector string) (Result, error) {
+	view, err := s.Repository.Snapshot(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	selected, err := s.resetStacks(ctx, view, selector)
+	if err != nil {
+		return Result{}, err
+	}
+	path, err := WorktreePath(s.Repository.Dir)
+	if err != nil {
+		return Result{}, err
+	}
+	lock, err := lockWorktree(path)
+	if err != nil {
+		return Result{}, err
+	}
+	defer func() {
+		if closeErr := lock.Close(); closeErr != nil {
+			s.Repository.logger().Warn("Review lock close failed", "error", closeErr)
+		}
+	}()
+	store := Store{Path: view.Path}
+	if err := store.Update(func(state *State) error {
+		state.Attempts = slices.DeleteFunc(state.Attempts, func(attempt Attempt) bool {
+			return resetsAttempt(attempt, selected)
+		})
+		return nil
+	}); err != nil {
+		return Result{}, err
+	}
+	writer := SavedWriter(reader)
+	for _, stack := range selected {
+		if _, err := writer.Delete(stack); err != nil {
+			return Result{}, err
+		}
+	}
+	state, err := store.Load()
+	if err != nil {
+		return Result{}, err
+	}
+	result := makeResult("reset", view, state)
+	result.Status = "reset"
+	result.Entries = nil
 	return result, nil
 }
 
@@ -248,7 +289,7 @@ func (s Service) feedbackView(ctx context.Context, view Snapshot, state State) (
 func (s Service) recordApproval(ctx context.Context, view Snapshot, selected []Stack) (Result, error) {
 	store := Store{Path: view.Path}
 	err := store.Update(func(state *State) error {
-		if err := approvalAllowed(selected, *state); err != nil {
+		if err := approvalAllowed(selected, view, *state); err != nil {
 			return err
 		}
 		if err := s.unchanged(ctx, view); err != nil {
@@ -302,7 +343,7 @@ func (s Service) recordAutomatic(ctx context.Context, view Snapshot, entry *Auto
 		}
 		if status == "approved" {
 			// Only an approval needs the state and feedback checks.
-			if err := approvalAllowed([]Stack{entry.Stack}, *state); err != nil {
+			if err := approvalAllowed([]Stack{entry.Stack}, view, *state); err != nil {
 				return err
 			}
 		}
@@ -317,6 +358,18 @@ func (s Service) recordAutomatic(ctx context.Context, view Snapshot, entry *Auto
 	}
 	entry.Approved = status == "approved"
 	return nil
+}
+
+// resetStacks returns the stacks that a reset selects.
+func (s Service) resetStacks(ctx context.Context, view Snapshot, selector string) ([]Stack, error) {
+	if selector == "" {
+		return view.Stacks, nil
+	}
+	stack, err := selectStack(ctx, s.Repository, view, selector)
+	if err != nil {
+		return nil, err
+	}
+	return []Stack{stack}, nil
 }
 
 func (s Service) selectRange(ctx context.Context, view Snapshot, first, last string) ([]Stack, error) {
@@ -381,19 +434,22 @@ func (s Service) unchanged(ctx context.Context, view Snapshot) error {
 	return nil
 }
 
-func activeAttempts(state State) []Attempt {
+// activeAttempts lists the attempts that can still hold their captured stack. An
+// attempt that no current stack continues cannot be reopened, so it blocks
+// neither another review nor an approval.
+func activeAttempts(view Snapshot, state State) []Attempt {
 	active := []Attempt{}
 	for _, a := range state.Attempts {
-		if a.Status == "reviewing" {
+		if a.Status == "reviewing" && !unusableAttempt(a, view) {
 			active = append(active, a)
 		}
 	}
 	return active
 }
 
-func approvalAllowed(selected []Stack, state State) error {
-	if len(activeAttempts(state)) > 0 {
-		return fmt.Errorf("recover or replace the active review before approval")
+func approvalAllowed(selected []Stack, view Snapshot, state State) error {
+	if len(activeAttempts(view, state)) > 0 {
+		return fmt.Errorf("finish the active review before approval")
 	}
 	for _, stack := range selected {
 		a := state.latest(stack)
@@ -454,7 +510,7 @@ func makeResult(command string, view Snapshot, state State) Result {
 }
 
 func resultFromEntries(command string, view Snapshot, state State, entries []Entry) Result {
-	result := Result{Version: 1, Command: command, Status: "pending", View: view, Entries: []Entry{}, Active: activeAttempts(state)}
+	result := Result{Version: 1, Command: command, Status: "pending", View: view, Entries: []Entry{}, Active: activeAttempts(view, state)}
 	for _, entry := range entries {
 		if entry.Status != "approved" {
 			result.Entries = append(result.Entries, entry)
@@ -466,4 +522,14 @@ func resultFromEntries(command string, view Snapshot, state State, entries []Ent
 		}
 	}
 	return result
+}
+
+// resetsAttempt reports whether an attempt describes a stack that reset clears.
+func resetsAttempt(attempt Attempt, selected []Stack) bool {
+	for _, stack := range selected {
+		if sameStack(attempt.Stack, stack) || attempt.matches(stack) || sharesLineage(attempt.Stack, stack) {
+			return true
+		}
+	}
+	return false
 }

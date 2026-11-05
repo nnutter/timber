@@ -126,8 +126,9 @@ Check live activity with `timber review status --is-reviewing --json` before rew
 When `is_reviewing` is true, a `commits` or `files` review holds the worktree lock.
 Ask the user to finish the live review instead of rewriting underneath it.
 This command does not collect uncaptured notes from interrupted tuicr sessions.
-Do not use `timber review commits --recover` to retrieve feedback.
-Recovery opens an interactive review and requires the user's choice.
+Do not use `timber review commits` to retrieve feedback: it opens the interactive review, and it resumes the attempt that captured the same stack.
+A rewrite that keeps the patch moves the saved review onto the current stack, so an interrupted review keeps its marks and comments after a rebase or reword.
+When the stack must start from an empty state, ask the user to run `timber review reset`, which takes a commit or a commit_stack and defaults to the whole feature range.
 
 ## Discuss questions before making changes
 

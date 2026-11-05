@@ -21,6 +21,7 @@ import (
 	"github.com/nnutter/timber/internal/cli/review/feedback"
 	"github.com/nnutter/timber/internal/cli/review/files"
 	"github.com/nnutter/timber/internal/cli/review/log"
+	"github.com/nnutter/timber/internal/cli/review/reset"
 	"github.com/nnutter/timber/internal/cli/review/status"
 	"github.com/nnutter/timber/internal/display"
 	coreconfig "github.com/nnutter/timber/internal/timber/config"
@@ -62,6 +63,7 @@ func (c *Command) build() *cobra.Command {
 	feedback.Install(root, c.Service, c.Output)
 	files.Install(root, c.Service, c.Input, c.Output, c.Terminal)
 	log.Install(root, c.Service, c.Input, c.Output, c.Terminal)
+	reset.Install(root, c.Service, c.Output)
 	status.Install(root, c.Service, c.Output)
 	return root
 }

@@ -16,7 +16,6 @@ import (
 // ReviewOptions selects a current stack and an explicit recovery choice.
 type ReviewOptions struct {
 	Stack   string
-	Choice  string
 	Session string
 	Start   string
 	End     string
@@ -35,8 +34,6 @@ type Reviewer struct {
 	Reader   SavedReader
 	Input    io.Reader
 	Terminal io.Writer
-	// Choose resolves recovery decisions while the review lock remains held.
-	Choose func(context.Context, *Decision) (string, error)
 }
 
 // Review continues automatic reviews after completed attempts, retaining feedback.
@@ -62,21 +59,8 @@ func (r Reviewer) Review(ctx context.Context, options ReviewOptions) (result Res
 	}
 	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository, lock)
 	defer stopMaintenance()
-	r.discardSuperseded(ctx)
-	result, err = r.reviewSequence(ctx, options, path, lock)
-	if err != nil {
-		return result, err
-	}
-	if result.Status != "decision_required" {
-		return result, nil
-	}
-	if r.Choose == nil {
-		return result, nil
-	}
-	options.Choice, err = r.Choose(ctx, result.Decision)
-	if err != nil {
-		return result, err
-	}
+	carrySavedReviews(ctx, r.Service.Repository, r.Reader)
+	r.discardUnusable(ctx)
 	return r.reviewSequence(ctx, options, path, lock)
 }
 
@@ -86,7 +70,7 @@ func (r Reviewer) begin(ctx context.Context, plan reviewPlan) (Attempt, error) {
 		if err := r.Service.unchanged(ctx, plan.view); err != nil {
 			return err
 		}
-		if err := checkActive(*state, plan.prior); err != nil {
+		if err := checkActive(plan.view, *state, plan.prior); err != nil {
 			return err
 		}
 		if plan.prior != nil {
@@ -173,24 +157,25 @@ func (r Reviewer) bounds(ctx context.Context, view Snapshot, first, last string)
 	return view.Stacks[start : end+1], nil
 }
 
-// discardSuperseded removes the reviews of earlier stack versions. Their saved
-// sessions can no longer be resumed, and their unfinished attempts still look
-// recoverable, so nothing else would ever remove them.
-// Cleanup only warns: reviewing a current stack must still work.
-func (r Reviewer) discardSuperseded(ctx context.Context) {
+// discardUnusable removes the reviews of stack versions that a current review
+// can no longer select: a stack that a fixup commit extended, and a stack that a
+// rewrite removed. Their saved sessions can no longer be resumed, and their
+// unfinished attempts still look recoverable, so nothing else would ever remove
+// them. Cleanup only warns: reviewing a current stack must still work.
+func (r Reviewer) discardUnusable(ctx context.Context) {
 	view, err := r.Service.Repository.Snapshot(ctx)
 	if err != nil {
-		r.warnSupersededCleanup(err)
+		r.warnCleanup(err)
 		return
 	}
 	state, err := (Store{Path: view.Path}).Load()
 	if err != nil {
-		r.warnSupersededCleanup(err)
+		r.warnCleanup(err)
 		return
 	}
 	var sessions []Stack
 	for _, attempt := range state.Attempts {
-		if supersededAttempt(attempt, view) {
+		if supersededAttempt(attempt, view) || lostAttempt(attempt, view) {
 			sessions = append(sessions, attempt.Stack)
 		}
 	}
@@ -199,18 +184,18 @@ func (r Reviewer) discardSuperseded(ctx context.Context) {
 	}
 	err = (Store{Path: view.Path}).Update(func(state *State) error {
 		state.Attempts = slices.DeleteFunc(state.Attempts, func(attempt Attempt) bool {
-			return unfinished(attempt) && supersededAttempt(attempt, view)
+			return unusableAttempt(attempt, view)
 		})
 		return nil
 	})
 	if err != nil {
-		r.warnSupersededCleanup(err)
+		r.warnCleanup(err)
 		return
 	}
 	writer := SavedWriter{Stores: r.Reader.Stores}
 	for _, stack := range sessions {
 		if _, err := writer.Delete(stack); err != nil {
-			r.warnSupersededCleanup(err)
+			r.warnCleanup(err)
 			return
 		}
 	}
@@ -220,10 +205,7 @@ func (r Reviewer) execute(ctx context.Context, plan reviewPlan, options ReviewOp
 	if plan.stack == nil {
 		return result, fmt.Errorf("no stack selected")
 	}
-	if options.Choice == "recover" {
-		if plan.prior == nil {
-			return result, fmt.Errorf("no previous attempt to recover")
-		}
+	if plan.prior != nil && sameStack(plan.prior.Stack, *plan.stack) {
 		return r.resume(ctx, path, plan, options.Session, lock)
 	}
 	replacement, err := replacementStack(plan)
@@ -267,11 +249,11 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 	}
 	selector := options.Stack
 	view, state := plan.view, plan.state
-	active := activeAttempts(state)
+	active := activeAttempts(view, state)
 	if len(active) > 1 {
 		return plan, fmt.Errorf("multiple active attempts in state; resolve them before review")
 	}
-	if len(active) == 1 && !supersededAttempt(active[0], view) {
+	if len(active) == 1 {
 		prior := active[0]
 		plan.prior = &prior
 		plan.stack = &prior.Stack
@@ -297,31 +279,8 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 	return plan, nil
 }
 
-func (r Reviewer) readAttempt(attempt Attempt, selector string) (*SavedReview, error) {
-	path, err := WorktreePath(attempt.Stack.Repo)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := os.Stat(filepath.Join(path, ".git")); err == nil {
-		scope := attempt.Stack
-		scope.Repo = path
-		saved, err := r.Reader.Read(scope, selector)
-		if err != nil {
-			return nil, err
-		}
-		if saved != nil {
-			return saved, nil
-		}
-	} else {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
-	}
-	return r.Reader.Read(attempt.Stack, selector)
-}
-
 func (r Reviewer) recover(plan reviewPlan, attempt Attempt, selector string) (Result, error) {
-	saved, err := r.readAttempt(attempt, selector)
+	saved, err := readAttempt(r.Reader, attempt, selector)
 	if err != nil {
 		return Result{}, err
 	}
@@ -352,19 +311,16 @@ func (r Reviewer) recover(plan reviewPlan, attempt Attempt, selector string) (Re
 		return result, nil
 	}
 	result := Result{Version: 1, Command: "commits", Status: finished.Status, View: plan.view, Entries: []Entry{{Stack: finished.Stack, Status: finished.Status, Attempt: &finished}}, Active: []Attempt{}}
-	if finished.Status == "incomplete" {
-		result.Decision = recoveryDecision(plan, finished)
-	}
 	return result, nil
 }
 
 func (r Reviewer) resume(ctx context.Context, path string, plan reviewPlan, session string, lock *os.File) (Result, error) {
 	// Tuicr resumes the saved session for the same checkout and range.
 	// Validate selection before launch rather than opening an ambiguous review.
-	if _, err := r.readAttempt(*plan.prior, session); err != nil {
+	if _, err := readAttempt(r.Reader, *plan.prior, session); err != nil {
 		return Result{}, err
 	}
-	attempt, err := resumeAttempt(plan.view.Path, *plan.prior)
+	attempt, err := resumeAttempt(plan.view, *plan.prior)
 	if err != nil {
 		return Result{}, err
 	}
@@ -399,8 +355,7 @@ func (r Reviewer) reviewSequence(ctx context.Context, options ReviewOptions, pat
 			return result, nil
 		}
 		visited[result.Entries[0].Stack.Key] = true
-		// Recovery and session selection apply only to the initial attempt.
-		options.Choice = ""
+		// Session selection applies only to the initial attempt.
 		options.Session = ""
 	}
 }
@@ -420,24 +375,6 @@ func (r Reviewer) reviewStack(ctx context.Context, options ReviewOptions, visite
 			result.Status = "no_waiting"
 		}
 		return result, nil
-	}
-	if plan.prior != nil {
-		if options.Choice == "" {
-			result.Status = "decision_required"
-			result.Decision = recoveryDecision(plan, *plan.prior)
-			return result, nil
-		}
-	} else {
-		if options.Choice == "recover" {
-			return result, fmt.Errorf("no previous attempt to recover")
-		}
-	}
-	if options.Choice == "cancel" {
-		result.Status = "cancelled"
-		return result, nil
-	}
-	if !slices.Contains([]string{"", "recover", "replace"}, options.Choice) {
-		return result, fmt.Errorf("invalid review choice %q", options.Choice)
 	}
 	return r.execute(ctx, plan, options, path, lock)
 }
@@ -462,8 +399,33 @@ type reviewPlan struct {
 	exhausted bool
 }
 
-func (r Reviewer) warnSupersededCleanup(cause error) {
-	r.Service.Repository.logger().Warn("Superseded review cleanup failed", "error", cause)
+func (r Reviewer) warnCleanup(cause error) {
+	r.Service.Repository.logger().Warn("Review cleanup failed", "error", cause)
+}
+
+// readAttempt reads the saved review that captured an attempt. A session lives
+// in the review checkout, but an older one can name the repository itself.
+func readAttempt(reader SavedReader, attempt Attempt, selector string) (*SavedReview, error) {
+	path, err := WorktreePath(attempt.Stack.Repo)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(filepath.Join(path, ".git")); err == nil {
+		scope := attempt.Stack
+		scope.Repo = path
+		saved, err := reader.Read(scope, selector)
+		if err != nil {
+			return nil, err
+		}
+		if saved != nil {
+			return saved, nil
+		}
+	} else {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+	return reader.Read(attempt.Stack, selector)
 }
 
 func (plan reviewPlan) rangeComplete() bool {
@@ -473,10 +435,10 @@ func (plan reviewPlan) rangeComplete() bool {
 	return plan.exhausted
 }
 
-func resumeAttempt(path string, prior Attempt) (Attempt, error) {
+func resumeAttempt(view Snapshot, prior Attempt) (Attempt, error) {
 	var attempt Attempt
-	err := (Store{Path: path}).Update(func(state *State) error {
-		if err := checkActive(*state, &prior); err != nil {
+	err := (Store{Path: view.Path}).Update(func(state *State) error {
+		if err := checkActive(view, *state, &prior); err != nil {
 			return err
 		}
 		for i := range state.Attempts {
@@ -528,8 +490,8 @@ func finishAttempt(state *State, attempt Attempt, saved *SavedReview, raw []byte
 	return Attempt{}, fmt.Errorf("review attempt disappeared; retry")
 }
 
-func checkActive(state State, prior *Attempt) error {
-	for _, a := range activeAttempts(state) {
+func checkActive(view Snapshot, state State, prior *Attempt) error {
+	for _, a := range activeAttempts(view, state) {
 		if prior == nil {
 			return fmt.Errorf("another session started a review")
 		}
@@ -577,8 +539,8 @@ func recoverablePrior(state State, view Snapshot, stack Stack) *Attempt {
 }
 
 // recoverableAttempt reports whether a review can reopen the attempt. A model
-// result has no saved session to reopen, and a stack version that a feedback
-// commit extended is no longer a range that the review can select.
+// result has no saved session to reopen, and a stack version that no current
+// stack continues is no longer a range that the review can select.
 func recoverableAttempt(attempt Attempt, view Snapshot) bool {
 	if attempt.Status == "approved" {
 		return false
@@ -586,7 +548,7 @@ func recoverableAttempt(attempt Attempt, view Snapshot) bool {
 	if isSame(attempt.ApprovalSource, "model") {
 		return false
 	}
-	return !supersededAttempt(attempt, view)
+	return !unusableAttempt(attempt, view)
 }
 
 func recordFailure(path, id string, cause error) error {
@@ -603,19 +565,6 @@ func recordFailure(path, id string, cause error) error {
 		}
 		return fmt.Errorf("review attempt disappeared after launch failure")
 	})
-}
-
-func recoveryDecision(plan reviewPlan, attempt Attempt) *Decision {
-	decision := &Decision{
-		AttemptID: attempt.ID,
-		StackKey:  attempt.Stack.Key,
-		Choices:   []string{"recover", "replace", "cancel"},
-		Attempt:   attempt,
-	}
-	if stack, err := replacementStack(plan); err == nil {
-		decision.Replacement = &stack
-	}
-	return decision
 }
 
 func replacementStack(plan reviewPlan) (Stack, error) {
