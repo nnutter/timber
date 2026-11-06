@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 )
 
 // SavedReview contains validated progress and all annotation scopes.
@@ -636,7 +637,7 @@ func readStore(store string, scope Stack, selector string) (*SavedReview, error)
 	if err != nil {
 		return nil, err
 	}
-	candidates := map[string]*SavedReview{}
+	candidates := []sessionCandidate{}
 	for slug, rows := range entries {
 		for _, entry := range rows {
 			saved, err := readEntry(store, repo, slug, entry, scope, selector)
@@ -644,17 +645,66 @@ func readStore(store string, scope Stack, selector string) (*SavedReview, error)
 				return nil, err
 			}
 			if saved != nil {
-				candidates[saved.Path] = saved
+				candidates = append(candidates, sessionCandidate{saved: saved, updatedAt: entryUpdatedAt(entry)})
 			}
 		}
 	}
-	if len(candidates) > 1 {
-		return nil, fmt.Errorf("ambiguous saved reviews; select an exact session with --session")
+	if len(candidates) == 0 {
+		return nil, nil
 	}
-	for _, saved := range candidates {
-		return saved, nil
+	return newestCandidate(candidates), nil
+}
+
+// sessionCandidate is a saved session that describes a scope, with the time
+// that the index recorded for it.
+type sessionCandidate struct {
+	saved     *SavedReview
+	updatedAt time.Time
+}
+
+// newestCandidate returns the session that the index recorded last. Several
+// sessions can describe one range: a carried session and the session that
+// tuicr wrote name the same commits. The last one is the session that tuicr
+// reopens, so it is the session that a review continues.
+func newestCandidate(candidates []sessionCandidate) *SavedReview {
+	newest := candidates[0]
+	for _, candidate := range candidates[1:] {
+		if isLater(candidate, newest) {
+			newest = candidate
+		}
 	}
-	return nil, nil
+	return newest.saved
+}
+
+// isLater reports whether a candidate is later than another one. The path
+// breaks a tie, so that every run makes the same choice.
+func isLater(candidate, other sessionCandidate) bool {
+	if candidate.updatedAt.After(other.updatedAt) {
+		return true
+	}
+	return isTied(candidate, other) && isLess(other.saved.Path, candidate.saved.Path)
+}
+
+// isTied reports whether two candidates were recorded at the same time.
+func isTied(candidate, other sessionCandidate) bool {
+	return isSame(candidate.updatedAt, other.updatedAt)
+}
+
+// entryUpdatedAt reports the time that the index recorded for a session. A
+// session without a time sorts as the oldest one.
+func entryUpdatedAt(entry object) time.Time {
+	if _, ok := entry["updated_at"]; !ok {
+		return time.Time{}
+	}
+	value, err := decodeRequired[string](entry, "updated_at")
+	if err != nil {
+		return time.Time{}
+	}
+	updated, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return time.Time{}
+	}
+	return updated
 }
 
 func readEntry(store, repo, slug string, entry object, scope Stack, selector string) (*SavedReview, error) {

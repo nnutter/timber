@@ -354,25 +354,23 @@ func readFileStore(store, repo, diffSource, selector string) (*SavedReview, stri
 	if err != nil {
 		return nil, "", err
 	}
-	candidates := map[string]*SavedReview{}
+	candidates := []sessionCandidate{}
 	for slug, rows := range entries {
 		for _, entry := range rows {
-			saved, sessionPath, err := readFileEntry(store, repo, slug, entry, diffSource, selector)
+			saved, _, err := readFileEntry(store, repo, slug, entry, diffSource, selector)
 			if err != nil {
 				return nil, "", err
 			}
 			if saved != nil {
-				candidates[sessionPath] = saved
+				candidates = append(candidates, sessionCandidate{saved: saved, updatedAt: entryUpdatedAt(entry)})
 			}
 		}
 	}
-	if len(candidates) > 1 {
-		return nil, "", fmt.Errorf("ambiguous saved reviews; select an exact session with --session")
+	if len(candidates) == 0 {
+		return nil, "", nil
 	}
-	for sessionPath, saved := range candidates {
-		return saved, sessionPath, nil
-	}
-	return nil, "", nil
+	newest := newestCandidate(candidates)
+	return newest, newest.Path, nil
 }
 
 func readFileEntry(store, repo, slug string, entry object, diffSource, selector string) (*SavedReview, string, error) {

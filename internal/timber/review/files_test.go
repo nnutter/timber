@@ -90,7 +90,7 @@ func TestReadFileOutcomes(t *testing.T) {
 	}
 }
 
-func TestReadFileAmbiguousRequiresSession(t *testing.T) {
+func TestReadFileChoosesTheLastRecordedSession(t *testing.T) {
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	repo, err := r.git(t.Context(), "rev-parse", "--show-toplevel")
@@ -106,12 +106,14 @@ func TestReadFileAmbiguousRequiresSession(t *testing.T) {
 	}
 	writeJSON(t, filepath.Join(store, "sessions/fedcba9876543210.json"), session)
 	writeJSON(t, filepath.Join(store, "index.json"), map[string]any{"version": "2.0", "entries": map[string]any{"fixture": []any{
-		map[string]any{"kind": map[string]any{"type": "local"}, "canonical_repo_path": repo, "path": "sessions/0123456789abcdef.json"},
-		map[string]any{"kind": map[string]any{"type": "local"}, "canonical_repo_path": repo, "path": "sessions/fedcba9876543210.json"},
+		map[string]any{"kind": map[string]any{"type": "local"}, "canonical_repo_path": repo, "path": "sessions/0123456789abcdef.json", "updated_at": "2026-01-01T00:00:00Z"},
+		map[string]any{"kind": map[string]any{"type": "local"}, "canonical_repo_path": repo, "path": "sessions/fedcba9876543210.json", "updated_at": "2026-02-02T00:00:00Z"},
 	}}})
-	_, _, err = (SavedReader{Stores: []string{store}}).ReadFile(repo, "working_tree", "")
-	require.ErrorContains(t, err, "ambiguous")
-	saved, _, err := (SavedReader{Stores: []string{store}}).ReadFile(repo, "working_tree", "second-session")
+	saved, _, err := (SavedReader{Stores: []string{store}}).ReadFile(repo, "working_tree", "")
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	require.Equal(t, "second-session", saved.ID, "the last recorded session continues the review")
+	saved, _, err = (SavedReader{Stores: []string{store}}).ReadFile(repo, "working_tree", "second-session")
 	require.NoError(t, err)
 	require.NotNil(t, saved)
 	require.Equal(t, "second-session", saved.ID)
