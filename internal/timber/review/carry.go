@@ -25,27 +25,15 @@ type carriedSession struct {
 	document object
 }
 
-// anchorFor reports the branch name of the review checkout, or its abbreviated
-// commit when the checkout is detached.
-func anchorFor(ctx context.Context, repository Repository, checkout string, stack Stack) (string, error) {
-	if branch, err := branchName(ctx, repository, checkout); err == nil && isNotEmpty(branch) {
-		return branch, nil
-	}
-	// A review checkout is detached at the commit that the review shows.
+// anchorFor reports the abbreviated commit that anchors a session name. The
+// review checkout is detached at the tip when tuicr opens a range, so tuicr
+// names the session after the tip and not after a branch.
+func anchorFor(ctx context.Context, repository Repository, stack Stack) (string, error) {
 	short, err := shortSHA(ctx, repository, stack.Tip)
 	if err != nil {
 		return "", err
 	}
 	return "~" + short, nil
-}
-
-// branchName reports the branch that the review checkout has checked out.
-func branchName(ctx context.Context, repository Repository, checkout string) (string, error) {
-	if _, err := os.Lstat(checkout); err != nil {
-		return "", err
-	}
-	repository.Dir = checkout
-	return repository.git(ctx, "symbolic-ref", "--quiet", "--short", "HEAD")
 }
 
 // carrySavedReviews moves the saved session of a reviewed patch onto the stack
@@ -98,7 +86,7 @@ func carrySavedSession(ctx context.Context, repository Repository, reader SavedR
 		// A session already describes the current range.
 		return nil
 	}
-	target, err := carryTargetFor(ctx, repository, checkout, to)
+	target, err := carryTargetFor(ctx, repository, to, projectOf(source.slug))
 	if err != nil {
 		return err
 	}
@@ -125,10 +113,11 @@ func carrySource(reader SavedReader, from Attempt) (*carriedSession, error) {
 	return &carriedSession{store: saved.Store, path: saved.Path, slug: saved.Slug, document: document}, nil
 }
 
-// carryTarget names the session and the message key that the current stack
-// needs.
-func carryTargetFor(ctx context.Context, repository Repository, checkout string, to Stack) (carryTarget, error) {
-	anchor, err := anchorFor(ctx, repository, checkout, to)
+// carryTargetFor names the session and the message key that the current stack
+// needs. The name must be the name that tuicr gives the session, because
+// tuicr finds a session by that name.
+func carryTargetFor(ctx context.Context, repository Repository, to Stack, project string) (carryTarget, error) {
+	anchor, err := anchorFor(ctx, repository, to)
 	if err != nil {
 		return carryTarget{}, err
 	}
@@ -136,10 +125,11 @@ func carryTargetFor(ctx context.Context, repository Repository, checkout string,
 	if err != nil {
 		return carryTarget{}, err
 	}
-	slug, err := sessionSlug(ctx, repository, checkout, to, anchor)
+	first, err := shortSHA(ctx, repository, to.Commits[0])
 	if err != nil {
 		return carryTarget{}, err
 	}
+	slug := sessionSlug(project, anchor, first, short)
 	return carryTarget{anchor: anchor, short: short, slug: slug, now: time.Now().UTC().Format(time.RFC3339Nano)}, nil
 }
 
@@ -313,16 +303,21 @@ func renameCommitMessageFile(files object, short string, keepMessage bool) error
 
 // rewriteCarriedSession points a session at the commits that the review shows
 // now. Marks, comments, and content hashes stay because the patch is unchanged.
+// The range and the base commit follow the layout that tuicr stores them in,
+// because tuicr derives the name of the session from them.
 func rewriteCarriedSession(document object, to Stack, short string, keepMessage bool, now string) error {
 	document["id"] = quoted(uuid.New().String())
 	document["created_at"] = quoted(now)
 	document["updated_at"] = quoted(now)
-	commits, err := json.Marshal(to.Commits)
+	commits, err := json.Marshal(newestFirst(to.Commits))
 	if err != nil {
 		return err
 	}
 	document["commit_range"] = commits
-	document["base_commit"] = quoted(to.Commits[0])
+	document["base_commit"] = quoted(to.Tip)
+	// The review checkout is detached when tuicr opens the range, so the
+	// session names the tip and not a branch.
+	document["branch_name"] = jsontext.Value("null")
 	files, err := decodeRequired[object](document, "files")
 	if err != nil {
 		return err
@@ -336,6 +331,14 @@ func rewriteCarriedSession(document object, to Stack, short string, keepMessage 
 	}
 	document["files"] = encoded
 	return nil
+}
+
+// newestFirst reports the commits from the newest to the oldest. tuicr stores
+// a commit range in that order.
+func newestFirst(commits []string) []string {
+	ordered := slices.Clone(commits)
+	slices.Reverse(ordered)
+	return ordered
 }
 
 // countSessionReview counts the reviewed files and the comments of a session.
@@ -385,17 +388,22 @@ func sessionDisplay(document object, anchor string) object {
 }
 
 // sessionSlug names the session that tuicr keeps for a stack in its review
-// checkout.
-func sessionSlug(ctx context.Context, repository Repository, checkout string, stack Stack, anchor string) (string, error) {
-	first, err := shortSHA(ctx, repository, stack.Commits[0])
-	if err != nil {
-		return "", err
+// checkout. tuicr finds a session by this name, so the name holds the
+// repository that the origin remote names, the anchor of the checkout, and
+// the range that the session shows.
+func sessionSlug(project, anchor, first, last string) string {
+	return fmt.Sprintf("%s@%s/commits/%s..%s", project, anchor, first, last)
+}
+
+// projectOf reports the repository part of a session name. The part names the
+// repository that the origin remote names, and it is the same for every
+// session of that repository.
+func projectOf(slug string) string {
+	project, _, found := strings.Cut(slug, "@")
+	if !found {
+		return slug
 	}
-	tip, err := shortSHA(ctx, repository, stack.Tip)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s@%s/commits/%s..%s", filepath.Base(checkout), anchor, first, tip), nil
+	return project
 }
 
 // shortSHA reports the abbreviation that git prints for a revision.
@@ -418,7 +426,7 @@ func validateCarriedSession(document object, from Stack) error {
 	if err != nil {
 		return err
 	}
-	if isFalse(slices.Equal(commits, from.Commits)) {
+	if isFalse(sameCommitSet(commits, from.Commits)) {
 		return fmt.Errorf("saved review captured a different commit range")
 	}
 	return nil

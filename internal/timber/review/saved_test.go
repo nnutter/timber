@@ -143,20 +143,23 @@ func TestSavedReviewScopeAndDiscovery(t *testing.T) {
 	_, err = reader.Read(view.Stacks[0], "")
 	require.Error(t, err)
 
-	// Slugs are discovery metadata; two matching full sessions require selection.
+	// Several sessions can describe one range. The one that the index recorded
+	// last is the session that a review continues.
 	session = savedFixture(t, view.Stacks[0], store, true)
 	session["id"] = "second-session"
 	writeJSON(t, filepath.Join(store, "sessions/fedcba9876543210.json"), session)
 	writeJSON(t, filepath.Join(store, "index.json"), map[string]any{"version": "2.0", "entries": map[string]any{"fixture": []any{
-		map[string]any{"kind": map[string]any{"type": "local"}, "canonical_repo_path": r.Dir, "path": "sessions/0123456789abcdef.json"},
-		map[string]any{"kind": map[string]any{"type": "local"}, "canonical_repo_path": r.Dir, "path": "sessions/fedcba9876543210.json"},
+		map[string]any{"kind": map[string]any{"type": "local"}, "canonical_repo_path": r.Dir, "path": "sessions/0123456789abcdef.json", "updated_at": "2026-01-01T00:00:00Z"},
+		map[string]any{"kind": map[string]any{"type": "local"}, "canonical_repo_path": r.Dir, "path": "sessions/fedcba9876543210.json", "updated_at": "2026-02-02T00:00:00Z"},
 	}}})
-	_, err = reader.Read(view.Stacks[0], "")
-	require.ErrorContains(t, err, "ambiguous")
-	saved, err = reader.Read(view.Stacks[0], "second-session")
+	saved, err = reader.Read(view.Stacks[0], "")
 	require.NoError(t, err)
 	require.NotNil(t, saved)
-	require.Equal(t, "second-session", saved.ID)
+	require.Equal(t, "second-session", saved.ID, "the last recorded session continues the review")
+	saved, err = reader.Read(view.Stacks[0], "fixture-session")
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	require.Equal(t, "fixture-session", saved.ID, "a selector names an exact session")
 }
 
 func savedSession(t *testing.T, store string, stack Stack, name string) string {

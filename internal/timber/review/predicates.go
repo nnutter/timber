@@ -42,8 +42,3 @@ func isSymlink(info os.FileInfo) bool {
 func isEmpty(s string) bool {
 	return s == ""
 }
-
-// isNotEmpty reports whether s holds at least one character.
-func isNotEmpty(s string) bool {
-	return s != ""
-}
