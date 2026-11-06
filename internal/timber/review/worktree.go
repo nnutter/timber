@@ -81,7 +81,14 @@ func prepareWorktree(ctx context.Context, source Repository, path string, stack 
 			return err
 		}
 	}
-	return resetReviewCheckout(ctx, source, path, stack)
+	if err := mirrorMiseTrust(ctx, source, path); err != nil {
+		return err
+	}
+	if err := resetReviewCheckout(ctx, source, path, stack); err != nil {
+		return err
+	}
+	// A reset can change file contents, and paranoid mise ties trust to them.
+	return mirrorMiseTrust(ctx, source, path)
 }
 
 func ensureReviewCheckout(ctx context.Context, source Repository, path string, stack Stack) error {
