@@ -58,6 +58,21 @@ func CreateArgs(queries Queries) func(*cobra.Command, []string, string) ([]strin
 	}
 }
 
+// MoveArgs completes the worktree name, then directories for the path
+// argument.
+func MoveArgs(queries Queries) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	names := QualifiedWorktreeNames(queries)
+	return func(command *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) == 0 {
+			return names(command, args, toComplete)
+		}
+		if len(args) == 1 {
+			return nil, cobra.ShellCompDirectiveFilterDirs
+		}
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
 // RepoQualifiers completes @repo selectors.
 func RepoQualifiers(queries Queries) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 	return func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

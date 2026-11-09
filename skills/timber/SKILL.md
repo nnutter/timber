@@ -102,6 +102,9 @@ timber bump --minor --release --no-open feature/login@owner/repo
 timber prune @owner/repo --dry-run
 # Only after approval for this exact worktree and its branch:
 timber remove feature/login@owner/repo
+
+# Move a worktree checkout to another path:
+timber move feature/login@owner/repo ../login
 ```
 
 ## Procedure
@@ -156,6 +159,8 @@ timber remove feature/login@owner/repo
   Add a remote, then fetch, before relying on upstream or pull request status.
 - Detached worktrees are not managed.
   Names for manually linked checkouts can change when collisions appear; rediscover before acting.
+- `move` relocates a checkout with `git worktree move`; the destination must not exist and must not sit inside the worktree.
+  A Timber-managed worktree keeps its name at the new path; a manually linked worktree re-derives its name from the new path's basename.
 - The zsh wrapper `t` supplies shell integration and `cd` behavior.
   Do not assume `timber switch` changes the agent runner's working directory, and avoid `tui` or interactive pickers in unattended sessions.
 - `todo --path` and `todo --json` create a missing TODO file inside the Git directory.

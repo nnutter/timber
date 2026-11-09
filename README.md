@@ -403,7 +403,7 @@ Worktree commands take an optional `<worktree>@<repo>` qualifier on the name arg
 `list` and `prune` use every registered repository unless `@<repo>` pins one.
 
 `create` (and `switch -c`) use the current repository when the cwd is a managed worktree of a registered repo, otherwise an interactive picker.
-`remove`, `herdr space`, and `pr create` with no name target the managed worktree that contains the cwd.
+`remove`, `move`, `herdr space`, and `pr create` with no name target the managed worktree that contains the cwd.
 `bump` with no name targets the same worktree, and `bump @<repo>` targets the repository's default branch.
 
 In non-interactive environments commands that need a single repository fail unless `@<repo>` is set or the cwd auto-detects a managed repo.
@@ -432,6 +432,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `list` | List worktrees with merge/dirtiness status, TODO.md progress, and commit review progress (`--json`, `--pr`, `--sort`, `-L`/`--location` for checkout paths in the last column) |
 | `prune` | Remove clean, merged worktrees (`--dry-run`, `--prompt`) |
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
+| `move` | Move a worktree checkout to a new path (`name[@repo] <path>`) |
 | `pr create` | Open a GitHub pull request for a pushed worktree branch (`--title`, `--body`, `--base`, `--draft`) |
 | `bump` | Create and push the next semantic version tag (`--major`/`--minor`/`--patch`, `--pattern`, `--no-push`, `--release`, `--no-open`) |
 | `hooks commit-msg` | Add a Gerrit-compatible `Change-Id` to a commit message (`timber review commit-msg` stays as a hidden alias) |

@@ -735,6 +735,40 @@ printf '%s\n' "$new_worktree/nested" > "$TIMBER_RENAME_PATH_FILE"
 	assert.Equal(t, shellCanonicalPath(filepath.Join(worktreeParent, "new", "nested")), strings.TrimSpace(string(output)))
 }
 
+func TestGeneratedZshWrapperChangesToMovedCurrentWorktree(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh is not installed")
+	}
+
+	outDir := resolvedTempDir(t)
+	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
+
+	worktreeParent := resolvedTempDir(t)
+	oldWorktree := filepath.Join(worktreeParent, "old")
+	oldSubdirectory := filepath.Join(oldWorktree, "nested")
+	require.NoError(t, os.MkdirAll(oldSubdirectory, 0o755))
+
+	binDir := resolvedTempDir(t)
+	fakeTimber := `#!/bin/sh
+old_worktree=$(dirname "$PWD")
+new_worktree=$(dirname "$old_worktree")/new
+mv "$old_worktree" "$new_worktree" || exit $?
+printf '%s\n' "$new_worktree/nested" > "$TIMBER_RENAME_PATH_FILE"
+`
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
+
+	command := shellTestCommand(t,
+		"zsh", "-f", "-c",
+		`source "$1"; cd "$2"; t move feature@repo "$3" >/dev/null; pwd -P`,
+		"--", filepath.Join(outDir, "t"), oldSubdirectory, filepath.Join(worktreeParent, "new"),
+	)
+	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := command.CombinedOutput()
+	require.NoError(t, err, string(output))
+	assert.Equal(t, shellCanonicalPath(filepath.Join(worktreeParent, "new", "nested")), strings.TrimSpace(string(output)))
+}
+
 func TestGeneratedZshWrapperRestoresDirectoryOnFailure(t *testing.T) {
 	t.Parallel()
 	if _, err := exec.LookPath("zsh"); err != nil {
