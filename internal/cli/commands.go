@@ -21,6 +21,7 @@ import (
 	"github.com/nnutter/timber/internal/cli/herdr/space"
 	clihooks "github.com/nnutter/timber/internal/cli/hooks"
 	clilist "github.com/nnutter/timber/internal/cli/list"
+	climove "github.com/nnutter/timber/internal/cli/move"
 	clipr "github.com/nnutter/timber/internal/cli/pr"
 	prcreate "github.com/nnutter/timber/internal/cli/pr/create"
 	cliprune "github.com/nnutter/timber/internal/cli/prune"
@@ -93,6 +94,12 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 				})
 			},
 			Complete: cliComplete.RepoQualifiers(runtime),
+		}),
+		climove.New(climove.Dependencies{
+			Move:          runtime.MoveWorktree,
+			Complete:      cliComplete.MoveArgs(runtime),
+			RenderStatus:  renderStatus,
+			RenderWarning: renderWarning,
 		}),
 		cliprune.New(cliprune.Dependencies{
 			Prune: func(input io.Reader, output io.Writer, repoArg string, prompt, dryRun bool) error {

@@ -513,6 +513,27 @@ func (x *zshCommandOptions) writeFunctionFile(target string) error {
             ;;
         esac
         ;;
+    move|mv)
+        local path_file
+        path_file=$(mktemp) || return $?
+        TIMBER_RENAME_PATH_FILE=$path_file command timber "$@"
+        local move_status=$?
+        local target_dir=""
+        if [[ -s "$path_file" ]]; then
+            target_dir=$(<"$path_file")
+        fi
+        rm -f "$path_file"
+        if (( move_status != 0 )); then
+            return $move_status
+        fi
+        if [[ -n "$target_dir" ]]; then
+            if ! [[ -d "$target_dir" ]]; then
+                echo "Moved worktree not found at $target_dir" >&2
+                return 1
+            fi
+            cd "$target_dir" || return $?
+        fi
+        ;;
     remove|rm)
         local command_status
         command timber "$@"

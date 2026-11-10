@@ -482,6 +482,18 @@ func (x Runtime) LoadConfig() (coreconfig.Settings, error) {
 	return x.loadConfig()
 }
 
+// MoveWorktree resolves a worktree selector and moves the checkout to
+// destination. It returns the worktree name, its new path, and whether the
+// move relocated the directory containing the current directory.
+func (runtime Runtime) MoveWorktree(input io.Reader, raw string, destination string) (string, string, bool, error) {
+	selection := repoSelection{runtime: runtime}
+	_, repository, worktree, err := selection.resolveQualifiedWorktree(input, raw)
+	if err != nil {
+		return "", "", false, err
+	}
+	return runtime.moveResolvedWorktree(repository, worktree, destination)
+}
+
 // NewCommand builds an external command with the runtime environment and
 // executable overrides applied. It exposes process creation for CLI wiring.
 func (x Runtime) NewCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
@@ -1754,6 +1766,69 @@ func (x Runtime) moveLegacyRepo(repo registeredRepo) (bool, error) {
 	return true, nil
 }
 
+func (runtime Runtime) moveResolvedWorktree(repository *Repository, worktree managedWorktree, destination string) (string, string, bool, error) {
+	targetPath, err := runtime.moveTargetPath(worktree, destination)
+	if err != nil {
+		return "", "", false, err
+	}
+
+	currentTargetDir, movingCurrentDirectory, err := movedCurrentDirectory(worktree.Path, targetPath, runtime.CurrentDirectory)
+	if err != nil {
+		return "", "", false, err
+	}
+
+	if err := ensureDirectory(filepath.Dir(targetPath)); err != nil {
+		return "", "", false, err
+	}
+	if _, err := repository.git("worktree", "move", worktree.Path, targetPath); err != nil {
+		return "", "", false, err
+	}
+
+	if err := runtime.recordMovedWorktreeName(worktree, targetPath); err != nil {
+		return "", "", false, err
+	}
+	if err := runtime.removeEmptySourceParents(worktree.Path); err != nil {
+		return "", "", false, err
+	}
+	if movingCurrentDirectory {
+		if err := runtime.reportRenamedCurrentPath(currentTargetDir); err != nil {
+			return "", "", false, err
+		}
+	}
+	return worktree.Name, targetPath, movingCurrentDirectory, nil
+}
+
+func (runtime Runtime) moveTargetPath(worktree managedWorktree, destination string) (string, error) {
+	if isEmpty(destination) {
+		return "", fmt.Errorf("destination path is required")
+	}
+	targetPath, err := runtime.absolutePath(destination)
+	if err != nil {
+		return "", err
+	}
+	same, err := samePath(worktree.Path, targetPath)
+	if err != nil {
+		return "", err
+	}
+	if same {
+		return "", fmt.Errorf("worktree %q is already at %s", worktree.Name, worktree.Path)
+	}
+	if pathIsWithin(worktree.Path, targetPath) {
+		return "", fmt.Errorf("cannot move worktree %q into itself", worktree.Name)
+	}
+	if _, err := os.Lstat(worktree.Path); errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("worktree %q directory %q does not exist", worktree.Name, worktree.Path)
+	} else if err != nil {
+		return "", fmt.Errorf("inspect worktree directory %q: %w", worktree.Path, err)
+	}
+	if _, err := os.Lstat(targetPath); err == nil {
+		return "", fmt.Errorf("destination %q already exists", targetPath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("inspect destination %q: %w", targetPath, err)
+	}
+	return targetPath, nil
+}
+
 // movedInternalWorktree recognizes a checkout that moved with a legacy bare
 // repository. Both old links must agree before Git can repair either one.
 func (x Runtime) movedInternalWorktree(repo registeredRepo, oldPath string) (string, error) {
@@ -1907,6 +1982,24 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 
 // Standard-layout worktrees predate explicit name records. An empty name
 // identifies a manual checkout whose name must be derived from its path.
+// recordMovedWorktreeName preserves the worktree's selector name when the
+// move leaves the standard managed layout. A worktree without an explicit
+// name keeps deriving it from the new path.
+func (x Runtime) recordMovedWorktreeName(worktree managedWorktree, targetPath string) error {
+	branchName := worktree.branchName()
+	if branchName == "" || !isSame(worktree.Name, branchName) {
+		return nil
+	}
+	standard, err := samePath(targetPath, x.managedWorktreePath(worktree.Repo, branchName))
+	if err != nil {
+		return err
+	}
+	if standard {
+		return nil
+	}
+	return recordExplicitWorktreeName(x, targetPath, branchName, true)
+}
+
 func (x Runtime) recordedWorktreeName(repoName, path, branch string) (string, error) {
 	same, err := samePath(path, x.managedWorktreePath(repoName, branch))
 	if err != nil {
@@ -2379,4 +2472,17 @@ func RuntimeFromProcess() (Runtime, error) {
 		RenamePathFile:     os.Getenv(repoRenamePathFileEnvVarName),
 		Environment:        slices.Clone(os.Environ()),
 	}, nil
+}
+
+// movedCurrentDirectory maps a directory inside the source worktree to the
+// matching directory under the move target.
+func movedCurrentDirectory(worktreePath string, targetPath string, currentDirectory string) (string, bool, error) {
+	if currentDirectory == "" || !pathIsWithin(worktreePath, currentDirectory) {
+		return "", false, nil
+	}
+	relativePath, err := filepath.Rel(canonicalPath(worktreePath), canonicalPath(currentDirectory))
+	if err != nil {
+		return "", false, fmt.Errorf("resolve current worktree subdirectory: %w", err)
+	}
+	return filepath.Join(targetPath, relativePath), true, nil
 }
