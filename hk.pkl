@@ -3,10 +3,10 @@
 // target the hk pin in mise.toml. The revision is the newest one released for
 // that hk version.
 amends
-  "package://github.com/nnutter/hk-config/releases/download/v2.11.1-2/hk-config@2.11.1-2#/Config.pkl"
+  "package://github.com/nnutter/hk-config/releases/download/v2.12.0-0/hk-config@2.12.0-0#/Config.pkl"
 
 import
-  "package://github.com/nnutter/hk-config/releases/download/v2.11.1-2/hk-config@2.11.1-2#/Hooks.pkl"
+  "package://github.com/nnutter/hk-config/releases/download/v2.12.0-0/hk-config@2.12.0-0#/Hooks.pkl"
   as Hooks
 
 /// Fixtures hold deliberately broken files, so every step skips them.
