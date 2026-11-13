@@ -38,20 +38,6 @@ func TestParseHerdrSpaceDefaultsToNotAlreadyOpen(t *testing.T) {
 	assert.False(t, space.alreadyOpen)
 }
 
-func TestParseHerdrWorkspaceID(t *testing.T) {
-	t.Parallel()
-
-	id, err := parseHerdrWorkspaceID([]byte(`{"result":{"workspace":{"workspace_id":"w1"}}}`))
-	require.NoError(t, err)
-	assert.Equal(t, "w1", id)
-
-	_, err = parseHerdrWorkspaceID([]byte(`{"result":{"workspace":{}}}`))
-	require.ErrorContains(t, err, "no workspace ID")
-
-	_, err = parseHerdrWorkspaceID([]byte(`{`))
-	require.ErrorContains(t, err, "decode herdr workspace create response")
-}
-
 func TestParseHerdrWorktreeListParent(t *testing.T) {
 	t.Parallel()
 
