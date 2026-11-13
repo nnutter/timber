@@ -16,7 +16,6 @@ jactionlint = "latest"
 "github:alecthomas/go-check-sumtype" = "latest"
 "github:nnutter/constable" = "latest"
 "github:nnutter/mdlint" = "latest"
-"github:nnutter/timber" = "latest"
 "github:securego/gosec" = "latest"
 gitleaks = "latest"
 go = "latest"
@@ -58,6 +57,20 @@ go tool vhs docs/demo/demo.tape
 [tasks.coverage]
 description = "Run tests and generate coverage report"
 run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
+
+[tasks.upgrade]
+description = "Upgrade the tools to their newest releases"
+run = [
+  "mise upgrade --local",
+  # First-party tools can leave the release-age queue immediately.
+  "mise upgrade --minimum-release-age 0 github:nnutter/constable@latest",
+  "mise upgrade --minimum-release-age 0 github:nnutter/mdlint@latest",
+  "mise upgrade --minimum-release-age 0 go:github.com/nnutter/testifylint@latest",
+  "mise lock --minimum-release-age 0 github:nnutter/constable@latest",
+  "mise lock --minimum-release-age 0 github:nnutter/mdlint@latest",
+  "mise lock --minimum-release-age 0 go:github.com/nnutter/testifylint@latest",
+  "mise lock",
+]
 
 [tasks.setup]
 description = "Install hk git hooks"

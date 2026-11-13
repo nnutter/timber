@@ -890,46 +890,6 @@ url = "https://github.com/nnutter/mdlint/releases/download/v0.4.4/mdlint-windows
 url_api = "https://api.github.com/repos/nnutter/mdlint/releases/assets/696288485"
 provenance = "github-attestations"
 
-[[tools."github:nnutter/timber"]]
-version = "0.24.0"
-backend = "github:nnutter/timber"
-
-[tools."github:nnutter/timber"."platforms.linux-arm64"]
-checksum = "sha256:d986c44bffa9ac599444f664ebd059f4c64b6b7d260022ea64061af462e1b079"
-url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204601"
-provenance = "github-attestations"
-
-[tools."github:nnutter/timber"."platforms.linux-arm64-musl"]
-checksum = "sha256:d986c44bffa9ac599444f664ebd059f4c64b6b7d260022ea64061af462e1b079"
-url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204601"
-provenance = "github-attestations"
-
-[tools."github:nnutter/timber"."platforms.linux-x64"]
-checksum = "sha256:72462e0d51336303bb7d8977e6b4f5a2bee81a7e5f4d2847b4d324bdb3cce2b7"
-url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204597"
-provenance = "github-attestations"
-
-[tools."github:nnutter/timber"."platforms.linux-x64-musl"]
-checksum = "sha256:72462e0d51336303bb7d8977e6b4f5a2bee81a7e5f4d2847b4d324bdb3cce2b7"
-url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204597"
-provenance = "github-attestations"
-
-[tools."github:nnutter/timber"."platforms.macos-arm64"]
-checksum = "sha256:e53d47073ac67025eefd6441de6d819354f34e18a1e73c58789db8cf1f0177b3"
-url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204604"
-provenance = "github-attestations"
-
-[tools."github:nnutter/timber"."platforms.macos-x64"]
-checksum = "sha256:c71e19274b8188e1f619e99be9e13e92d2b1bf82c384132d14026d9f6bb0bf0f"
-url = "https://github.com/nnutter/timber/releases/download/v0.24.0/timber_v0.24.0_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/timber/releases/assets/712204603"
-provenance = "github-attestations"
-
 [[tools."github:securego/gosec"]]
 version = "2.30.0"
 backend = "github:securego/gosec"
