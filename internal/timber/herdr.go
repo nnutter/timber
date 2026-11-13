@@ -157,17 +157,6 @@ func qualifiedWorktreeName(worktreeName string, repoName string) string {
 	return worktreeName + "@" + repoName
 }
 
-func parseHerdrWorkspaceID(output []byte) (string, error) {
-	var response herdrWorkspaceCreateResponse
-	if err := json.Unmarshal(output, &response); err != nil {
-		return "", fmt.Errorf("decode herdr workspace create response: %w", err)
-	}
-	if response.Result.Workspace.WorkspaceID == "" {
-		return "", errors.New("herdr workspace create response has no workspace ID")
-	}
-	return response.Result.Workspace.WorkspaceID, nil
-}
-
 func parseHerdrWorktreeListParent(output []byte) (string, error) {
 	var response herdrWorktreeListResponse
 	if err := json.Unmarshal(output, &response); err != nil {

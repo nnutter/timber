@@ -50,5 +50,9 @@ jobs:
           path: ${{ steps.go-cache.outputs.dir }}
           key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}
           restore-keys: go-build-${{ runner.os }}-
+      # `mise run` installs the missing tools before it starts the task, so
+      # install them here to give that time a line of its own.
+      - name: Install the tools
+        run: mise install
       - name: Run tests
         run: mise run ci-test

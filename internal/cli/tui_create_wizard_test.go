@@ -314,6 +314,11 @@ func applyCreateWizardCmd(t *testing.T, model tea.Model, command tea.Cmd) *creat
 	return applyCreateWizardCmdBudget(t, model, command, 32)
 }
 
+// isNilCmd reports whether command is a nil command.
+func isNilCmd(command tea.Cmd) bool {
+	return command == nil
+}
+
 func applyCreateWizardCmdBudget(t *testing.T, model tea.Model, command tea.Cmd, budget int) *createWizardModel {
 	t.Helper()
 

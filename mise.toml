@@ -13,21 +13,18 @@ CONDA_PREFIX = false
 # about 260 MB and every repository on the machine shares it.
 "conda:git" = "latest"
 jactionlint = "latest"
-"github:alecthomas/go-check-sumtype" = "latest"
+# constable embeds the errcheck, sumtype, testifylint, and nilaway analyzers,
+# so it replaces those linters rather than running beside them.
 "github:nnutter/constable" = "latest"
 "github:nnutter/mdlint" = "latest"
-"github:nnutter/timber" = "latest"
 "github:securego/gosec" = "latest"
-gitleaks = "latest"
+betterleaks = "latest"
 go = "latest"
-"go:github.com/kisielk/errcheck" = "latest"
 "go:github.com/kojah/gohawk" = "latest"
-"go:github.com/nnutter/testifylint" = "latest"
-"go:go.uber.org/nilaway/cmd/nilaway" = "latest"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
 "go:golang.org/x/vuln/cmd/govulncheck" = "latest"
 gofumpt = "latest"
-hk = "2.11.1"
+hk = "2.12.0"
 pkl = "latest"
 "pypi:agentskills-tools" = "latest"
 staticcheck = "latest"
@@ -58,6 +55,18 @@ go tool vhs docs/demo/demo.tape
 [tasks.coverage]
 description = "Run tests and generate coverage report"
 run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
+
+[tasks.upgrade]
+description = "Upgrade the tools to their newest releases"
+run = [
+  "mise upgrade --local",
+  # First-party tools can leave the release-age queue immediately.
+  "mise upgrade --minimum-release-age 0 github:nnutter/constable@latest",
+  "mise upgrade --minimum-release-age 0 github:nnutter/mdlint@latest",
+  "mise lock --minimum-release-age 0 github:nnutter/constable@latest",
+  "mise lock --minimum-release-age 0 github:nnutter/mdlint@latest",
+  "mise lock",
+]
 
 [tasks.setup]
 description = "Install hk git hooks"
