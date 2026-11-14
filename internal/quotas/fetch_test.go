@@ -164,7 +164,7 @@ done
 `)
 	report, err := fetchCodex(t.Context(), envSource(map[string]string{"QUOTAS_CODEX_COMMAND": script}), nil)
 	require.NoError(t, err)
-	assert.Equal(t, "ChatGPT Plus", report.Name)
+	assert.Equal(t, "ChatGPT", report.Name)
 	require.Len(t, report.Limits, 1)
 	assert.Equal(t, "Week", report.Limits[0].Label)
 	assert.InDelta(t, 22.0, report.Limits[0].Percent, 1e-9)

@@ -32,14 +32,7 @@ func fetchCodex(ctx context.Context, source Source, _ *http.Client) (Report, err
 	}
 	snapshots := codexSnapshots(answer)
 	limits, notes := codexLimits(snapshots, answer)
-	var plan string
-	for _, snapshot := range snapshots {
-		if name, ok := asText(snapshot["planType"]); ok {
-			plan = name
-			break
-		}
-	}
-	return Report{Name: ChatGPTName(plan), Limits: limits, Notes: notes}, nil
+	return Report{Name: codexName, Limits: limits, Notes: notes}, nil
 }
 
 func askCodex(ctx context.Context, command, home string) (map[string]any, error) {

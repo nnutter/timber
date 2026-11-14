@@ -219,15 +219,6 @@ func nonPositive(minutes float64) bool { return minutes <= 0 }
 
 func differentYear(local, now time.Time) bool { return local.Year() != now.Year() }
 
-// ChatGPTName is the plan Codex names, in the report's title.
-func ChatGPTName(plan string) string {
-	plan = strings.TrimSpace(plan)
-	if plan == "" {
-		return "ChatGPT"
-	}
-	return "ChatGPT " + capitalize(plan)
-}
-
 func capitalize(name string) string {
 	if name == "" {
 		return ""

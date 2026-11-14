@@ -86,9 +86,3 @@ func TestOffPeakNoteUsesUTCWeekdayHours(t *testing.T) {
 	assert.Contains(t, OffPeakNote(weekdayPeak), "Full price until ")
 	assert.Contains(t, OffPeakNote(weekdayPeak), "off-peak rates after.")
 }
-
-func TestChatGPTNameAndSpacedTier(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "ChatGPT Plus", ChatGPTName("plus"))
-	assert.Equal(t, "ChatGPT", ChatGPTName("  "))
-}
