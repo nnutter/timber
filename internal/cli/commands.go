@@ -25,6 +25,7 @@ import (
 	clipr "github.com/nnutter/timber/internal/cli/pr"
 	prcreate "github.com/nnutter/timber/internal/cli/pr/create"
 	cliprune "github.com/nnutter/timber/internal/cli/prune"
+	cliquotas "github.com/nnutter/timber/internal/cli/quotas"
 	cliremove "github.com/nnutter/timber/internal/cli/remove"
 	clirepo "github.com/nnutter/timber/internal/cli/repo"
 	repoadd "github.com/nnutter/timber/internal/cli/repo/add"
@@ -185,6 +186,7 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 			CompleteWorktrees:  cliComplete.QualifiedWorktreeNames(runtime),
 			CompleteRepoSuffix: cliComplete.RepoSuffix(runtime),
 		}),
+		cliquotas.New(cliquotas.Dependencies{}),
 		clitui.New(clitui.Dependencies{
 			Run: func(ctx context.Context, input io.Reader, output, stdout io.Writer, herdr, noHerdr, noTitle bool) error {
 				return runtime.RunTUI(ctx, input, output, stdout, herdr, noHerdr, noTitle, bubbleteaCreateWizardPrompter{}, createReporters)
