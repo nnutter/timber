@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -15,8 +16,6 @@ var (
 	percentStyle  = lipgloss.NewStyle().Bold(true)
 	mutedStyle    = lipgloss.NewStyle().Faint(true)
 	quietStyle    = lipgloss.NewStyle().Faint(true)
-	okStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
-	warningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
 	criticalStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 	ruleStyle     = lipgloss.NewStyle().Faint(true)
 )
@@ -29,6 +28,17 @@ const (
 	// maxWidth keeps the percent next to its plan. A wide terminal would
 	// otherwise push it to the far edge.
 	maxWidth = 72
+
+	usageFull    = '█'
+	usageEmpty   = '░'
+	elapsedFull  = '━'
+	elapsedEmpty = '─'
+
+	trackColor    = "#3A3A3A"
+	elapsedOnPace = "#E4E4E4"
+	okBar         = "#5FBF6A"
+	warningBar    = "#FFD75F"
+	criticalBar   = "#FF5F5F"
 )
 
 // Render draws the plans in the order to use them.
@@ -61,7 +71,10 @@ func renderPlan(report Report, now time.Time, width int) string {
 		out.WriteString("\n")
 		out.WriteString(renderBalance(*report.Balance))
 	}
-	for _, limit := range report.Limits {
+	for index, limit := range report.Limits {
+		if index > 0 {
+			out.WriteString("\n")
+		}
 		out.WriteString("\n")
 		out.WriteString(renderLimit(report, limit, now, width))
 	}
@@ -99,10 +112,10 @@ func renderLimit(report Report, limit Limit, now time.Time, width int) string {
 	var out strings.Builder
 	out.WriteString(row)
 	out.WriteString("\n")
-	out.WriteString(renderGauge(limit))
+	out.WriteString(renderGauge(limit, width))
 	if share, points, ok := Lag(limit, now); ok {
 		out.WriteString("\n")
-		out.WriteString(renderPace(share, points))
+		out.WriteString(renderPace(share, points, width))
 	}
 	if meta := renderMeta(limit, now); meta != "" {
 		out.WriteString("\n")
@@ -111,23 +124,52 @@ func renderLimit(report Report, limit Limit, now time.Time, width int) string {
 	return out.String()
 }
 
-func renderGauge(limit Limit) string {
-	on := Lit(limit.Percent)
-	return tone(limit.Level).Render(strings.Repeat("■", on)) + mutedStyle.Render(strings.Repeat("□", gaugeCells-on))
+func renderGauge(limit Limit, width int) string {
+	return meter(width, limit.Percent, usageFull, usageEmpty, usageColor(limit.Level))
 }
 
-func renderPace(share int, points float64) string {
-	filled := int(math.Round(float64(gaugeCells) * float64(share) / 100))
-	filled = min(max(filled, 0), gaugeCells)
+// renderPace draws how far the window has run, on the same width as the usage bar.
+// The mark for time still ahead is lighter, so a half-spent month does not look full.
+func renderPace(share int, points float64, width int) string {
+	return meter(width, float64(share), elapsedFull, elapsedEmpty, paceColor(points))
+}
+
+func meter(width int, percent float64, full, empty rune, fill string) string {
+	bar := progress.New(
+		progress.WithWidth(width),
+		progress.WithoutPercentage(),
+		progress.WithFillCharacters(full, empty),
+		progress.WithSolidFill(fill),
+	)
+	bar.EmptyColor = trackColor
+	return bar.ViewAs(shownPortion(percent))
+}
+
+func shownPortion(percent float64) float64 {
+	return min(max(percent, 0), 100) / 100
+}
+
+func usageColor(level Level) string {
+	switch level {
+	case LevelCritical:
+		return criticalBar
+	case LevelWarning:
+		return warningBar
+	default:
+		return okBar
+	}
+}
+
+func paceColor(points float64) string {
 	gap := int(math.Round(points))
-	style := mutedStyle
 	switch {
 	case gap >= lagFar:
-		style = criticalStyle
+		return criticalBar
 	case gap >= lagPoints:
-		style = warningStyle
+		return warningBar
+	default:
+		return elapsedOnPace
 	}
-	return style.Render(strings.Repeat("━", filled)) + mutedStyle.Render(strings.Repeat("━", gaugeCells-filled))
 }
 
 func renderMeta(limit Limit, now time.Time) string {
@@ -191,17 +233,6 @@ func showsBalance(report Report) bool {
 		return true
 	}
 	return len(report.Limits) == 0 || toppedUp(report.Balance) || notEnough(report.Balance)
-}
-
-func tone(level Level) lipgloss.Style {
-	switch level {
-	case LevelCritical:
-		return criticalStyle
-	case LevelWarning:
-		return warningStyle
-	default:
-		return okStyle
-	}
 }
 
 func frameWidth(width int) int {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderKeepsThePercentNextToThePlan(t *testing.T) {
@@ -42,8 +43,37 @@ func TestRenderShowsThePlanToUseFirst(t *testing.T) {
 	assert.Contains(t, view, "Week")
 	assert.NotContains(t, view, "1m ago")
 	assert.NotContains(t, view, "just now")
-	assert.Contains(t, view, "■")
-	assert.Contains(t, view, "□")
+	assert.Contains(t, view, "█")
+	assert.Contains(t, view, "░")
+}
+
+func TestRenderShowsHowMuchOfEachWindowHasPassed(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	month := 30 * 24 * time.Hour
+	week := 7 * 24 * time.Hour
+	view := ansi.Strip(Render(Snapshot{Reports: []Report{plan("opencode-go", "OpenCode Go",
+		Limit{Label: "Month", Percent: 10, Level: LevelOK, Window: month, ResetsAt: now.Add(month / 4)},
+		Limit{Label: "Week", Percent: 10, Level: LevelOK, Window: week, ResetsAt: now.Add(week / 2)},
+	)}}, now, 40))
+
+	assert.Contains(t, view, "\n\nWeek")
+	elapsed := linesContaining(view, "━")
+	require.Len(t, elapsed, 2)
+	assert.Equal(t, 30, strings.Count(elapsed[0], "━"))
+	assert.Equal(t, 10, strings.Count(elapsed[0], "─"))
+	assert.Equal(t, 20, strings.Count(elapsed[1], "━"))
+	assert.Equal(t, 20, strings.Count(elapsed[1], "─"))
+}
+
+func linesContaining(view, mark string) []string {
+	var found []string
+	for line := range strings.SplitSeq(view, "\n") {
+		if strings.Contains(line, mark) {
+			found = append(found, line)
+		}
+	}
+	return found
 }
 
 func TestRenderLeavesOutAMissingSignIn(t *testing.T) {
