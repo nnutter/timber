@@ -607,10 +607,6 @@ func fetchMuse(ctx context.Context, source Source, _ *http.Client) (Report, erro
 	return Report{Name: museName, Limits: limits}, nil
 }
 
-func bearer(token string) map[string]string {
-	return map[string]string{"Authorization": "Bearer " + token}
-}
-
 func firstRecord(records []map[string]any) map[string]any {
 	if len(records) == 0 {
 		return nil

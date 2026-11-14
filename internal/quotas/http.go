@@ -71,6 +71,10 @@ func getJSON(ctx context.Context, client *http.Client, endpoint string, headers 
 	return decoded, nil
 }
 
+func bearer(token string) map[string]string {
+	return map[string]string{"Authorization": "Bearer " + token}
+}
+
 func requestFailure(ctx context.Context, err error, wait time.Duration) error {
 	if said, ok := errors.AsType[SaidError](context.Cause(ctx)); ok {
 		return said
