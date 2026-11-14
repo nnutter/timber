@@ -126,6 +126,21 @@ func parseTime(value string) time.Time {
 	return time.Time{}
 }
 
+func firstRecord(records []map[string]any) map[string]any {
+	if len(records) == 0 {
+		return nil
+	}
+	return records[0]
+}
+
+func aboveZero(number float64) bool { return number > 0 }
+
+func wholeNumber(number float64) bool { return number == float64(int(number)) }
+
+func missing(ok bool) bool { return !ok }
+
+func ready(ok bool) bool { return ok }
+
 func hasText(text string) bool { return text != "" }
 
 func unsetClock(number float64) bool { return number == 0 }

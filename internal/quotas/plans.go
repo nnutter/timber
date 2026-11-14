@@ -607,17 +607,6 @@ func fetchMuse(ctx context.Context, source Source, _ *http.Client) (Report, erro
 	return Report{Name: museName, Limits: limits}, nil
 }
 
-func firstRecord(records []map[string]any) map[string]any {
-	if len(records) == 0 {
-		return nil
-	}
-	return records[0]
-}
-
-func aboveZero(number float64) bool { return number > 0 }
-
-func wholeNumber(number float64) bool { return number == float64(int(number)) }
-
 func monthUnit(unit float64) bool { return int(unit) == 5 }
 
 func refusedCode(code float64) bool { return code != 0 }
@@ -627,10 +616,6 @@ func emptyCount(total float64) bool { return total <= 0 }
 func unusedWeek(left float64) bool { return left >= 100 }
 
 func weekLabel(label string) bool { return label == "Week" }
-
-func missing(ok bool) bool { return !ok }
-
-func ready(ok bool) bool { return ok }
 
 func wholePair(unit, count any) (float64, float64, bool) {
 	unitNumber, unitOK := asNumber(unit)
