@@ -178,3 +178,63 @@ func TestQuotasJSONAndTUICannotCombine(t *testing.T) {
 	assert.Contains(t, err.Error(), "json")
 	assert.Contains(t, err.Error(), "tui")
 }
+
+func TestQuotasHidesOpenCodeRollingUnlessAsked(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	snapshot := quotas.Snapshot{FetchedAt: now, Reports: []quotas.Report{{
+		ID: "opencode-go", Name: "OpenCode Go", OK: true,
+		Limits: []quotas.Limit{
+			{Label: "5 hours", Percent: 10},
+			{Label: "Month", Percent: 20, Window: 30 * 24 * time.Hour, ResetsAt: now.Add(15 * 24 * time.Hour)},
+		},
+	}}}
+	read := func(context.Context, bool) (quotas.Snapshot, error) {
+		return snapshot, nil
+	}
+
+	hidden := quotasOutput(t, read)
+	assert.NotContains(t, hidden, "5 hours")
+	assert.Contains(t, hidden, "Month")
+	encoded := quotasOutput(t, read, "--json")
+	assert.NotContains(t, encoded, "5 hours")
+	assert.Contains(t, encoded, "Month")
+	shown := quotasOutput(t, read, "--rolling")
+	assert.Contains(t, shown, "5 hours")
+	assert.Contains(t, shown, "Month")
+
+	var refreshed quotas.Snapshot
+	command := New(Dependencies{
+		Read:        read,
+		Interactive: func(io.Reader) bool { return true },
+		RunTUI: func(_ context.Context, _ io.Reader, _ io.Writer, read quotas.Reader) error {
+			var err error
+			refreshed, err = read(t.Context(), true)
+			return err
+		},
+	})
+	command.SetIn(&bytes.Buffer{})
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"--tui"})
+	require.NoError(t, command.ExecuteContext(t.Context()))
+	require.Len(t, refreshed.Reports, 1)
+	require.Len(t, refreshed.Reports[0].Limits, 1)
+	assert.Equal(t, "Month", refreshed.Reports[0].Limits[0].Label)
+}
+
+func quotasOutput(t *testing.T, read quotas.Reader, args ...string) string {
+	t.Helper()
+	command := New(Dependencies{
+		Read:  read,
+		Now:   func() time.Time { return time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC) },
+		Width: func(io.Writer) int { return 40 },
+	})
+	command.SetIn(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	var stdout bytes.Buffer
+	command.SetOut(&stdout)
+	command.SetArgs(args)
+	require.NoError(t, command.ExecuteContext(t.Context()))
+	return ansi.Strip(stdout.String())
+}

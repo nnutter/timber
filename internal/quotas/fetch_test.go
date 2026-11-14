@@ -63,6 +63,26 @@ func TestCopilotTurnsRemainingIntoUsedAndSkipsAZeroReset(t *testing.T) {
 	assert.Equal(t, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), report.Limits[0].ResetsAt)
 }
 
+func TestOmitOpenCodeRollingKeepsOtherFiveHourWindows(t *testing.T) {
+	t.Parallel()
+	snapshot := Snapshot{Reports: []Report{
+		{ID: openCodeID, Name: openCodeName, OK: true, Limits: []Limit{
+			{Label: "5 hours", Percent: 10},
+			{Label: "Month", Percent: 20},
+		}},
+		{ID: miniMaxID, Name: miniMaxName, OK: true, Limits: []Limit{
+			{Label: "5 hours", Percent: 30},
+		}},
+	}}
+
+	got := OmitOpenCodeRolling(snapshot)
+
+	require.Len(t, got.Reports, 2)
+	assert.Equal(t, []string{"Month"}, labels(got.Reports[0].Limits))
+	assert.Equal(t, []string{"5 hours"}, labels(got.Reports[1].Limits))
+	assert.Equal(t, []string{"5 hours", "Month"}, labels(snapshot.Reports[0].Limits))
+}
+
 func TestOpenCodeLeavesARollingWindowWithoutAReset(t *testing.T) {
 	t.Parallel()
 	client := stubClient(t, func(w http.ResponseWriter, _ *http.Request) {
