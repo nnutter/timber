@@ -18,9 +18,42 @@ func TestRenderKeepsThePercentNextToThePlan(t *testing.T) {
 	}, now, 200)
 
 	for line := range strings.SplitSeq(view, "\n") {
-		assert.LessOrEqual(t, ansi.StringWidth(line), 72)
+		assert.LessOrEqual(t, ansi.StringWidth(line), 60)
 	}
-	assert.Equal(t, 72, ansi.StringWidth(strings.Split(view, "\n")[0]))
+	assert.Equal(t, 60, ansi.StringWidth(strings.Split(view, "\n")[0]))
+}
+
+func TestRenderCentersTheResetOnTheWindowLine(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	month := 30 * 24 * time.Hour
+	view := ansi.Strip(Render(Snapshot{Reports: []Report{{
+		ID: "ollama", Name: "Ollama Cloud", OK: true,
+		Balance: &Balance{Currency: "USD", Granted: 6.21, Total: 6.21, Enough: true},
+		Limits:  []Limit{timed("Month", 90, month, 0.42, now)},
+	}}}, now, 200))
+
+	line := lineContaining(view, "Month ($6.21)")
+	percentAt := strings.LastIndex(line, "90%")
+	require.NotEqual(t, -1, percentAt)
+	name := "Month ($6.21)"
+	nameEnd := strings.Index(line, name) + len(name)
+	middle := strings.TrimSpace(line[nameEnd:percentAt])
+	require.NotEmpty(t, middle)
+	middleAt := strings.Index(line, middle)
+	require.NotEqual(t, -1, middleAt)
+	center := middleAt + len(middle)/2
+	assert.InDelta(t, float64(len(line)/2), float64(center), 1)
+	assert.Equal(t, 60, ansi.StringWidth(line))
+}
+
+func lineContaining(view, mark string) string {
+	for line := range strings.SplitSeq(view, "\n") {
+		if strings.Contains(line, mark) {
+			return line
+		}
+	}
+	return ""
 }
 
 func TestRenderShowsThePlanToUseFirst(t *testing.T) {

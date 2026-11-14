@@ -25,9 +25,9 @@ const (
 	lagFar    = 15
 	// minWidth is the narrowest report that still fits a name and a percent.
 	minWidth = 24
-	// maxWidth keeps the percent next to its plan. A wide terminal would
-	// otherwise push it to the far edge.
-	maxWidth = 72
+	// maxWidth keeps the name, the reset, and the percent on one line.
+	// Wider than this, the reset would drift away from both.
+	maxWidth = 60
 
 	usageFull    = '█'
 	usageEmpty   = '░'
@@ -42,7 +42,7 @@ const (
 )
 
 // Render draws the plans in the order to use them.
-// width is the terminal width. The report stays between a narrow default and 72 columns.
+// width is the terminal width. The report stays between a narrow default and 60 columns.
 func Render(snapshot Snapshot, now time.Time, width int) string {
 	width = frameWidth(width)
 	reports := Ordered(snapshot.Reports, now)
@@ -99,29 +99,123 @@ func renderHead(report Report, width int) string {
 
 func renderLimit(report Report, limit Limit, now time.Time, width int) string {
 	label := limitLabel(report, limit)
-	percent := int(math.Round(limit.Percent))
-	percentText := percentStyle.Render(fmt.Sprintf("%d", percent)) + mutedStyle.Render("%")
-	gap := width - ansi.StringWidth(label) - ansi.StringWidth(fmt.Sprintf("%d%%", percent))
-	var row string
-	if gap >= 1 {
-		row = label + strings.Repeat(" ", gap) + percentText
-	} else {
-		row = label + " " + percentText
-	}
+	percentPlain := fmt.Sprintf("%d%%", int(math.Round(limit.Percent)))
+	middle := limitMiddle(limit, now, width-ansi.StringWidth(label)-ansi.StringWidth(percentPlain))
 
 	var out strings.Builder
-	out.WriteString(row)
+	out.WriteString(placeWindowLine(label, middle, percentPlain, width))
 	out.WriteString("\n")
 	out.WriteString(renderGauge(limit, width))
 	if share, points, ok := Lag(limit, now); ok {
 		out.WriteString("\n")
 		out.WriteString(renderPace(share, points, width))
 	}
-	if meta := renderMeta(limit, now); meta != "" {
-		out.WriteString("\n")
-		out.WriteString(meta)
+	if middle == "" {
+		if meta := renderMeta(limit, now); meta != "" {
+			out.WriteString("\n")
+			out.WriteString(meta)
+		}
 	}
 	return out.String()
+}
+
+func limitMiddle(limit Limit, now time.Time, room int) string {
+	withClock := windowClock(limit, now)
+	if fitsMiddle(withClock, room) {
+		return withClock
+	}
+	reset := windowReset(limit, now)
+	if fitsMiddle(reset, room) {
+		return reset
+	}
+	return ""
+}
+
+func fitsMiddle(text string, room int) bool {
+	if text == "" {
+		return false
+	}
+	return ansi.StringWidth(text)+2 <= room
+}
+
+func placeWindowLine(label, middle, percentPlain string, width int) string {
+	percent := stylePercent(percentPlain)
+	if middle == "" {
+		return spread(label, percent, percentPlain, width)
+	}
+	return centerOnLine(label, quietStyle.Render(middle), middle, percent, percentPlain, width)
+}
+
+func stylePercent(percentPlain string) string {
+	number, found := strings.CutSuffix(percentPlain, "%")
+	if !found {
+		return percentStyle.Render(percentPlain)
+	}
+	return percentStyle.Render(number) + mutedStyle.Render("%")
+}
+
+func spread(label, percent, percentPlain string, width int) string {
+	gap := width - ansi.StringWidth(label) - ansi.StringWidth(percentPlain)
+	if gap < 1 {
+		return label + " " + percent
+	}
+	return label + strings.Repeat(" ", gap) + percent
+}
+
+// centerOnLine puts the reset on the center of the line.
+// Equal space on either side would slide it toward the percent, because the
+// name is wider than the percent.
+func centerOnLine(label, middle, middlePlain, percent, percentPlain string, width int) string {
+	labelWidth := ansi.StringWidth(label)
+	middleWidth := ansi.StringWidth(middlePlain)
+	percentWidth := ansi.StringWidth(percentPlain)
+	if !roomForReset(labelWidth, middleWidth, percentWidth, width) {
+		return spread(label, percent, percentPlain, width)
+	}
+	start := clampedStart((width-middleWidth)/2, labelWidth+1, width-percentWidth-middleWidth-1)
+	leftPad := start - labelWidth
+	rightPad := width - percentWidth - (start + middleWidth)
+	return label + strings.Repeat(" ", leftPad) + middle + strings.Repeat(" ", rightPad) + percent
+}
+
+func roomForReset(labelWidth, middleWidth, percentWidth, width int) bool {
+	return width-labelWidth-middleWidth-percentWidth >= 2
+}
+
+func clampedStart(start, low, high int) int {
+	if start < low {
+		return low
+	}
+	if start > high {
+		return high
+	}
+	return start
+}
+
+func windowReset(limit Limit, now time.Time) string {
+	var parts []string
+	if limit.Binding {
+		parts = append(parts, "In force")
+	}
+	if reset, ok := ResetLabel(limit.ResetsAt, now); ok {
+		parts = append(parts, reset)
+	}
+	return strings.Join(parts, " · ")
+}
+
+func windowClock(limit Limit, now time.Time) string {
+	text := windowReset(limit, now)
+	if text == "" {
+		return ""
+	}
+	if _, ok := ResetLabel(limit.ResetsAt, now); !ok {
+		return text
+	}
+	clock := ResetClock(limit.ResetsAt, now)
+	if clock == "" {
+		return text
+	}
+	return text + "  " + clock
 }
 
 func renderGauge(limit Limit, width int) string {
@@ -173,22 +267,9 @@ func paceColor(points float64) string {
 }
 
 func renderMeta(limit Limit, now time.Time) string {
-	reset, hasReset := ResetLabel(limit.ResetsAt, now)
-	if !limit.Binding && noReset(hasReset) {
+	text := windowReset(limit, now)
+	if text == "" {
 		return ""
-	}
-	var parts []string
-	if limit.Binding {
-		parts = append(parts, "In force")
-	}
-	if hasReset {
-		parts = append(parts, reset)
-	}
-	text := strings.Join(parts, " · ")
-	if hasReset {
-		if clock := ResetClock(limit.ResetsAt, now); clock != "" {
-			text += "  " + clock
-		}
 	}
 	return quietStyle.Render(text)
 }
@@ -244,8 +325,6 @@ func frameWidth(width int) int {
 	}
 	return width
 }
-
-func noReset(hasReset bool) bool { return !hasReset }
 
 func separateGrant(balance Balance) bool { return balance.Granted != balance.Total }
 
