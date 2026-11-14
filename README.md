@@ -437,7 +437,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `bump` | Create and push the next semantic version tag (`--major`/`--minor`/`--patch`, `--pattern`, `--no-push`, `--release`, `--no-open`) |
 | `hooks commit-msg` | Add a Gerrit-compatible `Change-Id` to a commit message (`timber review commit-msg` stays as a hidden alias) |
 | `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |
-| `quotas` | Show AI subscription usage, soonest waste first (`--tui` refreshes) |
+| `quotas` | Show AI subscription usage, soonest waste first (`--tui` refreshes, `--json` prints the report) |
 | `generate zsh` | Generate the `t` wrapper, completion, and autoload helper |
 
 ## Typical Flow

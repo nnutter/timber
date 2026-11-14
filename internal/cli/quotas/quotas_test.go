@@ -106,3 +106,75 @@ func TestQuotasTUINeedsATerminal(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "terminal")
 }
+
+func TestQuotasJSONPrintsTheReportOnce(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	snapshot := quotas.Snapshot{FetchedAt: now, Reports: []quotas.Report{{
+		ID: "plan", Name: "Plan", OK: true,
+		Limits: []quotas.Limit{{Label: "Week", Percent: 10}},
+	}}}
+	var fresh bool
+	command := New(Dependencies{
+		Read: func(_ context.Context, force bool) (quotas.Snapshot, error) {
+			fresh = force
+			return snapshot, nil
+		},
+		Now:   func() time.Time { require.Fail(t, "read the clock for a JSON report"); return now },
+		Width: func(io.Writer) int { require.Fail(t, "measured the terminal for a JSON report"); return 40 },
+	})
+	command.SetIn(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	var stdout bytes.Buffer
+	command.SetOut(&stdout)
+	command.SetArgs([]string{"--json"})
+
+	require.NoError(t, command.ExecuteContext(t.Context()))
+
+	encoded, err := quotas.Encode(snapshot)
+	require.NoError(t, err)
+	assert.True(t, fresh)
+	assert.Equal(t, string(encoded)+"\n", stdout.String())
+}
+
+func TestQuotasJSONReturnsAFailedRead(t *testing.T) {
+	t.Parallel()
+	command := New(Dependencies{
+		Read: func(context.Context, bool) (quotas.Snapshot, error) {
+			return quotas.Snapshot{}, errors.New("offline")
+		},
+	})
+	command.SetIn(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	var stdout bytes.Buffer
+	command.SetOut(&stdout)
+	command.SetArgs([]string{"--json"})
+
+	err := command.ExecuteContext(t.Context())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "offline")
+	assert.NotContains(t, stdout.String(), "{")
+}
+
+func TestQuotasJSONAndTUICannotCombine(t *testing.T) {
+	t.Parallel()
+	command := New(Dependencies{
+		Read: func(context.Context, bool) (quotas.Snapshot, error) {
+			require.Fail(t, "read the services")
+			return quotas.Snapshot{}, nil
+		},
+		RunTUI: func(context.Context, io.Reader, io.Writer, quotas.Reader) error {
+			require.Fail(t, "started the tui")
+			return nil
+		},
+	})
+	command.SetIn(&bytes.Buffer{})
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"--json", "--tui"})
+
+	err := command.ExecuteContext(t.Context())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "json")
+	assert.Contains(t, err.Error(), "tui")
+}

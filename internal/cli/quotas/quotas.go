@@ -43,7 +43,7 @@ func New(deps Dependencies) *cobra.Command {
 	if deps.RunTUI == nil {
 		deps.RunTUI = quotas.Run
 	}
-	var keep bool
+	var keep, asJSON bool
 	command := &cobra.Command{
 		Use:   "quotas",
 		Short: "Show AI subscription usage, soonest waste first",
@@ -56,15 +56,18 @@ reset clock comes next, least used first. A balance with no limits comes
 after those, and a plan that failed comes last.
 
 The report prints once. --tui keeps it on screen and refreshes it while
-the windows run down.`,
+the windows run down. --json prints the clocks, balances, and failures
+once, for another program to draw. It cannot be combined with --tui.`,
 		Args: cobra.NoArgs,
-		RunE: run(deps, &keep),
+		RunE: run(deps, &keep, &asJSON),
 	}
 	command.Flags().BoolVar(&keep, "tui", false, "Keep the report on screen and refresh it")
+	command.Flags().BoolVar(&asJSON, "json", false, "Print the report as JSON")
+	command.MarkFlagsMutuallyExclusive("tui", "json")
 	return command
 }
 
-func run(deps Dependencies, keep *bool) func(*cobra.Command, []string) error {
+func run(deps Dependencies, keep, asJSON *bool) func(*cobra.Command, []string) error {
 	return func(command *cobra.Command, _ []string) error {
 		if *keep {
 			if !deps.Interactive(command.InOrStdin()) {
@@ -76,10 +79,22 @@ func run(deps Dependencies, keep *bool) func(*cobra.Command, []string) error {
 		if err != nil {
 			return err
 		}
+		if *asJSON {
+			return printJSON(command.OutOrStdout(), snapshot)
+		}
 		text := quotas.Render(snapshot, deps.Now(), deps.Width(command.OutOrStdout()))
 		_, err = fmt.Fprintln(colorprofile.NewWriter(command.OutOrStdout(), os.Environ()), text)
 		return err
 	}
+}
+
+func printJSON(output io.Writer, snapshot quotas.Snapshot) error {
+	encoded, err := quotas.Encode(snapshot)
+	if err != nil {
+		return fmt.Errorf("encode quotas: %w", err)
+	}
+	_, err = fmt.Fprintln(output, string(encoded))
+	return err
 }
 
 func terminalWidth(output io.Writer) int {
