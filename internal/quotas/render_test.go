@@ -93,10 +93,16 @@ func TestRenderShowsHowMuchOfEachWindowHasPassed(t *testing.T) {
 	assert.Contains(t, view, "\n\nWeek")
 	elapsed := linesContaining(view, "━")
 	require.Len(t, elapsed, 2)
-	assert.Equal(t, 30, strings.Count(elapsed[0], "━"))
+	assert.Equal(t, 29, strings.Count(elapsed[0], "━"))
+	assert.Equal(t, 1, strings.Count(elapsed[0], "┛"))
 	assert.Equal(t, 10, strings.Count(elapsed[0], "─"))
-	assert.Equal(t, 20, strings.Count(elapsed[1], "━"))
+	assert.Contains(t, elapsed[0], "━┛─")
+	assert.Equal(t, 19, strings.Count(elapsed[1], "━"))
+	assert.Equal(t, 1, strings.Count(elapsed[1], "┛"))
 	assert.Equal(t, 20, strings.Count(elapsed[1], "─"))
+	assert.Contains(t, elapsed[1], "━┛─")
+	assert.Equal(t, 40, ansi.StringWidth(elapsed[0]))
+	assert.Equal(t, 40, ansi.StringWidth(elapsed[1]))
 }
 
 func linesContaining(view, mark string) []string {

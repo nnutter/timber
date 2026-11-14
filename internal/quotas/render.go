@@ -33,6 +33,8 @@ const (
 	usageEmpty   = '░'
 	elapsedFull  = '━'
 	elapsedEmpty = '─'
+	// elapsedTip sits on the last spent cell and turns up toward the usage bar.
+	elapsedTip = '┛'
 
 	trackColor    = "#3A3A3A"
 	elapsedOnPace = "#E4E4E4"
@@ -224,8 +226,31 @@ func renderGauge(limit Limit, width int) string {
 
 // renderPace draws how far the window has run, on the same width as the usage bar.
 // The mark for time still ahead is lighter, so a half-spent month does not look full.
+// An arrow at the tip of the time already spent points up at the usage.
 func renderPace(share int, points float64, width int) string {
-	return meter(width, float64(share), elapsedFull, elapsedEmpty, paceColor(points))
+	return paceBar(width, paceFilled(width, share), paceColor(points))
+}
+
+func paceFilled(width, share int) int {
+	filled := int(math.Round(float64(width) * shownPortion(float64(share))))
+	return min(max(filled, 0), width)
+}
+
+func paceBar(width, filled int, fill string) string {
+	if width < 1 {
+		return ""
+	}
+	filled = min(max(filled, 0), width)
+	if filled == 0 {
+		filled = 1
+	}
+	spent := paceInk(fill).Render(strings.Repeat(string(elapsedFull), filled-1) + string(elapsedTip))
+	ahead := paceInk(trackColor).Render(strings.Repeat(string(elapsedEmpty), width-filled))
+	return spent + ahead
+}
+
+func paceInk(color string) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
 }
 
 func meter(width int, percent float64, full, empty rune, fill string) string {
