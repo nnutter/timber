@@ -108,14 +108,14 @@ func Money(value float64, currency string) string {
 	return fmt.Sprintf("%s %.2f", currency, value)
 }
 
-// Age is how old a reading is: "just now", "3m ago", "2h ago", or "2d ago".
+// Age is how old a reading is: "<1m ago", "3m ago", "2h ago", or "2d ago".
 func Age(at time.Time, now time.Time) string {
 	if at.IsZero() {
 		return ""
 	}
 	seconds := max(0, int(math.Round(now.Sub(at).Seconds())))
-	if seconds < 45 {
-		return "just now"
+	if seconds < 60 {
+		return "<1m ago"
 	}
 	minutes := seconds / 60
 	if minutes < 60 {

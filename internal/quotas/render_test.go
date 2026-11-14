@@ -75,7 +75,7 @@ func TestRenderShowsThePlanToUseFirst(t *testing.T) {
 	assert.Contains(t, view, "36%")
 	assert.Contains(t, view, "Week")
 	assert.NotContains(t, view, "1m ago")
-	assert.NotContains(t, view, "just now")
+	assert.NotContains(t, view, "<1m ago")
 	assert.Contains(t, view, "█")
 	assert.Contains(t, view, "░")
 }

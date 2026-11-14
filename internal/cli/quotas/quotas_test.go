@@ -50,7 +50,7 @@ func TestQuotasPrintsThePlanToSpendFirst(t *testing.T) {
 	require.NotEqual(t, -1, shortAt)
 	assert.Less(t, longAt, shortAt)
 	assert.True(t, fresh)
-	assert.NotContains(t, text, "just now")
+	assert.NotContains(t, text, "<1m ago")
 }
 
 func TestQuotasSaysWhenNothingIsSignedIn(t *testing.T) {
