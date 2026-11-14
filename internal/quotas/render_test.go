@@ -9,6 +9,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRenderKeepsThePercentNextToThePlan(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	view := Render(Snapshot{
+		Reports: []Report{plan("codex", "ChatGPT Plus", timed("Week", 22, 7*24*time.Hour, 0.5, now))},
+	}, now, 200)
+
+	for line := range strings.SplitSeq(view, "\n") {
+		assert.LessOrEqual(t, ansi.StringWidth(line), 72)
+	}
+	assert.Equal(t, 72, ansi.StringWidth(strings.Split(view, "\n")[0]))
+}
+
 func TestRenderShowsThePlanToUseFirst(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)

@@ -24,14 +24,17 @@ var (
 const (
 	lagPoints = 5
 	lagFar    = 15
+	// minWidth is the narrowest report that still fits a name and a percent.
+	minWidth = 24
+	// maxWidth keeps the percent next to its plan. A wide terminal would
+	// otherwise push it to the far edge.
+	maxWidth = 72
 )
 
 // Render draws the plans in the order to use them.
-// width is the terminal width. A non-positive width uses a narrow default.
+// width is the terminal width. The report stays between a narrow default and 72 columns.
 func Render(snapshot Snapshot, now time.Time, width int) string {
-	if width < 24 {
-		width = 24
-	}
+	width = frameWidth(width)
 	reports := Ordered(snapshot.Reports, now)
 	if len(reports) == 0 {
 		return mutedStyle.Render("Nothing to report yet: sign in to a provider in Hermes.")
@@ -75,18 +78,14 @@ func renderPlan(report Report, now time.Time, width int) string {
 
 func renderHead(report Report, width int) string {
 	name := nameStyle.Render(report.Name)
-	status := ""
-	statusWidth := 0
-	if !report.OK {
-		status = criticalStyle.Render("Unavailable")
-		statusWidth = ansi.StringWidth("Unavailable") + 1
+	if report.OK {
+		ruleWidth := width - ansi.StringWidth(report.Name) - 1
+		return name + " " + ruleStyle.Render(strings.Repeat("─", max(ruleWidth, 1)))
 	}
-	ruleWidth := width - ansi.StringWidth(report.Name) - 2 - statusWidth
+	const status = "Unavailable"
+	ruleWidth := width - ansi.StringWidth(report.Name) - ansi.StringWidth(status) - 2
 	rule := ruleStyle.Render(strings.Repeat("─", max(ruleWidth, 1)))
-	if status == "" {
-		return name + " " + rule
-	}
-	return name + " " + rule + " " + status
+	return name + " " + rule + " " + criticalStyle.Render(status)
 }
 
 func renderLimit(report Report, limit Limit, now time.Time, width int) string {
@@ -207,6 +206,16 @@ func tone(level Level) lipgloss.Style {
 	default:
 		return okStyle
 	}
+}
+
+func frameWidth(width int) int {
+	if width < minWidth {
+		return minWidth
+	}
+	if width > maxWidth {
+		return maxWidth
+	}
+	return width
 }
 
 func noReset(hasReset bool) bool { return !hasReset }
