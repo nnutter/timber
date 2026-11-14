@@ -101,6 +101,7 @@ func (s *screen) View() string {
 	switch {
 	case s.ready:
 		out.WriteString(Render(s.snapshot, s.now, s.width))
+		out.WriteString(ageLine(s.snapshot, s.now))
 		if s.problem != "" {
 			out.WriteString("\n\n")
 			out.WriteString(mutedStyle.Render(s.problem))
@@ -155,6 +156,17 @@ func (s *screen) took(message fetchedMsg) (tea.Model, tea.Cmd) {
 	s.ready = true
 	s.problem = ""
 	return s, scheduleRefresh(refreshEvery)
+}
+
+func ageLine(snapshot Snapshot, now time.Time) string {
+	if len(Ordered(snapshot.Reports, now)) == 0 {
+		return ""
+	}
+	age := Age(snapshot.FetchedAt, now)
+	if age == "" {
+		return ""
+	}
+	return "\n\n" + mutedStyle.Render(age)
 }
 
 func scheduleAge() tea.Cmd {

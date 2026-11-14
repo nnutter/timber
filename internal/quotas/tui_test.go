@@ -12,6 +12,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestScreenShowsHowOldTheReadingIs(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	model := newScreen(func(bool) (Snapshot, error) {
+		return Snapshot{}, nil
+	})
+
+	opened, _ := model.Update(fetchedMsg{
+		at: now,
+		snapshot: Snapshot{
+			FetchedAt: now.Add(-time.Minute),
+			Reports:   []Report{{Name: "ChatGPT", OK: true, Limits: []Limit{{Label: "Week", Percent: 10}}}},
+		},
+	})
+
+	assert.Contains(t, ansi.Strip(opened.View()), "1m ago")
+}
+
 func TestScreenSaysItIsReadingUntilTheFirstAnswer(t *testing.T) {
 	t.Parallel()
 	model := newScreen(func(bool) (Snapshot, error) {

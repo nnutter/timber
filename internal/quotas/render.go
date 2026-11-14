@@ -46,10 +46,6 @@ func Render(snapshot Snapshot, now time.Time, width int) string {
 		}
 		out.WriteString(renderPlan(report, now, width))
 	}
-	if age := Age(snapshot.FetchedAt, now); age != "" {
-		out.WriteString("\n\n")
-		out.WriteString(mutedStyle.Render(age))
-	}
 	return out.String()
 }
 
