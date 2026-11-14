@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -18,6 +19,9 @@ const (
 	refreshBackoff = 5 * time.Minute
 	// ageEvery moves the reset clocks without asking the services again.
 	ageEvery = 30 * time.Second
+
+	screenWidth  = 80
+	screenHeight = 40
 )
 
 // Reader loads one snapshot.
@@ -26,7 +30,9 @@ type Reader func(context.Context, bool) (Snapshot, error)
 
 // Run keeps the report on screen until the user quits.
 // It reads again each minute and moves the clocks in between, because the
-// plan to spend changes as a window runs down.
+// plan to spend changes as a window runs down. The wheel and a touch drag
+// scroll the report; the program has to ask for those events or the terminal
+// keeps them.
 func Run(ctx context.Context, input io.Reader, output io.Writer, read Reader) error {
 	if read == nil {
 		read = NewCollector().Reports
@@ -37,7 +43,7 @@ func Run(ctx context.Context, input io.Reader, output io.Writer, read Reader) er
 	model := newScreen(func(fresh bool) (Snapshot, error) {
 		return read(ctx, fresh)
 	})
-	options := []tea.ProgramOption{tea.WithAltScreen(), tea.WithContext(ctx)}
+	options := []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithContext(ctx)}
 	if input != nil {
 		options = append(options, tea.WithInput(input))
 	}
@@ -58,6 +64,10 @@ type screen struct {
 	read     func(bool) (Snapshot, error)
 	now      time.Time
 	width    int
+	height   int
+	view     viewport.Model
+	dragY    int
+	dragging bool
 	snapshot Snapshot
 	ready    bool
 	reading  bool
@@ -68,7 +78,9 @@ func newScreen(read func(bool) (Snapshot, error)) *screen {
 	return new(screen{
 		read:    read,
 		now:     time.Now().UTC(),
-		width:   80,
+		width:   screenWidth,
+		height:  screenHeight,
+		view:    viewport.New(screenWidth, contentHeight(screenHeight)),
 		reading: true,
 	})
 }
@@ -82,11 +94,13 @@ func (s *screen) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return s.onKey(message)
 	case tea.WindowSizeMsg:
-		if message.Width >= 24 {
-			s.width = message.Width
-		}
+		s.resize(message)
+		return s, nil
+	case tea.MouseMsg:
+		return s.onMouse(message)
 	case ageMsg:
 		s.now = time.Time(message)
+		s.sync()
 		return s, scheduleAge()
 	case refreshMsg:
 		return s.refresh()
@@ -97,6 +111,15 @@ func (s *screen) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *screen) View() string {
+	s.sync()
+	var out strings.Builder
+	out.WriteString(s.view.View())
+	out.WriteString("\n")
+	out.WriteString(mutedStyle.Render("r refresh · q quit"))
+	return out.String()
+}
+
+func (s *screen) body() string {
 	var out strings.Builder
 	switch {
 	case s.ready:
@@ -111,9 +134,23 @@ func (s *screen) View() string {
 	default:
 		out.WriteString("Reading usage…")
 	}
-	out.WriteString("\n\n")
-	out.WriteString(mutedStyle.Render("r refresh · q quit"))
 	return out.String()
+}
+
+func (s *screen) drag(message tea.MouseMsg) {
+	if tea.MouseEvent(message).IsWheel() {
+		return
+	}
+	if startingDrag(message) {
+		s.dragging = true
+		s.dragY = message.Y
+		return
+	}
+	if message.Action == tea.MouseActionRelease {
+		s.dragging = false
+		return
+	}
+	s.followDrag(message)
 }
 
 func (s *screen) fetch(fresh bool) tea.Cmd {
@@ -127,6 +164,18 @@ func (s *screen) fetch(fresh bool) tea.Cmd {
 	}
 }
 
+func (s *screen) followDrag(message tea.MouseMsg) {
+	if !s.dragging {
+		return
+	}
+	if message.Action != tea.MouseActionMotion {
+		return
+	}
+	delta := s.dragY - message.Y
+	s.dragY = message.Y
+	s.scrollBy(delta)
+}
+
 func (s *screen) onKey(message tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch message.String() {
 	case "q", "ctrl+c", "esc":
@@ -134,7 +183,16 @@ func (s *screen) onKey(message tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		return s.refresh()
 	}
-	return s, nil
+	var command tea.Cmd
+	s.view, command = s.view.Update(message)
+	return s, command
+}
+
+func (s *screen) onMouse(message tea.MouseMsg) (tea.Model, tea.Cmd) {
+	s.drag(message)
+	var command tea.Cmd
+	s.view, command = s.view.Update(message)
+	return s, command
 }
 
 func (s *screen) refresh() (tea.Model, tea.Cmd) {
@@ -145,17 +203,59 @@ func (s *screen) refresh() (tea.Model, tea.Cmd) {
 	return s, s.fetch(true)
 }
 
+func (s *screen) resize(message tea.WindowSizeMsg) {
+	if message.Width >= minWidth {
+		s.width = message.Width
+	}
+	if message.Height > 1 {
+		s.height = message.Height
+	}
+	s.sync()
+}
+
+func (s *screen) scrollBy(delta int) {
+	if delta > 0 {
+		s.view.ScrollDown(delta)
+		return
+	}
+	if delta < 0 {
+		s.view.ScrollUp(-delta)
+	}
+}
+
+func (s *screen) sync() {
+	s.view.Width = max(s.width, 1)
+	s.view.Height = contentHeight(s.height)
+	s.view.SetContent(s.body())
+}
+
 func (s *screen) took(message fetchedMsg) (tea.Model, tea.Cmd) {
 	s.reading = false
 	s.now = message.at
 	if message.err != nil {
 		s.problem = message.err.Error()
+		s.sync()
 		return s, scheduleRefresh(refreshBackoff)
 	}
 	s.snapshot = message.snapshot
 	s.ready = true
 	s.problem = ""
+	s.sync()
 	return s, scheduleRefresh(refreshEvery)
+}
+
+func startingDrag(message tea.MouseMsg) bool {
+	if message.Button != tea.MouseButtonLeft {
+		return false
+	}
+	return message.Action == tea.MouseActionPress
+}
+
+func contentHeight(height int) int {
+	if height <= 1 {
+		return 1
+	}
+	return height - 1
 }
 
 func ageLine(snapshot Snapshot, now time.Time) string {

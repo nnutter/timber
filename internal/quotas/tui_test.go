@@ -30,6 +30,40 @@ func TestScreenShowsHowOldTheReadingIs(t *testing.T) {
 	assert.Contains(t, ansi.Strip(opened.View()), "1m ago")
 }
 
+func TestScreenScrollsWithTheWheelAndADrag(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	model := newScreen(func(bool) (Snapshot, error) {
+		return Snapshot{}, nil
+	})
+	limits := make([]Limit, 0, 12)
+	for index := range 12 {
+		limits = append(limits, Limit{
+			Label: "Window", Percent: float64(index), Window: time.Hour, ResetsAt: now.Add(time.Hour),
+		})
+	}
+
+	sized, _ := model.Update(tea.WindowSizeMsg{Width: 40, Height: 6})
+	opened, _ := sized.Update(fetchedMsg{
+		at: now,
+		snapshot: Snapshot{
+			FetchedAt: now,
+			Reports:   []Report{{Name: "Plan", OK: true, Limits: limits}},
+		},
+	})
+	before := ansi.Strip(opened.View())
+	wheeled, _ := opened.Update(tea.MouseMsg{Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress})
+	afterWheel := ansi.Strip(wheeled.View())
+	assert.NotEqual(t, before, afterWheel)
+	assert.Contains(t, afterWheel, "q quit")
+
+	pressed, _ := wheeled.Update(tea.MouseMsg{Y: 10, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	dragged, _ := pressed.Update(tea.MouseMsg{Y: 8, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
+	afterDrag := ansi.Strip(dragged.View())
+	assert.NotEqual(t, afterWheel, afterDrag)
+	assert.Contains(t, afterDrag, "q quit")
+}
+
 func TestScreenSaysItIsReadingUntilTheFirstAnswer(t *testing.T) {
 	t.Parallel()
 	model := newScreen(func(bool) (Snapshot, error) {
