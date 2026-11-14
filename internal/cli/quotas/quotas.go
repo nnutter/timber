@@ -55,8 +55,9 @@ subscription before its reset throws the remainder away. A plan with no
 reset clock comes next, least used first. A balance with no limits comes
 after those, and a plan that failed comes last.
 
-The report prints once. --tui keeps it on screen and refreshes it while
-the windows run down. --json prints the clocks, balances, and failures
+The report prints once. --tui keeps it on screen and refreshes it
+every 5 minutes while the windows run down. Keys 1, 5, and 0 choose
+1, 5, and 10 minutes. --json prints the clocks, balances, and failures
 once, for another program to draw. It cannot be combined with --tui.
 --rolling includes OpenCode Go's 5-hour window, which the report
 otherwise leaves out.`,

@@ -121,12 +121,79 @@ func TestScreenRefreshReadsTheServicesAgain(t *testing.T) {
 	pressed, ok := command().(fetchedMsg)
 	require.True(t, ok)
 	settled, _ := reading.Update(pressed)
+	shown, ok := settled.(*screen)
+	require.True(t, ok)
 
-	_, command = settled.Update(refreshMsg{})
+	_, command = shown.Update(refreshMsg{id: shown.pollID})
 	require.NotNil(t, command)
 	_, ok = command().(fetchedMsg)
 	require.True(t, ok)
 	assert.Equal(t, []bool{true, true}, fresh)
+}
+
+func TestScreenShowsThePollChoices(t *testing.T) {
+	t.Parallel()
+	model := newScreen(func(bool) (Snapshot, error) {
+		return Snapshot{}, nil
+	})
+
+	assert.Contains(t, ansi.Strip(model.View()), "r refresh · 1 1m · [5 5m] · 0 10m · q quit")
+
+	one := press(t, model, '1')
+	assert.Contains(t, ansi.Strip(one.View()), "[1 1m]")
+	assert.NotContains(t, ansi.Strip(one.View()), "[5 5m]")
+
+	ten := press(t, one, '0')
+	assert.Contains(t, ansi.Strip(ten.View()), "[0 10m]")
+
+	five := press(t, ten, '5')
+	assert.Contains(t, ansi.Strip(five.View()), "[5 5m]")
+	assert.NotContains(t, ansi.Strip(five.View()), "[0 10m]")
+}
+
+func TestScreenReadsAgainOnTheChosenInterval(t *testing.T) {
+	t.Parallel()
+	var reads int
+	model := newScreen(func(bool) (Snapshot, error) {
+		reads++
+		return Snapshot{}, nil
+	})
+	opened, _ := model.Update(fetchedMsg{at: time.Now(), snapshot: Snapshot{}})
+	current, ok := opened.(*screen)
+	require.True(t, ok)
+	require.Equal(t, 5*time.Minute, current.interval)
+
+	ignored, command := opened.Update(refreshMsg{})
+	assert.Nil(t, command)
+	reading, command := ignored.Update(refreshMsg{id: current.pollID})
+	require.NotNil(t, command)
+	message, ok := command().(fetchedMsg)
+	require.True(t, ok)
+
+	settled, _ := reading.Update(message)
+	pending, ok := settled.(*screen)
+	require.True(t, ok)
+	pendingID := pending.pollID
+	chosen, command := settled.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+	require.NotNil(t, command)
+	next, ok := chosen.(*screen)
+	require.True(t, ok)
+	assert.Equal(t, time.Minute, next.interval)
+
+	stale, command := chosen.Update(refreshMsg{id: pendingID})
+	assert.Nil(t, command)
+	assert.Equal(t, 1, reads)
+	_, command = stale.Update(refreshMsg{id: next.pollID})
+	require.NotNil(t, command)
+	_, ok = command().(fetchedMsg)
+	require.True(t, ok)
+	assert.Equal(t, 2, reads)
+}
+
+func press(t *testing.T, model tea.Model, key rune) tea.Model {
+	t.Helper()
+	next, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+	return next
 }
 
 func TestScreenMovesThePlanToSpendAsTheWindowRunsDown(t *testing.T) {

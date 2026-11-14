@@ -13,10 +13,8 @@ import (
 )
 
 const (
-	// refreshEvery is the ordinary wait between reads of the services.
-	refreshEvery = time.Minute
-	// refreshBackoff is the longer wait after a read fails.
-	refreshBackoff = 5 * time.Minute
+	// defaultPoll is the wait between reads until a key chooses another.
+	defaultPoll = 5 * time.Minute
 	// ageEvery moves the reset clocks without asking the services again.
 	ageEvery = 30 * time.Second
 
@@ -24,15 +22,29 @@ const (
 	screenHeight = 40
 )
 
+// pollChoice is one key on the quota screen and the wait it selects.
+type pollChoice struct {
+	key      string
+	label    string
+	interval time.Duration
+}
+
+// polls are the waits the screen offers, in the order the footer shows them.
+var polls = []pollChoice{
+	{key: "1", label: "1m", interval: time.Minute},
+	{key: "5", label: "5m", interval: 5 * time.Minute},
+	{key: "0", label: "10m", interval: 10 * time.Minute},
+}
+
 // Reader loads one snapshot.
 // fresh asks the services again, still no more often than their minimum gap.
 type Reader func(context.Context, bool) (Snapshot, error)
 
 // Run keeps the report on screen until the user quits.
-// It reads again each minute and moves the clocks in between, because the
-// plan to spend changes as a window runs down. The wheel and a touch drag
-// scroll the report; the program has to ask for those events or the terminal
-// keeps them.
+// It reads again every five minutes, or every one or ten when that key is
+// chosen, and moves the clocks in between, because the plan to spend changes
+// as a window runs down. The wheel and a touch drag scroll the report; the
+// program has to ask for those events or the terminal keeps them.
 func Run(ctx context.Context, input io.Reader, output io.Writer, read Reader) error {
 	if read == nil {
 		read = NewCollector().Reports
@@ -72,16 +84,20 @@ type screen struct {
 	ready    bool
 	reading  bool
 	problem  string
+	interval time.Duration
+	// pollID is the timer the screen is waiting on. An older timer is ignored.
+	pollID int
 }
 
 func newScreen(read func(bool) (Snapshot, error)) *screen {
 	return new(screen{
-		read:    read,
-		now:     time.Now().UTC(),
-		width:   screenWidth,
-		height:  screenHeight,
-		view:    viewport.New(screenWidth, contentHeight(screenHeight)),
-		reading: true,
+		read:     read,
+		now:      time.Now().UTC(),
+		width:    screenWidth,
+		height:   screenHeight,
+		view:     viewport.New(screenWidth, contentHeight(screenHeight)),
+		reading:  true,
+		interval: defaultPoll,
 	})
 }
 
@@ -103,6 +119,9 @@ func (s *screen) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		s.sync()
 		return s, scheduleAge()
 	case refreshMsg:
+		if message.id != s.pollID {
+			return s, nil
+		}
 		return s.refresh()
 	case fetchedMsg:
 		return s.took(message)
@@ -115,8 +134,17 @@ func (s *screen) View() string {
 	var out strings.Builder
 	out.WriteString(s.view.View())
 	out.WriteString("\n")
-	out.WriteString(mutedStyle.Render("r refresh · q quit"))
+	out.WriteString(s.footer())
 	return out.String()
+}
+
+// armPoll waits, then reads again. A newer call retires the previous wait.
+func (s *screen) armPoll(after time.Duration) tea.Cmd {
+	s.pollID++
+	id := s.pollID
+	return tea.Tick(after, func(time.Time) tea.Msg {
+		return refreshMsg{id: id}
+	})
 }
 
 func (s *screen) body() string {
@@ -135,6 +163,17 @@ func (s *screen) body() string {
 		out.WriteString("Reading usage…")
 	}
 	return out.String()
+}
+
+func (s *screen) choosePoll(interval time.Duration) (tea.Model, tea.Cmd) {
+	if s.interval == interval {
+		return s, nil
+	}
+	s.interval = interval
+	if s.reading {
+		return s, nil
+	}
+	return s, s.armPoll(s.interval)
 }
 
 func (s *screen) drag(message tea.MouseMsg) {
@@ -176,12 +215,27 @@ func (s *screen) followDrag(message tea.MouseMsg) {
 	s.scrollBy(delta)
 }
 
+func (s *screen) footer() string {
+	var out strings.Builder
+	out.WriteString(mutedStyle.Render("r refresh"))
+	for _, choice := range polls {
+		out.WriteString(mutedStyle.Render(" · "))
+		out.WriteString(s.pollLabel(choice))
+	}
+	out.WriteString(mutedStyle.Render(" · q quit"))
+	return out.String()
+}
+
 func (s *screen) onKey(message tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch message.String() {
 	case "q", "ctrl+c", "esc":
 		return s, tea.Quit
 	case "r":
 		return s.refresh()
+	}
+	interval, chosen := pollInterval(message.String())
+	if chosen {
+		return s.choosePoll(interval)
 	}
 	var command tea.Cmd
 	s.view, command = s.view.Update(message)
@@ -193,6 +247,14 @@ func (s *screen) onMouse(message tea.MouseMsg) (tea.Model, tea.Cmd) {
 	var command tea.Cmd
 	s.view, command = s.view.Update(message)
 	return s, command
+}
+
+func (s *screen) pollLabel(choice pollChoice) string {
+	label := choice.key + " " + choice.label
+	if choice.interval == s.interval {
+		return "[" + label + "]"
+	}
+	return mutedStyle.Render(label)
 }
 
 func (s *screen) refresh() (tea.Model, tea.Cmd) {
@@ -234,14 +296,13 @@ func (s *screen) took(message fetchedMsg) (tea.Model, tea.Cmd) {
 	s.now = message.at
 	if message.err != nil {
 		s.problem = message.err.Error()
-		s.sync()
-		return s, scheduleRefresh(refreshBackoff)
+	} else {
+		s.snapshot = message.snapshot
+		s.ready = true
+		s.problem = ""
 	}
-	s.snapshot = message.snapshot
-	s.ready = true
-	s.problem = ""
 	s.sync()
-	return s, scheduleRefresh(refreshEvery)
+	return s, s.armPoll(s.interval)
 }
 
 func startingDrag(message tea.MouseMsg) bool {
@@ -275,15 +336,20 @@ func scheduleAge() tea.Cmd {
 	})
 }
 
-func scheduleRefresh(after time.Duration) tea.Cmd {
-	return tea.Tick(after, func(time.Time) tea.Msg {
-		return refreshMsg{}
-	})
+func pollInterval(key string) (time.Duration, bool) {
+	for _, choice := range polls {
+		if choice.key == key {
+			return choice.interval, true
+		}
+	}
+	return 0, false
 }
 
 type ageMsg time.Time
 
-type refreshMsg struct{}
+type refreshMsg struct {
+	id int
+}
 
 type fetchedMsg struct {
 	snapshot Snapshot
