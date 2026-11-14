@@ -91,5 +91,4 @@ func TestChatGPTNameAndSpacedTier(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "ChatGPT Plus", ChatGPTName("plus"))
 	assert.Equal(t, "ChatGPT", ChatGPTName("  "))
-	assert.Equal(t, "Grok Build", Spaced("GrokBuild"))
 }

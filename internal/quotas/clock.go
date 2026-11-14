@@ -234,30 +234,3 @@ func capitalize(name string) string {
 	}
 	return strings.ToUpper(name[:1]) + name[1:]
 }
-
-// Spaced inserts a space before a capital that follows a lower-case letter.
-func Spaced(name string) string {
-	var out strings.Builder
-	for index, char := range name {
-		if index > 0 && isCapital(char) {
-			previous := rune(name[index-1])
-			if isLower(previous) {
-				out.WriteByte(' ')
-			}
-		}
-		out.WriteRune(char)
-	}
-	return out.String()
-}
-
-func isCapital(char rune) bool {
-	return char >= 'A' && endsUpper(char)
-}
-
-func endsUpper(char rune) bool { return char <= 'Z' }
-
-func isLower(char rune) bool {
-	return char >= 'a' && endsLower(char)
-}
-
-func endsLower(char rune) bool { return char <= 'z' }

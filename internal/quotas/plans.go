@@ -573,11 +573,7 @@ func fetchMuse(ctx context.Context, source Source, _ *http.Client) (Report, erro
 			Window:   weekWindow,
 		})
 	}
-	var notes []string
-	if tier, ok := asText(allowance["tier"]); ok {
-		notes = append(notes, capitalize(Spaced(tier))+" plan.")
-	}
-	return Report{Name: museName, Limits: limits, Notes: notes}, nil
+	return Report{Name: museName, Limits: limits}, nil
 }
 
 func bearer(token string) map[string]string {

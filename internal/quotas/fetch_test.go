@@ -178,7 +178,7 @@ printf '%s\n' '{"allowance":{"usedPercent":36,"windowDurationMins":300,"resetsAt
 	report, err := fetchMuse(t.Context(), envSource(map[string]string{"QUOTAS_MUSE_COMMAND": script}), nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"5 hours"}, labels(report.Limits))
-	assert.Equal(t, []string{"Pro plan."}, report.Notes)
+	assert.Empty(t, report.Notes)
 }
 
 func TestCollectorOmitsAMissingSignInAndReusesAFreshRead(t *testing.T) {
