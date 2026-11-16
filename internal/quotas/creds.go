@@ -14,7 +14,7 @@ import (
 
 const commandWait = 10 * time.Second
 
-// Source reads the sign-ins Hermes already stores on this machine.
+// Source reads the sign-ins clients already store on this machine.
 // A zero Source reads the process environment, HERMES_HOME, and the user home.
 type Source struct {
 	Env      func(string) string
@@ -113,13 +113,24 @@ func (s Source) MiniMaxToken() (string, error) {
 
 // XAIToken is a SuperGrok or X Premium sign-in, never an xAI API key.
 func (s Source) XAIToken() (string, error) {
+	if token := s.grokCLIToken(); token != "" {
+		return token, nil
+	}
+	pi := s.readJSON(filepath.Join(s.userHome(), ".pi", "agent", "auth.json"))
+	if state, ok := asObject(pi["xai"]); ok {
+		if state["type"] == "oauth" {
+			if token := oauthAccessToken(state, "", "access"); token != "" {
+				return token, nil
+			}
+		}
+	}
 	if token := s.providerToken("xai-oauth"); token != "" {
 		return token, nil
 	}
 	if token := s.poolToken("xai-oauth"); token != "" {
 		return token, nil
 	}
-	return "", MissingError{Text: "Sign in to Grok in Hermes to read its plan."}
+	return "", MissingError{Text: "Sign in to Grok with the Grok CLI, Pi, or Hermes to read its plan."}
 }
 
 func (s Source) authDocuments() []map[string]any {
@@ -167,6 +178,26 @@ func (s Source) env(key string) string {
 		return s.Env(key)
 	}
 	return os.Getenv(key)
+}
+
+func (s Source) grokCLIToken() string {
+	document := s.readJSON(filepath.Join(s.userHome(), ".grok", "auth.json"))
+	for id, value := range document {
+		if !strings.HasPrefix(id, "https://auth.x.ai::") {
+			continue
+		}
+		state, ok := asObject(value)
+		if !ok {
+			continue
+		}
+		if state["auth_mode"] != "oidc" {
+			continue
+		}
+		if token := oauthAccessToken(state, "", "key"); token != "" {
+			return token
+		}
+	}
+	return ""
 }
 
 func (s Source) hermesHome() string {
