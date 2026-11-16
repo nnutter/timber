@@ -47,7 +47,7 @@ func TestGroupListTableRowsAddsRuleAfterEverySecondWorktree(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			rows := groupListTableRows(testCase.worktrees, newListStatusFormatter(testCase.worktrees), false, true, false)
+			rows := groupListTableRows(testCase.worktrees, newListStatusFormatter(testCase.worktrees), false, true, true, false)
 			require.Len(t, rows, len(testCase.groupedNames))
 			for index, names := range testCase.groupedNames {
 				assert.Equal(t, names, rows[index][0])
@@ -70,11 +70,11 @@ func TestGroupListTableRowsIncludesPullRequestColumnWhenEnabled(t *testing.T) {
 		{Name: "two", Clean: true},
 	}
 
-	rows := groupListTableRows(worktrees, newListStatusFormatter(worktrees), true, true, false)
+	rows := groupListTableRows(worktrees, newListStatusFormatter(worktrees), true, true, true, false)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "#42 ✓\n", rows[0][7])
 
-	rows = groupListTableRows(worktrees, newListStatusFormatter(worktrees), false, true, false)
+	rows = groupListTableRows(worktrees, newListStatusFormatter(worktrees), false, true, true, false)
 	require.Len(t, rows, 1)
 	assert.Len(t, rows[0], 7)
 }

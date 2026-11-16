@@ -443,7 +443,7 @@ func (x Runtime) ListRepos(details bool) ([]repomodel.Repo, error) {
 
 // ListWorktrees lists managed worktrees as a table or JSON document. All
 // output is written to the given writers, preserving CLI reporting order.
-func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, todo, location, jsonOutput bool, sortMode string, renderers ListRenderers) error {
+func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, todo, review, location, jsonOutput bool, sortMode string, renderers ListRenderers) error {
 	var sortBy listSort
 	if err := sortBy.Set(sortMode); err != nil {
 		return err
@@ -474,11 +474,11 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 		return err
 	}
 	sortBy.sort(worktrees)
-	runtime.enrichListedWorktreesWithReviews(ctx, worktrees)
+	runtime.enrichListedWorktreesWithReviews(ctx, worktrees, review, jsonOutput)
 	if err := attachPullRequests(runtime, ctx, worktrees, pullRequests); err != nil {
 		return err
 	}
-	return renderWorktreeList(runtime, stdout, worktrees, pullRequests, todo, location, jsonOutput, renderers)
+	return renderWorktreeList(runtime, stdout, worktrees, pullRequests, todo, review, location, jsonOutput, renderers)
 }
 
 // LoadConfig loads the persistent Timber settings.
@@ -1190,7 +1190,10 @@ func (x Runtime) enrichListedWorktreesWithPullRequests(ctx context.Context, work
 	return nil
 }
 
-func (x Runtime) enrichListedWorktreesWithReviews(ctx context.Context, worktrees []managedWorktree) {
+func (x Runtime) enrichListedWorktreesWithReviews(ctx context.Context, worktrees []managedWorktree, enabled, jsonOutput bool) {
+	if isSame(enabled, false) && isSame(jsonOutput, false) {
+		return
+	}
 	jobs := make(chan int)
 	var workers sync.WaitGroup
 	for range min(reviewLookupConcurrency, len(worktrees)) {

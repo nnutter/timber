@@ -51,5 +51,5 @@ func TestReportJSONReturnsWriterError(t *testing.T) {
 func TestReportTableReturnsWriterError(t *testing.T) {
 	t.Parallel()
 	writeErr := errors.New("write failed")
-	assert.ErrorIs(t, ReportTable(failingWriter{err: writeErr}, nil, false, false, false), writeErr)
+	assert.ErrorIs(t, ReportTable(failingWriter{err: writeErr}, nil, false, false, false, false), writeErr)
 }
