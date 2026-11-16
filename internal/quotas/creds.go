@@ -116,13 +116,8 @@ func (s Source) XAIToken() (string, error) {
 	if token := s.grokCLIToken(); token != "" {
 		return token, nil
 	}
-	pi := s.readJSON(filepath.Join(s.userHome(), ".pi", "agent", "auth.json"))
-	if state, ok := asObject(pi["xai"]); ok {
-		if state["type"] == "oauth" {
-			if token := oauthAccessToken(state, "", "access"); token != "" {
-				return token, nil
-			}
-		}
+	if token := s.piToken("xai", "oauth", "access"); token != "" {
+		return token, nil
 	}
 	if token := s.providerToken("xai-oauth"); token != "" {
 		return token, nil
@@ -219,6 +214,18 @@ func (s Source) look(name string) (string, error) {
 		return s.LookPath(name)
 	}
 	return exec.LookPath(name)
+}
+
+func (s Source) piToken(provider, kind, field string) string {
+	document := s.readJSON(filepath.Join(s.userHome(), ".pi", "agent", "auth.json"))
+	state, ok := asObject(document[provider])
+	if !ok {
+		return ""
+	}
+	if state["type"] != kind {
+		return ""
+	}
+	return oauthAccessToken(state, "", field)
 }
 
 func (s Source) poolToken(provider string) string {
