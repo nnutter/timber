@@ -10,8 +10,15 @@ import (
 )
 
 // ReportTable writes the list table to stdout.
-func ReportTable(stdout io.Writer, worktrees []timber.ListWorktreeView, pullRequests, location bool) error {
-	headers := []string{"Name", "Repo", "Status", "Todo", "Review", "Commit", "Dirty"}
+func ReportTable(stdout io.Writer, worktrees []timber.ListWorktreeView, pullRequests, todo, review, location bool) error {
+	headers := []string{"Name", "Repo", "Status"}
+	if todo {
+		headers = append(headers, "Todo")
+	}
+	if review {
+		headers = append(headers, "Review")
+	}
+	headers = append(headers, "Commit", "Dirty")
 	if pullRequests {
 		headers = append(headers, "PR")
 	}
@@ -20,7 +27,7 @@ func ReportTable(stdout io.Writer, worktrees []timber.ListWorktreeView, pullRequ
 	}
 	statusFormatter := newListStatusFormatter(worktrees)
 	tableView := display.NewOutputTable(headers...).BorderRow(true)
-	tableView.Rows(groupListTableRows(worktrees, statusFormatter, pullRequests, location)...)
+	tableView.Rows(groupListTableRows(worktrees, statusFormatter, pullRequests, todo, review, location)...)
 
 	_, err := fmt.Fprintln(stdout, dottedListRowRules(tableView.String()))
 	return err
@@ -42,7 +49,7 @@ func dottedListRowRules(tableOutput string) string {
 	return strings.Join(lines, "\n")
 }
 
-func groupListTableRows(worktrees []timber.ListWorktreeView, statusFormatter listStatusFormatter, showPullRequests, showLocation bool) [][]string {
+func groupListTableRows(worktrees []timber.ListWorktreeView, statusFormatter listStatusFormatter, showPullRequests, showTodo, showReview, showLocation bool) [][]string {
 	rows := make([][]string, 0, (len(worktrees)+1)/2)
 	for index, worktree := range worktrees {
 		status := statusFormatter.format(worktree)
@@ -53,9 +60,14 @@ func groupListTableRows(worktrees []timber.ListWorktreeView, statusFormatter lis
 			worktree.Name,
 			worktree.Repo,
 			status,
-			worktree.Todo,
 		}
-		row = append(row, worktree.Review, worktree.Commit, formatDirtyStatus(worktree.Clean))
+		if showTodo {
+			row = append(row, worktree.Todo)
+		}
+		if showReview {
+			row = append(row, worktree.Review)
+		}
+		row = append(row, worktree.Commit, formatDirtyStatus(worktree.Clean))
 		if showPullRequests {
 			row = append(row, worktree.PullRequest)
 		}

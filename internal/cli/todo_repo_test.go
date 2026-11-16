@@ -48,7 +48,7 @@ func TestTodoRepoSharedAcrossWorktrees(t *testing.T) {
 	require.Len(t, output.Todos, 1)
 	assert.Equal(t, "local task", output.Todos[0].Title)
 
-	result = repository.runTimber(t, "list", "--json", at(testRepoName, ""))
+	result = repository.runTimber(t, "list", "--json", "--todo", at(testRepoName, ""))
 	require.NoError(t, result.err, result.stderr)
 	var records []listJSONRecord
 	require.NoError(t, json.Unmarshal([]byte(result.stdout), &records))

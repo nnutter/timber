@@ -31,12 +31,30 @@ func TestListReviewProgress(t *testing.T) {
 	before, err := os.ReadFile(statePath)
 	require.NoError(t, err)
 
-	result := repository.runTimber(t, "ls")
-	require.NoError(t, result.err, result.stderr)
-	assert.Less(t, strings.Index(result.stdout, "Todo"), strings.Index(result.stdout, "Review"))
-	assert.Less(t, strings.Index(result.stdout, "Review"), strings.Index(result.stdout, "Commit"))
-	assert.Contains(t, result.stdout, "2/3")
-	assert.Contains(t, result.stdout, "0/0")
+	for _, flags := range [][]string{nil, {"--review=false"}} {
+		args := append([]string{"ls"}, flags...)
+		without := repository.runTimber(t, args...)
+		require.NoError(t, without.err, without.stderr)
+		assert.NotContains(t, without.stdout, "Review")
+		assert.NotContains(t, without.stdout, "2/3")
+		encoded := repository.runTimber(t, append(args, "--json")...)
+		require.NoError(t, encoded.err, encoded.stderr)
+		assert.Contains(t, encoded.stdout, `"review":{"approved":2,"total":3}`)
+	}
+
+	for _, flags := range [][]string{{"--review"}, {"--todo", "-r"}, {"-tr", "-L"}} {
+		result := repository.runTimber(t, append([]string{"ls"}, flags...)...)
+		require.NoError(t, result.err, result.stderr)
+		assert.Contains(t, result.stdout, "Review")
+		assert.Less(t, strings.Index(result.stdout, "Review"), strings.Index(result.stdout, "Commit"))
+		assert.Contains(t, result.stdout, "2/3")
+		assert.Contains(t, result.stdout, "0/0")
+		if len(flags) == 1 {
+			assert.NotContains(t, result.stdout, "Todo")
+		} else {
+			assert.Less(t, strings.Index(result.stdout, "Todo"), strings.Index(result.stdout, "Review"))
+		}
+	}
 	after, err := os.ReadFile(statePath)
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
@@ -74,7 +92,7 @@ func TestListReviewProgressUnknown(t *testing.T) {
 	statePath := reviewStatePath(t, repository, "feature/corrupt")
 	require.NoError(t, os.MkdirAll(filepath.Dir(statePath), 0o700))
 	require.NoError(t, os.WriteFile(statePath, []byte("{"), 0o600))
-	result := repository.runTimber(t, "ls", "--json")
+	result := repository.runTimber(t, "ls", "--json", "--review")
 	require.NoError(t, result.err, result.stderr)
 	var records []struct {
 		Name   string `json:"name"`
@@ -108,7 +126,7 @@ func TestListReviewProgressIgnoresAmbientGitEnvironment(t *testing.T) {
 	_, err := service.ApproveAll(t.Context())
 	require.NoError(t, err)
 
-	result := repository.runTimber(t, "ls", "--json")
+	result := repository.runTimber(t, "ls", "--json", "--review")
 	require.NoError(t, result.err, result.stderr)
 	assert.Contains(t, result.stdout, `"approved":1,"total":1`)
 	assert.Equal(t, "main", strings.TrimSpace(runGitCommand(t, decoy, "branch", "--show-current")))

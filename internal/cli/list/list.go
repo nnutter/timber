@@ -44,23 +44,25 @@ func completeSort(_ *cobra.Command, _ []string, prefix string) ([]string, cobra.
 
 // Dependencies connects the list CLI to worktree listing.
 type Dependencies struct {
-	List     func(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, location, jsonOutput bool, sortMode string) error
+	List     func(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, todo, review, location, jsonOutput bool, sortMode string) error
 	Complete func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
 }
 
 // New constructs the command that lists managed worktrees.
 func New(deps Dependencies) *cobra.Command {
-	var pullRequests, location, jsonOutput bool
+	var pullRequests, todo, review, location, jsonOutput bool
 	sortBy := sortValue(sortRecency)
 	command := &cobra.Command{
 		Use:               "list [@repo]",
 		Aliases:           []string{"ls"},
 		Short:             "List managed Git worktrees",
 		Args:              cobra.MaximumNArgs(1),
-		RunE:              run(deps, &pullRequests, &location, &jsonOutput, &sortBy),
+		RunE:              run(deps, &pullRequests, &todo, &review, &location, &jsonOutput, &sortBy),
 		ValidArgsFunction: deps.Complete,
 	}
 	command.Flags().BoolVar(&pullRequests, "pr", false, "Include open pull request status from gh")
+	command.Flags().BoolVarP(&todo, "todo", "t", false, "Include TODO progress (implied by --json)")
+	command.Flags().BoolVarP(&review, "review", "r", false, "Include commit review progress (implied by --json)")
 	command.Flags().BoolVarP(&location, "location", "L", false, "Include worktree location as the last column")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "Output worktrees as JSON instead of a table")
 	command.Flags().Var(&sortBy, "sort", "Sort worktrees by recency (newest commit first), repo, or worktree")
@@ -70,12 +72,12 @@ func New(deps Dependencies) *cobra.Command {
 	return command
 }
 
-func run(deps Dependencies, pullRequests, location, jsonOutput *bool, sortBy *sortValue) func(*cobra.Command, []string) error {
+func run(deps Dependencies, pullRequests, todo, review, location, jsonOutput *bool, sortBy *sortValue) func(*cobra.Command, []string) error {
 	return func(command *cobra.Command, args []string) error {
 		var repoArg string
 		if len(args) == 1 {
 			repoArg = args[0]
 		}
-		return deps.List(command.Context(), command.OutOrStdout(), repoArg, *pullRequests, *location, *jsonOutput, string(*sortBy))
+		return deps.List(command.Context(), command.OutOrStdout(), repoArg, *pullRequests, *todo, *review, *location, *jsonOutput, string(*sortBy))
 	}
 }

@@ -6,6 +6,6 @@ import (
 
 // ListRenderers provides the output functions used by ListWorktrees.
 type ListRenderers struct {
-	Table func(io.Writer, []ListWorktreeView, bool, bool) error
+	Table func(io.Writer, []ListWorktreeView, bool, bool, bool, bool) error
 	JSON  func(io.Writer, []ListJSONWorktree) error
 }
