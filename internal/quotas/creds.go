@@ -25,8 +25,19 @@ type Source struct {
 	ReadFile func(string) ([]byte, error)
 }
 
-// APIKey is a provider key from Hermes's .env, the environment, or the credential pool.
+// APIKey reads provider keys, including Pi keys for Ollama Cloud and OpenCode Go.
 func (s Source) APIKey(provider string, vars []string, what string) (string, error) {
+	switch provider {
+	case "ollama-cloud", "opencode-go":
+		for _, key := range vars {
+			if value := strings.TrimSpace(s.env(key)); value != "" {
+				return value, nil
+			}
+		}
+		if token := s.piToken(provider, "api_key", "key"); token != "" {
+			return token, nil
+		}
+	}
 	dotenv := s.dotEnv()
 	for _, key := range vars {
 		if value := preferDotEnv(dotenv, key, s.env(key)); value != "" {
@@ -80,6 +91,9 @@ func (s Source) CopilotToken(ctx context.Context) (string, error) {
 		if value := strings.TrimSpace(s.env(key)); value != "" {
 			return value, nil
 		}
+	}
+	if token := s.piToken("github-copilot", "oauth", "access"); token != "" {
+		return token, nil
 	}
 	gh, err := s.look("gh")
 	if err != nil || blank(gh) {

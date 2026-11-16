@@ -1,6 +1,7 @@
 package quotas
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,6 +60,87 @@ func TestXAITokenUsesClientSignInsInOrder(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+			assert.Equal(t, tc.want, token)
+		})
+	}
+}
+
+func TestPiAPIKeysPrecedeHermesButNotEnvironment(t *testing.T) {
+	t.Parallel()
+	providers := []struct {
+		id     string
+		envKey string
+	}{
+		{id: "ollama-cloud", envKey: "OLLAMA_API_KEY"},
+		{id: "opencode-go", envKey: "OPENCODE_GO_API_KEY"},
+	}
+	cases := []struct {
+		name  string
+		entry string
+		env   string
+		want  string
+	}{
+		{name: "Pi before Hermes dotenv and pool", entry: `{"type":"api_key","key":"pi-key"}`, want: "pi-key"},
+		{name: "environment override", entry: `{"type":"api_key","key":"pi-key"}`, env: "env-key", want: "env-key"},
+		{name: "missing Pi entry", entry: `null`, want: "hermes-key"},
+		{name: "empty Pi key", entry: `{"type":"api_key","key":""}`, want: "hermes-key"},
+		{name: "OAuth is not an API key", entry: `{"type":"oauth","key":"wrong-type","access":"oauth-token"}`, want: "hermes-key"},
+	}
+	for _, provider := range providers {
+		for _, tc := range cases {
+			t.Run(provider.id+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				source := envSource(map[string]string{provider.envKey: tc.env})
+				source.ReadFile = func(path string) ([]byte, error) {
+					switch path {
+					case filepath.Join(".pi", "agent", "auth.json"):
+						return []byte(`{"` + provider.id + `":` + tc.entry + `}`), nil
+					case ".env":
+						return []byte(provider.envKey + "=hermes-key"), nil
+					case "auth.json":
+						return []byte(`{"credential_pool":{"` + provider.id + `":[{"access_token":"pool-key"}]}}`), nil
+					}
+					return nil, os.ErrNotExist
+				}
+				key, err := source.APIKey(provider.id, []string{provider.envKey}, provider.id)
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, key)
+			})
+		}
+	}
+}
+
+func TestCopilotUsesPiBeforeGitHubCLI(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		entry string
+		env   string
+		want  string
+	}{
+		{name: "Pi OAuth", entry: `{"type":"oauth","access":"pi-token","refresh":"pi-refresh"}`, want: "pi-token"},
+		{name: "environment override", entry: `{"type":"oauth","access":"pi-token"}`, env: "env-token", want: "env-token"},
+		{name: "GitHub CLI fallback", entry: `null`, want: "gh-token"},
+		{name: "refresh is not access", entry: `{"type":"oauth","refresh":"pi-refresh"}`, want: "gh-token"},
+		{name: "API key is not OAuth", entry: `{"type":"api_key","access":"wrong-type","key":"pi-key"}`, want: "gh-token"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			source := envSource(map[string]string{"GH_TOKEN": tc.env})
+			source.ReadFile = func(path string) ([]byte, error) {
+				if path == filepath.Join(".pi", "agent", "auth.json") {
+					return []byte(`{"github-copilot":` + tc.entry + `}`), nil
+				}
+				return nil, os.ErrNotExist
+			}
+			source.LookPath = func(string) (string, error) { return "gh", nil }
+			source.Run = func(context.Context, string, ...string) ([]byte, error) {
+				assert.Equal(t, "gh-token", tc.want, "GitHub CLI should only run as a fallback")
+				return []byte("gh-token\n"), nil
+			}
+			token, err := source.CopilotToken(t.Context())
+			require.NoError(t, err)
 			assert.Equal(t, tc.want, token)
 		})
 	}
