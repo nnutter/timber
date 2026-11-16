@@ -31,7 +31,7 @@ func TestListReviewProgress(t *testing.T) {
 	before, err := os.ReadFile(statePath)
 	require.NoError(t, err)
 
-	result := repository.runTimber(t, "ls")
+	result := repository.runTimber(t, "ls", "--todo")
 	require.NoError(t, result.err, result.stderr)
 	assert.Less(t, strings.Index(result.stdout, "Todo"), strings.Index(result.stdout, "Review"))
 	assert.Less(t, strings.Index(result.stdout, "Review"), strings.Index(result.stdout, "Commit"))

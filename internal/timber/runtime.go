@@ -443,7 +443,7 @@ func (x Runtime) ListRepos(details bool) ([]repomodel.Repo, error) {
 
 // ListWorktrees lists managed worktrees as a table or JSON document. All
 // output is written to the given writers, preserving CLI reporting order.
-func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, location, jsonOutput bool, sortMode string, renderers ListRenderers) error {
+func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, todo, location, jsonOutput bool, sortMode string, renderers ListRenderers) error {
 	var sortBy listSort
 	if err := sortBy.Set(sortMode); err != nil {
 		return err
@@ -463,7 +463,11 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 		return err
 	}
 	enrich := func(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
-		return enrichWorktreeForSort(runtime, repository, worktree, sortBy)
+		enriched, err := enrichWorktreeForSort(runtime, repository, worktree, sortBy)
+		if err == nil && isSame(enriched.ListError, false) {
+			enriched.Todo = runtime.todoProgressForWorktree(enriched, todo, jsonOutput)
+		}
+		return enriched, err
 	}
 	worktrees, err := runtime.collectWorktrees(repos, enrich)
 	if err != nil {
@@ -474,7 +478,7 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 	if err := attachPullRequests(runtime, ctx, worktrees, pullRequests); err != nil {
 		return err
 	}
-	return renderWorktreeList(runtime, stdout, worktrees, pullRequests, location, jsonOutput, renderers)
+	return renderWorktreeList(runtime, stdout, worktrees, pullRequests, todo, location, jsonOutput, renderers)
 }
 
 // LoadConfig loads the persistent Timber settings.
@@ -1264,7 +1268,6 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 	}
 	worktree.ListStatus = status
 	worktree.Clean = clean
-	worktree.Todo = x.todoProgressForWorktree(worktree)
 	// Record the repo default so Status can hide it and only call out
 	// worktrees tracking something else. Unknown defaults show upstream.
 	if defaultBranch, err := repository.remoteHeadBranch(); err == nil {
@@ -2250,7 +2253,10 @@ func (x Runtime) setupHerdrParentDashboard(ctx context.Context, output []byte, r
 // todoProgressForWorktree counts the worktree's TODO.md checklist items. A
 // worktree whose checklist cannot be read reports no progress; list already
 // degrades to placeholder cells for unreadable worktree state.
-func (x Runtime) todoProgressForWorktree(worktree managedWorktree) todo.Progress {
+func (x Runtime) todoProgressForWorktree(worktree managedWorktree, enabled, jsonOutput bool) todo.Progress {
+	if isSame(enabled, false) && isSame(jsonOutput, false) {
+		return todo.Progress{}
+	}
 	gitDir, err := x.worktreeGitDir(worktree.Path)
 	if err != nil {
 		return todo.Progress{}

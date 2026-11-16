@@ -66,10 +66,30 @@ func TestListReportsTodoProgress(t *testing.T) {
 	require.NoError(t, testRepository.runTimber(t, "create", at(testRepoName, "feature/no-todo")).err)
 	writeTodoFile(t, todoPathForWorktree(t, testRepository.worktreePath(branchName)), "- [x] done\n- [ ] pending\n")
 
-	result := testRepository.runTimber(t, "list", at(testRepoName, ""))
-	require.NoError(t, result.err, result.stderr)
-	assert.Contains(t, result.stdout, "Todo")
-	assert.Contains(t, result.stdout, "1/2")
+	for _, testCase := range []struct {
+		flags   []string
+		enabled bool
+	}{
+		{},
+		{flags: []string{"-t"}, enabled: true},
+		{flags: []string{"--todo"}, enabled: true},
+		{flags: []string{"--todo=false"}},
+	} {
+		args := append([]string{"ls", at(testRepoName, "")}, testCase.flags...)
+		result := testRepository.runTimber(t, args...)
+		require.NoError(t, result.err, result.stderr)
+		if testCase.enabled {
+			assert.Contains(t, result.stdout, "Todo")
+			assert.Contains(t, result.stdout, "1/2")
+		} else {
+			assert.NotContains(t, result.stdout, "Todo")
+			assert.NotContains(t, result.stdout, "1/2")
+		}
+		encoded := testRepository.runTimber(t, append(args, "--json")...)
+		require.NoError(t, encoded.err, encoded.stderr)
+		assert.Contains(t, encoded.stdout, `"todoDone":1,"todoTotal":2`)
+		assert.Contains(t, encoded.stdout, `"todoDone":0,"todoTotal":0`)
+	}
 }
 
 func TestListSucceedsWhenUpstreamRefIsMissing(t *testing.T) {
@@ -251,7 +271,7 @@ func TestListJSONOutputsWorktrees(t *testing.T) {
 	writeTodoFile(t, todoPathForWorktree(t, testRepository.worktreePath("feature/healthy")), "- [x] done\n- [ ] pending\n")
 	require.NoError(t, os.RemoveAll(testRepository.worktreePath("feature/broken")))
 
-	result := testRepository.runTimber(t, "list", "--json", at(testRepoName, ""))
+	result := testRepository.runTimber(t, "list", "--json", "--todo", at(testRepoName, ""))
 	require.NoError(t, result.err, result.stderr)
 
 	var records []listJSONRecord

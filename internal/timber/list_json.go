@@ -12,8 +12,8 @@ type ListJSONWorktree struct {
 	Clean       bool                    `json:"clean"`
 	Merged      bool                    `json:"merged"`
 	StatusError bool                    `json:"statusError"`
-	TodoDone    int                     `json:"todoDone"`
-	TodoTotal   int                     `json:"todoTotal"`
+	TodoDone    *int                    `json:"todoDone,omitzero"`
+	TodoTotal   *int                    `json:"todoTotal,omitzero"`
 	PullRequest string                  `json:"pullRequest"`
 	Review      *ListJSONReviewProgress `json:"review,omitzero"`
 }
@@ -38,10 +38,10 @@ func worktreesToListJSON(worktrees []managedWorktree) []ListJSONWorktree {
 			Clean:       worktree.Clean,
 			Merged:      worktree.Merged,
 			StatusError: worktree.ListError,
-			TodoDone:    worktree.Todo.Done,
-			TodoTotal:   worktree.Todo.Total,
 			PullRequest: worktree.PullRequest,
 		}
+		record.TodoDone = new(worktree.Todo.Done)
+		record.TodoTotal = new(worktree.Todo.Total)
 		if worktree.Review != nil {
 			record.Review = &ListJSONReviewProgress{
 				Approved: worktree.Review.Approved,
