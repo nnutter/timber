@@ -208,14 +208,14 @@ func ConfigArgs(reader ConfigReader, mode ConfigValueMode) func(*cobra.Command, 
 			}
 			return matchingPrefix(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
 		}
-		if len(args) > 1 {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
 		switch mode {
 		case ConfigValueSet:
+			if len(args) > 1 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
 			return matchingPrefix(boolValues(args[0]), toComplete), cobra.ShellCompDirectiveNoFileComp
 		case ConfigValueRemove:
-			return listValues(reader, args[0], toComplete)
+			return listValues(reader, args[0], args[1:], toComplete)
 		default:
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
@@ -233,7 +233,7 @@ func boolValues(name string) []string {
 	return []string{"true", "false"}
 }
 
-func listValues(reader ConfigReader, name, toComplete string) ([]string, cobra.ShellCompDirective) {
+func listValues(reader ConfigReader, name string, selected []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	key, err := coreconfig.LookupKey(name)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
@@ -244,6 +244,11 @@ func listValues(reader ConfigReader, name, toComplete string) ([]string, cobra.S
 	settings, err := reader.ReadConfig()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
+	}
+	if len(selected) > 0 {
+		if err := coreconfig.Remove(&settings, name, selected); err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
 	}
 	values, err := coreconfig.Get(settings, name)
 	if err != nil {

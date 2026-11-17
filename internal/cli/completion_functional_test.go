@@ -52,7 +52,7 @@ func TestWorktreeCompletionAddsAtWhenNameIsAmbiguous(t *testing.T) {
 func TestConfigCompletionOffersSettingsAndValues(t *testing.T) {
 	t.Parallel()
 	runtime := testRuntime(t)
-	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "nnutter").err)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "nnutter", "acme").err)
 
 	keys := runCompleteWithRuntime(t, runtime, "config", "get", "")
 	assert.Contains(t, keys, "auto_mise_trust\t")
@@ -65,6 +65,11 @@ func TestConfigCompletionOffersSettingsAndValues(t *testing.T) {
 
 	owners := runCompleteWithRuntime(t, runtime, "config", "remove", "strip_github_owners", "")
 	assert.Contains(t, owners, "nnutter")
+
+	remaining := runCompleteWithRuntime(t, runtime, "config", "remove", "strip_github_owners", "ACME", "")
+	assert.Contains(t, remaining, "nnutter")
+	assert.NotContains(t, remaining, "acme")
+	assert.NotContains(t, runCompleteWithRuntime(t, runtime, "config", "set", "auto_mise_trust", "true", ""), "false")
 
 	// Appending takes values that do not exist yet, so there is nothing to offer.
 	assert.NotContains(t, runCompleteWithRuntime(t, runtime, "config", "append", "auto_mise_trust", ""), "true")
