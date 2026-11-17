@@ -113,6 +113,13 @@ func (x *repositoryRenamePlan) findCurrentTargetDirectory() error {
 		x.currentTargetDir = filepath.Join(move.Destination, relativePath)
 		return nil
 	}
+	// Worktrees nested inside the bare repository move with it rather than
+	// appearing in worktreeMoves. Report those implicit moves to the shell too.
+	target, _, err := movedCurrentDirectory(x.sourceRepo.BarePath, x.destinationRepo.BarePath, currentDirectory)
+	if err != nil {
+		return err
+	}
+	x.currentTargetDir = target
 	return nil
 }
 
