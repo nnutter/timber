@@ -55,6 +55,25 @@ func TestRepoRenameMovesStandardWorktreesAndPreservesCustomWorktrees(t *testing.
 	assert.Equal(t, unmanagedPath+"\n", switchResult.stdout)
 }
 
+func TestRepoRenameMovesWorktreeNestedInBareRepository(t *testing.T) {
+	t.Parallel()
+	const newRepoName = "renamed"
+
+	testRepository := newTestRepository(t)
+	nestedPath := filepath.Join(testRepository.barePath, "checkouts", "nested")
+	runGitCommand(t, testRepository.barePath, "worktree", "add", "--detach", nestedPath, "main")
+
+	result := testRepository.runTimber(t, "repo", "rename", testRepoName, newRepoName)
+	require.NoError(t, result.err, result.stderr)
+
+	newBarePath := repoTestBarePath(testRepository.runtime, newRepoName)
+	newNestedPath := filepath.Join(newBarePath, "checkouts", "nested")
+	assert.NoDirExists(t, testRepository.barePath)
+	assert.DirExists(t, newNestedPath)
+	commonDir := strings.TrimSpace(runGitCommand(t, newNestedPath, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+	assert.Equal(t, shellCanonicalPath(newBarePath), shellCanonicalPath(commonDir))
+}
+
 func TestRepoRenameWithoutWorktrees(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)

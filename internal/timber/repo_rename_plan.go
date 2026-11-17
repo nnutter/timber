@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 type repositoryRenamePlan struct {
@@ -245,6 +246,16 @@ func originalLinkedPaths(worktrees []linkedWorktreePath) []string {
 }
 
 func renamedWorktreePath(x *repositoryRenamePlan, worktree porcelainWorktree) (string, error) {
+	// Compare recorded paths rather than their symlink targets: a worktree
+	// nested in the bare Git directory moves with that directory.
+	relativePath, err := filepath.Rel(x.sourceRepo.BarePath, worktree.Path)
+	if err != nil {
+		return "", fmt.Errorf("resolve worktree %q within repository: %w", worktree.Path, err)
+	}
+	if relativePath != ".." && !strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return filepath.Join(x.destinationRepo.BarePath, relativePath), nil
+	}
+
 	renamedPath := worktree.Path
 	branchName := worktree.branchName()
 	if branchName == "" {
