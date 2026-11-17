@@ -9,36 +9,106 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigPersistsSettingsUnderXDGConfigHome(t *testing.T) {
+func TestConfigShowUsesXDGConfigHome(t *testing.T) {
 	runtime := testRuntime(t)
 	runtime.ConfigHome = filepath.Join(resolvedTempDir(t), "custom-config")
-	for _, step := range []struct {
-		args []string
-		want string
-	}{
-		{[]string{"config"}, "auto_mise_trust = false\nauto_hk_install = false\n"},
-		{[]string{"config", "--auto-mise-trust"}, "auto_mise_trust = true\nauto_mise_trust_decided = true\nauto_hk_install = false\n"},
-		{[]string{"config"}, "auto_mise_trust = true\nauto_mise_trust_decided = true\nauto_hk_install = false\n"},
-		{[]string{"config", "--no-auto-mise-trust"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = false\n"},
-		{[]string{"config"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = false\n"},
-		{[]string{"config", "--auto-hk-install"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = true\nauto_hk_install_decided = true\n"},
-		{[]string{"config"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = true\nauto_hk_install_decided = true\n"},
-		{[]string{"config", "--no-auto-hk-install"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = false\nauto_hk_install_decided = true\n"},
-		{[]string{"config"}, "auto_mise_trust = false\nauto_mise_trust_decided = true\nauto_hk_install = false\nauto_hk_install_decided = true\n"},
+	configPath := filepath.Join(runtime.ConfigHome, "timber", "config.toml")
+	_, statErr := os.Stat(configPath)
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+
+	result := runTimberCommandWithRuntime(t, runtime, "config", "show")
+	require.NoError(t, result.err)
+	want := "auto_mise_trust = false\nauto_hk_install = false\n"
+	assert.Equal(t, want, result.stdout)
+	contents, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, want, string(contents))
+}
+
+func TestConfigSetAndGet(t *testing.T) {
+	runtime := testRuntime(t)
+	set := runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_mise_trust", "true")
+	require.NoError(t, set.err)
+	assert.Empty(t, set.stdout)
+
+	show := runTimberCommandWithRuntime(t, runtime, "config", "show")
+	require.NoError(t, show.err)
+	assert.Equal(t, "auto_mise_trust = true\nauto_mise_trust_decided = true\nauto_hk_install = false\n", show.stdout)
+
+	get := runTimberCommandWithRuntime(t, runtime, "config", "get", "auto_mise_trust")
+	require.NoError(t, get.err)
+	assert.Equal(t, "true\n", get.stdout)
+
+	get = runTimberCommandWithRuntime(t, runtime, "config", "get", "strip_github_owners")
+	require.NoError(t, get.err)
+	assert.Empty(t, get.stdout)
+
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "set", "strip_github_owners", "nnutter").err)
+	get = runTimberCommandWithRuntime(t, runtime, "config", "get", "strip_github_owners")
+	require.NoError(t, get.err)
+	assert.Equal(t, "nnutter\n", get.stdout)
+}
+
+func TestConfigAppendAndRemoveListValues(t *testing.T) {
+	runtime := testRuntime(t)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "nnutter", "acme").err)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "NNutter").err)
+
+	get := runTimberCommandWithRuntime(t, runtime, "config", "get", "strip_github_owners")
+	require.NoError(t, get.err)
+	assert.Equal(t, "acme\nnnutter\n", get.stdout)
+
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "rm", "strip_github_owners", "ACME").err)
+	get = runTimberCommandWithRuntime(t, runtime, "config", "get", "strip_github_owners")
+	require.NoError(t, get.err)
+	assert.Equal(t, "nnutter\n", get.stdout)
+
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "remove", "strip_github_owners").err)
+	get = runTimberCommandWithRuntime(t, runtime, "config", "get", "strip_github_owners")
+	require.NoError(t, get.err)
+	assert.Empty(t, get.stdout)
+}
+
+func TestConfigRemoveBoolClearsTheDecision(t *testing.T) {
+	runtime := testRuntime(t)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_hk_install", "true").err)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "remove", "auto_hk_install").err)
+
+	show := runTimberCommandWithRuntime(t, runtime, "config", "show")
+	require.NoError(t, show.err)
+	assert.Equal(t, "auto_mise_trust = false\nauto_hk_install = false\n", show.stdout)
+}
+
+func TestConfigRejectsUnknownSettingsAndInvalidValues(t *testing.T) {
+	runtime := testRuntime(t)
+	for _, args := range [][]string{
+		{"config", "get", "future_setting"},
+		{"config", "set", "future_setting", "true"},
+		{"config", "set", "auto_mise_trust", "yes"},
+		{"config", "set", "strip_github_owners", "nnutter/timber"},
+		{"config", "append", "auto_mise_trust", "true"},
+		{"config", "remove", "auto_mise_trust", "true"},
 	} {
-		result := runTimberCommandWithRuntime(t, runtime, step.args...)
-		require.NoError(t, result.err)
-		assert.Equal(t, step.want, result.stdout)
-		contents, err := os.ReadFile(filepath.Join(runtime.ConfigHome, "timber", "config.toml"))
-		require.NoError(t, err)
-		assert.Equal(t, step.want, string(contents))
+		result := runTimberCommandWithRuntime(t, runtime, args...)
+		require.Error(t, result.err, "args=%v", args)
 	}
-	result := runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust", "--no-auto-mise-trust")
-	require.Error(t, result.err)
-	assert.Contains(t, result.err.Error(), "none of the others can be")
-	result = runTimberCommandWithRuntime(t, runtime, "config", "--auto-hk-install", "--no-auto-hk-install")
-	require.Error(t, result.err)
-	assert.Contains(t, result.err.Error(), "none of the others can be")
+
+	// None of the failures changed a setting.
+	show := runTimberCommandWithRuntime(t, runtime, "config", "show")
+	require.NoError(t, show.err)
+	assert.Equal(t, "auto_mise_trust = false\nauto_hk_install = false\n", show.stdout)
+}
+
+func TestConfigWithoutSubcommandShowsHelp(t *testing.T) {
+	runtime := testRuntime(t)
+	result := runTimberCommandWithRuntime(t, runtime, "config")
+	require.NoError(t, result.err)
+	assert.Contains(t, result.stdout, "show")
+	assert.Contains(t, result.stdout, "append")
+
+	// Help must not create the settings file.
+	_, err := os.Stat(filepath.Join(runtime.ConfigHome, "timber", "config.toml"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestConfigDoesNotOverwriteInvalidOrUnknownSettings(t *testing.T) {
@@ -48,7 +118,7 @@ func TestConfigDoesNotOverwriteInvalidOrUnknownSettings(t *testing.T) {
 			path := filepath.Join(runtime.ConfigHome, "timber", "config.toml")
 			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 			require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
-			result := runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust")
+			result := runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_mise_trust", "true")
 			require.Error(t, result.err)
 			after, err := os.ReadFile(path)
 			require.NoError(t, err)

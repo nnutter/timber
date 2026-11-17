@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/timber"
 )
 
 func TestRepoAddRemoteURL(t *testing.T) {
@@ -45,6 +48,65 @@ func TestRepoAddRemoteURL(t *testing.T) {
 				"config", "--local", "--get", "remote.origin.url"))
 		})
 	}
+}
+
+func TestRepoAddStripsConfiguredGitHubOwner(t *testing.T) {
+	t.Parallel()
+
+	t.Run("listed owner is stripped", func(t *testing.T) {
+		t.Parallel()
+		runtime := githubRedirectRuntime(t, "nnutter/timber")
+		configure := runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "NNutter")
+		require.NoError(t, configure.err, configure.stderr)
+
+		result := runTimberCommandWithRuntime(t, runtime, "repo", "add", "nnutter/timber")
+		require.NoError(t, result.err, result.stderr)
+		assert.Contains(t, result.stderr, "added repository timber at")
+		assert.Equal(t, "git@github.com:nnutter/timber\n",
+			runGitCommand(t, filepath.Join(runtime.WorktreeRoot, "timber", ".git"), "config", "--local", "--get", "remote.origin.url"))
+	})
+
+	t.Run("explicit name wins", func(t *testing.T) {
+		t.Parallel()
+		runtime := githubRedirectRuntime(t, "nnutter/timber")
+		configure := runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "nnutter")
+		require.NoError(t, configure.err, configure.stderr)
+
+		result := runTimberCommandWithRuntime(t, runtime, "repo", "add", "--name", "nnutter/timber", "nnutter/timber")
+		require.NoError(t, result.err, result.stderr)
+		assert.Contains(t, result.stderr, "added repository nnutter/timber at")
+		_, err := os.Stat(filepath.Join(runtime.WorktreeRoot, "nnutter", "timber", ".git"))
+		require.NoError(t, err)
+	})
+
+	t.Run("unconfigured owner keeps the structured name", func(t *testing.T) {
+		t.Parallel()
+		runtime := githubRedirectRuntime(t, "nnutter/timber")
+
+		result := runTimberCommandWithRuntime(t, runtime, "repo", "add", "nnutter/timber")
+		require.NoError(t, result.err, result.stderr)
+		assert.Contains(t, result.stderr, "added repository nnutter/timber at")
+		// Reading settings must not create the configuration file.
+		_, err := os.Stat(filepath.Join(runtime.ConfigHome, "timber", "config.toml"))
+		assert.ErrorIs(t, err, os.ErrNotExist)
+	})
+}
+
+// githubRedirectRuntime prepares a runtime whose github.com remote resolves to
+// a local bare repository, so repo add never reaches the network.
+func githubRedirectRuntime(t *testing.T, ownerRepo string) timber.Runtime {
+	t.Helper()
+	runtime := testRuntime(t)
+	remote := filepath.Join(resolvedTempDir(t), "remote.git")
+	runGitCommand(t, runtime.HomeDirectory, "init", "--bare", remote)
+	seedImportRemote(t, remote)
+	runtime.Environment = append(runtime.Environment,
+		"GIT_CONFIG_COUNT=1",
+		"GIT_CONFIG_KEY_0=url."+remote+".insteadOf",
+		"GIT_CONFIG_VALUE_0=git@github.com:"+ownerRepo,
+		"GIT_ALLOW_PROTOCOL=file",
+	)
+	return runtime
 }
 
 func TestRepoAddAlias(t *testing.T) {

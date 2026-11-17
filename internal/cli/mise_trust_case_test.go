@@ -80,11 +80,11 @@ func configureMiseTrustRuntime(t *testing.T, runtime timber.Runtime, test miseTr
 	t.Helper()
 	runtime.GhExecutable = filepath.Join(resolvedTempDir(t), "missing-gh")
 	if test.enabled {
-		result := runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust")
+		result := runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_mise_trust", "true")
 		require.NoError(t, result.err)
 	}
 	if test.explicitDisable {
-		result := runTimberCommandWithRuntime(t, runtime, "config", "--no-auto-mise-trust")
+		result := runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_mise_trust", "false")
 		require.NoError(t, result.err)
 	}
 	if test.cache == "refresh" {
@@ -194,7 +194,7 @@ func assertMiseTrustPrompt(t *testing.T, runtime timber.Runtime, result commandR
 func assertMiseTrustRefusal(t *testing.T, runtime timber.Runtime, result commandResult, logPath, timberBin string, wantTrust bool, answer string) {
 	t.Helper()
 	if !wantTrust {
-		assert.Contains(t, result.stderr, "Enable it later with: timber config --auto-mise-trust")
+		assert.Contains(t, result.stderr, "Enable it later with: timber config set auto_mise_trust true")
 	}
 	again := interactiveCreate(t, runtime, timberBin, answer, "second")
 	require.NoError(t, again.err)
@@ -204,7 +204,7 @@ func assertMiseTrustRefusal(t *testing.T, runtime timber.Runtime, result command
 	}
 	assert.NoFileExists(t, logPath)
 	// The documented command can reverse a saved refusal.
-	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust").err)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_mise_trust", "true").err)
 	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "create", "--upstream", "source/main", at(testRepoName, "third")).err)
 	assert.FileExists(t, logPath)
 }

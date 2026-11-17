@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,6 +39,7 @@ func TestRepoRenameRollsBackCompletedWorktreeMoves(t *testing.T) {
 	assert.Contains(t, err.Error(), "injected rename failure")
 	assert.DirExists(t, testRepository.barePath)
 	assert.NoDirExists(t, testRepository.runtime.bareRepoPath("renamed"))
+	assert.NoDirExists(t, filepath.Dir(testRepository.runtime.bareRepoPath("renamed")))
 	for _, branchName := range []string{"feature/first", "feature/second"} {
 		assert.DirExists(t, testRepository.worktreePath(branchName))
 		_, openErr := openRepository(testRepository.runtime, testRepository.worktreePath(branchName))
@@ -69,6 +71,7 @@ func TestRepoRenameRollsBackAfterRepairFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "injected repair failure")
 	assert.DirExists(t, testRepository.barePath)
 	assert.NoDirExists(t, testRepository.runtime.bareRepoPath("renamed"))
+	assert.NoDirExists(t, filepath.Dir(testRepository.runtime.bareRepoPath("renamed")))
 	assert.DirExists(t, testRepository.worktreePath(branchName))
 	_, openErr := openRepository(testRepository.runtime, testRepository.worktreePath(branchName))
 	require.NoError(t, openErr)

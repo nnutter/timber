@@ -114,7 +114,11 @@ func (runtime Runtime) AddRepo(source, name, alias string) (string, string, erro
 	if err != nil {
 		return "", "", err
 	}
-	repoName, err := repoNameForAdd(name, remoteURL)
+	settings, err := runtime.ReadConfig()
+	if err != nil {
+		return "", "", err
+	}
+	repoName, err := repoNameForAdd(name, remoteURL, settings.StripGitHubOwners)
 	if err != nil {
 		return "", "", err
 	}
@@ -368,7 +372,11 @@ func (runtime Runtime) ImportRepo(source, name string, reporter ImportReporter) 
 		return err
 	}
 
-	plan, err := runtime.buildImportPlan(sourcePath, normalizeRepoName(name))
+	settings, err := runtime.ReadConfig()
+	if err != nil {
+		return err
+	}
+	plan, err := runtime.buildImportPlan(sourcePath, normalizeRepoName(name), settings.StripGitHubOwners)
 	if err != nil {
 		return err
 	}
@@ -611,6 +619,23 @@ func (x Runtime) QueryWorktreeNamesAcrossRepos(toComplete string) ([]string, err
 	}
 	slices.Sort(completions)
 	return completions, nil
+}
+
+// ReadConfig loads the persistent settings without creating the file. A
+// missing file describes the default settings.
+func (x Runtime) ReadConfig() (config, error) {
+	var settings config
+	metadata, err := toml.DecodeFile(x.configPath(), &settings)
+	if errors.Is(err, os.ErrNotExist) {
+		return config{}, nil
+	}
+	if err != nil {
+		return config{}, fmt.Errorf("read config: %w", err)
+	}
+	if keys := metadata.Undecoded(); len(keys) != 0 {
+		return config{}, fmt.Errorf("unknown config setting: %s", keys[0])
+	}
+	return settings, nil
 }
 
 func (runtime Runtime) RemoveRepo(repoName string) error {
@@ -909,12 +934,12 @@ func (x Runtime) bareRepoPath(repoName string) string {
 	return filepath.Join(x.worktreeRoot(), filepath.FromSlash(repoName), bareRepoSuffix)
 }
 
-func (x Runtime) buildImportPlan(sourcePath string, requestedName string) (importPlan, error) {
+func (x Runtime) buildImportPlan(sourcePath string, requestedName string, stripOwners []string) (importPlan, error) {
 	sourceRepository, err := openImportSource(x, sourcePath)
 	if err != nil {
 		return importPlan{}, err
 	}
-	return importPlanForRepository(x, sourceRepository, requestedName)
+	return importPlanForRepository(x, sourceRepository, requestedName, stripOwners)
 }
 
 func (x Runtime) buildRepositoryRenamePlan(oldName string, requestedNewName string) (repositoryRenamePlan, error) {
@@ -1287,6 +1312,27 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 		worktree.Merged = merged
 	}
 	return worktree, nil
+}
+
+// ensureConfigFile creates an empty configuration file when none exists.
+func (x Runtime) ensureConfigFile() error {
+	path := x.configPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+	// Do not overwrite settings if another process creates the file first.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err == nil {
+		encodeErr := toml.NewEncoder(file).Encode(config{})
+		if err := errors.Join(encodeErr, file.Close()); err != nil {
+			return fmt.Errorf("create config: %w", err)
+		}
+		return nil
+	}
+	if !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("create config: %w", err)
+	}
+	return nil
 }
 
 // ensureHerdrParentWorkspace returns the ID of the Herdr workspace rooted at
@@ -1679,29 +1725,10 @@ func (x Runtime) listWorktreesForWizard(repos []registeredRepo) ([]managedWorktr
 }
 
 func (x Runtime) loadConfig() (config, error) {
-	path := x.configPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return config{}, fmt.Errorf("create config directory: %w", err)
+	if err := x.ensureConfigFile(); err != nil {
+		return config{}, err
 	}
-	// Do not overwrite settings if another process creates the file first.
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err == nil {
-		encodeErr := toml.NewEncoder(file).Encode(config{})
-		if err := errors.Join(encodeErr, file.Close()); err != nil {
-			return config{}, fmt.Errorf("create config: %w", err)
-		}
-	} else if !errors.Is(err, os.ErrExist) {
-		return config{}, fmt.Errorf("create config: %w", err)
-	}
-	var settings config
-	metadata, err := toml.DecodeFile(path, &settings)
-	if err != nil {
-		return config{}, fmt.Errorf("read config: %w", err)
-	}
-	if keys := metadata.Undecoded(); len(keys) != 0 {
-		return config{}, fmt.Errorf("unknown config setting: %s", keys[0])
-	}
-	return settings, nil
+	return x.ReadConfig()
 }
 
 // managedWorktreePath returns

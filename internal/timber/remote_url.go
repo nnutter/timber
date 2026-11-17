@@ -106,13 +106,18 @@ func remoteHostAndPath(remoteURL string) (host, repoPath string, ok bool) {
 	return host, repoPath, true
 }
 
+// isGitHubHost reports whether host serves GitHub repositories.
+func isGitHubHost(host string) bool {
+	return strings.EqualFold(host, "github.com") || strings.EqualFold(host, "ssh.github.com")
+}
+
 // defaultRepoAliasFromRemote shortens GitHub origins while preserving other origins.
 func defaultRepoAliasFromRemote(remoteURL string) string {
 	host, repoPath, ok := remoteHostAndPath(remoteURL)
 	if !ok {
 		return remoteURL
 	}
-	if !strings.EqualFold(host, "github.com") && !strings.EqualFold(host, "ssh.github.com") {
+	if !isGitHubHost(host) {
 		return remoteURL
 	}
 	repoPath = strings.TrimSuffix(strings.Trim(repoPath, "/"), bareRepoSuffix)
@@ -140,6 +145,29 @@ func defaultRepoNameFromRemote(remoteURL string) (string, error) {
 		return "", err
 	}
 	return cleanRepoName(repoPath, remoteURL)
+}
+
+// stripRepoNameOwner drops a GitHub owner from a derived repository name when
+// owners lists that owner. GitHub logins are case-insensitive. Other hosts keep
+// their grouping, and a name without an owner stays unchanged.
+func stripRepoNameOwner(remoteURL, repoName string, owners []string) string {
+	if len(owners) == 0 {
+		return repoName
+	}
+	host, _, ok := remoteHostAndPath(remoteURL)
+	if !ok || !isGitHubHost(host) {
+		return repoName
+	}
+	owner, repo, found := strings.Cut(repoName, "/")
+	if !found || isEmpty(repo) || strings.Contains(repo, "/") {
+		return repoName
+	}
+	for _, candidate := range owners {
+		if strings.EqualFold(strings.TrimSpace(candidate), owner) {
+			return repo
+		}
+	}
+	return repoName
 }
 
 func localRepoName(trimmed, remoteURL string) (string, error) {

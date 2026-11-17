@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 type repositoryRenamePlan struct {
@@ -112,7 +113,29 @@ func (x *repositoryRenamePlan) findCurrentTargetDirectory() error {
 		x.currentTargetDir = filepath.Join(move.Destination, relativePath)
 		return nil
 	}
+	// Worktrees nested inside the bare repository move with it rather than
+	// appearing in worktreeMoves. Report those implicit moves to the shell too.
+	target, _, err := movedCurrentDirectory(x.sourceRepo.BarePath, x.destinationRepo.BarePath, currentDirectory)
+	if err != nil {
+		return err
+	}
+	x.currentTargetDir = target
 	return nil
+}
+
+// removeEmptyDestinations prunes the destination directories that creating
+// the rename destinations left empty after a rollback moved everything back.
+func (x repositoryRenamePlan) removeEmptyDestinations() error {
+	var removeErrors []error
+	for _, move := range x.worktreeMoves {
+		if err := x.runtime.removeEmptyBareParents(move.Destination); err != nil {
+			removeErrors = append(removeErrors, err)
+		}
+	}
+	if err := x.runtime.removeEmptyBareParents(x.destinationRepo.BarePath); err != nil {
+		removeErrors = append(removeErrors, err)
+	}
+	return errors.Join(removeErrors...)
 }
 
 func (x repositoryRenamePlan) repairAndVerify(
@@ -153,6 +176,9 @@ func (x repositoryRenamePlan) rollback(
 		if err := renamePath(move.Destination, move.Source); err != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Errorf("restore worktree %q: %w", move.Source, err))
 		}
+	}
+	if err := x.removeEmptyDestinations(); err != nil {
+		rollbackErrors = append(rollbackErrors, fmt.Errorf("remove empty rename destinations: %w", err))
 	}
 	if err := repairWorktrees(x.sourceRepo.BarePath, originalLinkedPaths(x.linkedWorktrees)); err != nil {
 		rollbackErrors = append(rollbackErrors, fmt.Errorf("repair restored worktrees: %w", err))
@@ -245,6 +271,16 @@ func originalLinkedPaths(worktrees []linkedWorktreePath) []string {
 }
 
 func renamedWorktreePath(x *repositoryRenamePlan, worktree porcelainWorktree) (string, error) {
+	// Compare recorded paths rather than their symlink targets: a worktree
+	// nested in the bare Git directory moves with that directory.
+	relativePath, err := filepath.Rel(x.sourceRepo.BarePath, worktree.Path)
+	if err != nil {
+		return "", fmt.Errorf("resolve worktree %q within repository: %w", worktree.Path, err)
+	}
+	if relativePath != ".." && !strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return filepath.Join(x.destinationRepo.BarePath, relativePath), nil
+	}
+
 	renamedPath := worktree.Path
 	branchName := worktree.branchName()
 	if branchName == "" {
