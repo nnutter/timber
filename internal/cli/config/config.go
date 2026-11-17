@@ -24,21 +24,8 @@ func New(store Store) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			changed := false
-			if command.Flags().Changed("auto-mise-trust") || command.Flags().Changed("no-auto-mise-trust") {
-				settings.AutoMiseTrust = enable
-				if command.Flags().Changed("no-auto-mise-trust") {
-					settings.AutoMiseTrust = !disable
-				}
-				settings.AutoMiseTrustDecided = true
-				changed = true
-			}
-			if command.Flags().Changed("auto-hk-install") || command.Flags().Changed("no-auto-hk-install") {
-				settings.AutoHKInstall = enableHK
-				if command.Flags().Changed("no-auto-hk-install") {
-					settings.AutoHKInstall = !disableHK
-				}
-				settings.AutoHKInstallDecided = true
+			changed := applyAutoMiseTrust(command, &settings, enable, disable)
+			if applyAutoHKInstall(command, &settings, enableHK, disableHK) {
 				changed = true
 			}
 			if changed {
@@ -56,4 +43,32 @@ func New(store Store) *cobra.Command {
 	command.Flags().BoolVar(&disableHK, "no-auto-hk-install", false, "Disable automatic hk hook installation")
 	command.MarkFlagsMutuallyExclusive("auto-hk-install", "no-auto-hk-install")
 	return command
+}
+
+// applyAutoMiseTrust records the automatic mise trust flags and reports whether
+// they changed the settings.
+func applyAutoMiseTrust(command *cobra.Command, settings *coreconfig.Settings, enable, disable bool) bool {
+	if !command.Flags().Changed("auto-mise-trust") && !command.Flags().Changed("no-auto-mise-trust") {
+		return false
+	}
+	settings.AutoMiseTrust = enable
+	if command.Flags().Changed("no-auto-mise-trust") {
+		settings.AutoMiseTrust = !disable
+	}
+	settings.AutoMiseTrustDecided = true
+	return true
+}
+
+// applyAutoHKInstall records the automatic hk install flags and reports whether
+// they changed the settings.
+func applyAutoHKInstall(command *cobra.Command, settings *coreconfig.Settings, enable, disable bool) bool {
+	if !command.Flags().Changed("auto-hk-install") && !command.Flags().Changed("no-auto-hk-install") {
+		return false
+	}
+	settings.AutoHKInstall = enable
+	if command.Flags().Changed("no-auto-hk-install") {
+		settings.AutoHKInstall = !disable
+	}
+	settings.AutoHKInstallDecided = true
+	return true
 }
