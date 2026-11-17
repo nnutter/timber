@@ -106,13 +106,18 @@ func remoteHostAndPath(remoteURL string) (host, repoPath string, ok bool) {
 	return host, repoPath, true
 }
 
+// isGitHubHost reports whether host serves GitHub repositories.
+func isGitHubHost(host string) bool {
+	return strings.EqualFold(host, "github.com") || strings.EqualFold(host, "ssh.github.com")
+}
+
 // defaultRepoAliasFromRemote shortens GitHub origins while preserving other origins.
 func defaultRepoAliasFromRemote(remoteURL string) string {
 	host, repoPath, ok := remoteHostAndPath(remoteURL)
 	if !ok {
 		return remoteURL
 	}
-	if !strings.EqualFold(host, "github.com") && !strings.EqualFold(host, "ssh.github.com") {
+	if !isGitHubHost(host) {
 		return remoteURL
 	}
 	repoPath = strings.TrimSuffix(strings.Trim(repoPath, "/"), bareRepoSuffix)
