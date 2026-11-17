@@ -13,14 +13,14 @@ import (
 	coreconfig "github.com/nnutter/timber/internal/timber/config"
 )
 
-func repoNameForAdd(name, remoteURL string) (string, error) {
+func repoNameForAdd(name, remoteURL string, stripOwners []string) (string, error) {
 	repoName := normalizeRepoName(name)
 	if repoName == "" {
-		var err error
-		repoName, err = defaultRepoNameFromRemote(remoteURL)
+		derived, err := defaultRepoNameFromRemote(remoteURL)
 		if err != nil {
 			return "", err
 		}
+		repoName = stripRepoNameOwner(remoteURL, derived, stripOwners)
 	}
 	if err := validateRepoName(repoName); err != nil {
 		return "", err

@@ -25,7 +25,7 @@ func importOpenError(x Runtime, sourcePath string, err error) error {
 	return fmt.Errorf("open repository at %s: %w", x.displayHomePath(sourcePath), err)
 }
 
-func importPlanForRepository(x Runtime, sourceRepository *Repository, requestedName string) (importPlan, error) {
+func importPlanForRepository(x Runtime, sourceRepository *Repository, requestedName string, stripOwners []string) (importPlan, error) {
 	mainPath, porcelainWorktrees, err := importMainPath(x, sourceRepository)
 	if err != nil {
 		return importPlan{}, err
@@ -36,7 +36,7 @@ func importPlanForRepository(x Runtime, sourceRepository *Repository, requestedN
 	if err != nil {
 		return importPlan{}, err
 	}
-	plan, err := newImportPlan(x, sourceRepository, requestedName, mainPath)
+	plan, err := newImportPlan(x, sourceRepository, requestedName, mainPath, stripOwners)
 	if err != nil {
 		return importPlan{}, err
 	}
@@ -84,10 +84,10 @@ func importMainPath(x Runtime, sourceRepository *Repository) (string, []porcelai
 	return mainEntry.Path, porcelainWorktrees, nil
 }
 
-func newImportPlan(x Runtime, sourceRepository *Repository, requestedName, mainPath string) (importPlan, error) {
+func newImportPlan(x Runtime, sourceRepository *Repository, requestedName, mainPath string, stripOwners []string) (importPlan, error) {
 	repoName := requestedName
 	if repoName == "" {
-		repoName = defaultRepoNameForImport(sourceRepository, mainPath)
+		repoName = defaultRepoNameForImport(sourceRepository, mainPath, stripOwners)
 	}
 	if err := validateRepoName(repoName); err != nil {
 		return importPlan{}, err

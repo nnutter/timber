@@ -114,7 +114,11 @@ func (runtime Runtime) AddRepo(source, name, alias string) (string, string, erro
 	if err != nil {
 		return "", "", err
 	}
-	repoName, err := repoNameForAdd(name, remoteURL)
+	settings, err := runtime.readConfig()
+	if err != nil {
+		return "", "", err
+	}
+	repoName, err := repoNameForAdd(name, remoteURL, settings.StripGitHubOwners)
 	if err != nil {
 		return "", "", err
 	}
@@ -368,7 +372,11 @@ func (runtime Runtime) ImportRepo(source, name string, reporter ImportReporter) 
 		return err
 	}
 
-	plan, err := runtime.buildImportPlan(sourcePath, normalizeRepoName(name))
+	settings, err := runtime.readConfig()
+	if err != nil {
+		return err
+	}
+	plan, err := runtime.buildImportPlan(sourcePath, normalizeRepoName(name), settings.StripGitHubOwners)
 	if err != nil {
 		return err
 	}
@@ -909,12 +917,12 @@ func (x Runtime) bareRepoPath(repoName string) string {
 	return filepath.Join(x.worktreeRoot(), filepath.FromSlash(repoName), bareRepoSuffix)
 }
 
-func (x Runtime) buildImportPlan(sourcePath string, requestedName string) (importPlan, error) {
+func (x Runtime) buildImportPlan(sourcePath string, requestedName string, stripOwners []string) (importPlan, error) {
 	sourceRepository, err := openImportSource(x, sourcePath)
 	if err != nil {
 		return importPlan{}, err
 	}
-	return importPlanForRepository(x, sourceRepository, requestedName)
+	return importPlanForRepository(x, sourceRepository, requestedName, stripOwners)
 }
 
 func (x Runtime) buildRepositoryRenamePlan(oldName string, requestedNewName string) (repositoryRenamePlan, error) {

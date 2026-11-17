@@ -15,6 +15,7 @@ type Store interface {
 
 func New(store Store) *cobra.Command {
 	var enable, disable, enableHK, disableHK bool
+	var stripOwners, noStripOwners []string
 	command := &cobra.Command{
 		Use:   "config",
 		Short: "Show or change Timber settings",
@@ -26,6 +27,12 @@ func New(store Store) *cobra.Command {
 			}
 			changed := applyAutoMiseTrust(command, &settings, enable, disable)
 			if applyAutoHKInstall(command, &settings, enableHK, disableHK) {
+				changed = true
+			}
+			if command.Flags().Changed("strip-github-owner") || command.Flags().Changed("no-strip-github-owner") {
+				if err := applyStripGitHubOwners(&settings, stripOwners, noStripOwners); err != nil {
+					return err
+				}
 				changed = true
 			}
 			if changed {
@@ -42,6 +49,9 @@ func New(store Store) *cobra.Command {
 	command.Flags().BoolVar(&enableHK, "auto-hk-install", false, "Install hk hooks in worktrees owned by you or your GitHub organizations")
 	command.Flags().BoolVar(&disableHK, "no-auto-hk-install", false, "Disable automatic hk hook installation")
 	command.MarkFlagsMutuallyExclusive("auto-hk-install", "no-auto-hk-install")
+	command.Flags().StringArrayVar(&stripOwners, "strip-github-owner", nil, "Drop this GitHub owner from repository names derived from remotes (repeatable)")
+	command.Flags().StringArrayVar(&noStripOwners, "no-strip-github-owner", nil, "Stop dropping this GitHub owner from repository names (repeatable)")
+	command.MarkFlagsMutuallyExclusive("strip-github-owner", "no-strip-github-owner")
 	return command
 }
 
@@ -71,4 +81,14 @@ func applyAutoHKInstall(command *cobra.Command, settings *coreconfig.Settings, e
 	}
 	settings.AutoHKInstallDecided = true
 	return true
+}
+
+// applyStripGitHubOwners records the owner list flags.
+func applyStripGitHubOwners(settings *coreconfig.Settings, add, remove []string) error {
+	owners, err := coreconfig.UpdateStripGitHubOwners(settings.StripGitHubOwners, add, remove)
+	if err != nil {
+		return err
+	}
+	settings.StripGitHubOwners = owners
+	return nil
 }

@@ -41,6 +41,45 @@ func TestConfigPersistsSettingsUnderXDGConfigHome(t *testing.T) {
 	assert.Contains(t, result.err.Error(), "none of the others can be")
 }
 
+func TestConfigManagesStripGitHubOwners(t *testing.T) {
+	runtime := testRuntime(t)
+	configPath := filepath.Join(runtime.ConfigHome, "timber", "config.toml")
+	for _, step := range []struct {
+		args []string
+		want string
+	}{
+		{
+			[]string{"config", "--strip-github-owner", "nnutter"},
+			"auto_mise_trust = false\nauto_hk_install = false\nstrip_github_owners = [\"nnutter\"]\n",
+		},
+		{
+			[]string{"config", "--strip-github-owner", "acme", "--strip-github-owner", "Nnutter"},
+			"auto_mise_trust = false\nauto_hk_install = false\nstrip_github_owners = [\"acme\", \"nnutter\"]\n",
+		},
+		{
+			[]string{"config", "--no-strip-github-owner", "ACME"},
+			"auto_mise_trust = false\nauto_hk_install = false\nstrip_github_owners = [\"nnutter\"]\n",
+		},
+	} {
+		result := runTimberCommandWithRuntime(t, runtime, step.args...)
+		require.NoError(t, result.err)
+		assert.Equal(t, step.want, result.stdout)
+		contents, err := os.ReadFile(configPath)
+		require.NoError(t, err)
+		assert.Equal(t, step.want, string(contents))
+	}
+
+	result := runTimberCommandWithRuntime(t, runtime, "config", "--strip-github-owner", "nnutter/timber")
+	require.Error(t, result.err)
+	assert.Contains(t, result.err.Error(), "expected a single GitHub owner")
+	result = runTimberCommandWithRuntime(t, runtime, "config", "--strip-github-owner", "nnutter", "--no-strip-github-owner", "acme")
+	require.Error(t, result.err)
+	assert.Contains(t, result.err.Error(), "none of the others can be")
+	contents, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, "auto_mise_trust = false\nauto_hk_install = false\nstrip_github_owners = [\"nnutter\"]\n", string(contents))
+}
+
 func TestConfigDoesNotOverwriteInvalidOrUnknownSettings(t *testing.T) {
 	for _, contents := range []string{"auto_mise_trust = \"yes\"\n", "future_setting = true\n"} {
 		t.Run(contents, func(t *testing.T) {

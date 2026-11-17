@@ -36,7 +36,8 @@ For detailed checklist editing, use the separate `timber-todo` skill.
   On a machine without a keyring, such as a headless server or CI, set `GH_TOKEN`.
 - `timber config` shows settings and creates the configuration file if absent:
   `$XDG_CONFIG_HOME/timber/config.toml`, falling back to
-  `~/.config/timber/config.toml`.
+  `~/.config/timber/config.toml`. `timber config --strip-github-owner <login>` records a GitHub owner whose repositories `repo add` and `repo import` register under the short name instead of `owner/repo`; `--no-strip-github-owner` removes the owner.
+  An explicit `--name` still wins, and other hosts keep their grouping.
 - Bare repositories live at `$TIMBER_WORKTREE_ROOT/<repo-name>/.git` (fallback `~/worktrees/<repo-name>/.git`). `TIMBER_WORKTREE_ROOT` overrides the default `~/worktrees` checkout root.
   Preserve the user's environment.
 - A registered repository records `push.default=current`, so `git push` sends the checked-out branch to the same-named branch on the remote.

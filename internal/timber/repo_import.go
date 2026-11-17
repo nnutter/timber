@@ -93,10 +93,10 @@ func isZeroCommitHash(hash string) bool {
 	return strings.Trim(hash, "0") == ""
 }
 
-func defaultRepoNameForImport(source *Repository, mainPath string) string {
+func defaultRepoNameForImport(source *Repository, mainPath string, stripOwners []string) string {
 	if result, err := source.git("remote", "get-url", remoteName); err == nil {
 		if name, err := defaultRepoNameFromRemote(result.stdout); err == nil {
-			return name
+			return stripRepoNameOwner(result.stdout, name, stripOwners)
 		}
 	}
 	return defaultRepoNameFromPath(mainPath)

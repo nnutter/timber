@@ -37,6 +37,78 @@ func TestDefaultRepoNameFromRemote(t *testing.T) {
 	assert.Equal(t, "roam", name)
 }
 
+func TestStripRepoNameOwner(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name      string
+		remoteURL string
+		repoName  string
+		owners    []string
+		want      string
+	}{
+		{
+			name:      "listed github owner is dropped",
+			remoteURL: "https://github.com/nnutter/timber.git",
+			repoName:  "nnutter/timber",
+			owners:    []string{"nnutter"},
+			want:      "timber",
+		},
+		{
+			name:      "owner matching ignores case",
+			remoteURL: "git@github.com:nnutter/timber.git",
+			repoName:  "nnutter/timber",
+			owners:    []string{"NNutter"},
+			want:      "timber",
+		},
+		{
+			name:      "ssh.github.com counts as github",
+			remoteURL: "ssh://git@ssh.github.com:443/nnutter/timber.git",
+			repoName:  "nnutter/timber",
+			owners:    []string{"nnutter"},
+			want:      "timber",
+		},
+		{
+			name:      "unlisted owner keeps the structured name",
+			remoteURL: "git@github.com:nnutter/timber.git",
+			repoName:  "nnutter/timber",
+			owners:    []string{"acme"},
+			want:      "nnutter/timber",
+		},
+		{
+			name:      "no configured owners keeps the structured name",
+			remoteURL: "git@github.com:nnutter/timber.git",
+			repoName:  "nnutter/timber",
+			want:      "nnutter/timber",
+		},
+		{
+			name:      "other hosts keep their grouping",
+			remoteURL: "git@gitlab.com:group/sub/repo.git",
+			repoName:  "group/sub/repo",
+			owners:    []string{"group"},
+			want:      "group/sub/repo",
+		},
+		{
+			name:      "local paths have no owner to drop",
+			remoteURL: "/local/path/roam.git",
+			repoName:  "roam",
+			owners:    []string{"roam"},
+			want:      "roam",
+		},
+		{
+			name:      "a name without an owner is unchanged",
+			remoteURL: "https://github.com/nnutter/timber.git",
+			repoName:  "timber",
+			owners:    []string{"nnutter"},
+			want:      "timber",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, test.want, stripRepoNameOwner(test.remoteURL, test.repoName, test.owners))
+		})
+	}
+}
+
 func TestDefaultRepoAliasFromRemote(t *testing.T) {
 	t.Parallel()
 	for _, origin := range []string{

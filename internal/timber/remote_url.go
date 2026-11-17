@@ -147,6 +147,29 @@ func defaultRepoNameFromRemote(remoteURL string) (string, error) {
 	return cleanRepoName(repoPath, remoteURL)
 }
 
+// stripRepoNameOwner drops a GitHub owner from a derived repository name when
+// owners lists that owner. GitHub logins are case-insensitive. Other hosts keep
+// their grouping, and a name without an owner stays unchanged.
+func stripRepoNameOwner(remoteURL, repoName string, owners []string) string {
+	if len(owners) == 0 {
+		return repoName
+	}
+	host, _, ok := remoteHostAndPath(remoteURL)
+	if !ok || !isGitHubHost(host) {
+		return repoName
+	}
+	owner, repo, found := strings.Cut(repoName, "/")
+	if !found || isEmpty(repo) || strings.Contains(repo, "/") {
+		return repoName
+	}
+	for _, candidate := range owners {
+		if strings.EqualFold(strings.TrimSpace(candidate), owner) {
+			return repo
+		}
+	}
+	return repoName
+}
+
 func localRepoName(trimmed, remoteURL string) (string, error) {
 	name := strings.TrimSuffix(path.Base(strings.TrimSuffix(trimmed, "/")), bareRepoSuffix)
 	if isReservedPathName(name) {
