@@ -34,9 +34,10 @@ For detailed checklist editing, use the separate `timber-todo` skill.
   Timber never reads a token from a configuration file, and never accepts one on a command line.
   Do not write a secret into a Timber or gh configuration file.
   On a machine without a keyring, such as a headless server or CI, set `GH_TOKEN`.
-- `timber config` shows settings and creates the configuration file if absent:
+- `timber config show` prints settings and creates the configuration file if absent:
   `$XDG_CONFIG_HOME/timber/config.toml`, falling back to
-  `~/.config/timber/config.toml`. `timber config --strip-github-owner <login>` records a GitHub owner whose repositories `repo add` and `repo import` register under the short name instead of `owner/repo`; `--no-strip-github-owner` removes the owner.
+  `~/.config/timber/config.toml`. `timber config get`, `set`, `append`, and `remove` read and change one setting by name; `show` prints them all.
+  `timber config append strip_github_owners <login>` records a GitHub owner whose repositories `repo add` and `repo import` register under the short name instead of `owner/repo`; `timber config remove strip_github_owners <login>` removes the owner.
   An explicit `--name` still wins, and other hosts keep their grouping.
 - Bare repositories live at `$TIMBER_WORKTREE_ROOT/<repo-name>/.git` (fallback `~/worktrees/<repo-name>/.git`). `TIMBER_WORKTREE_ROOT` overrides the default `~/worktrees` checkout root.
   Preserve the user's environment.

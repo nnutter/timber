@@ -54,7 +54,7 @@ Structured example (`t repo add nnutter/timber` defaults to the structured name;
 Rename with `timber repo rename <old> <new>` to move between simple and structured names; standard-layout worktrees move with the repo.
 Sorting `timber list --sort repo` orders by the full structured name, so the grouping prefix controls grouping.
 
-Listing a GitHub owner with `timber config --strip-github-owner <login>` registers that owner's repositories under the short name instead: `timber repo add nnutter/timber` then becomes repo name `timber` at `~/worktrees/timber/.git`.
+Listing a GitHub owner with `timber config append strip_github_owners <login>` registers that owner's repositories under the short name instead: `timber repo add nnutter/timber` then becomes repo name `timber` at `~/worktrees/timber/.git`.
 Explicit `--name` always wins, owner matching ignores case, and other hosts keep their full grouping.
 
 Use `timber repo import <path>` to register an existing clean clone and recreate its worktrees (including the former main checkout) in this layout.
@@ -100,25 +100,28 @@ npx skills add https://github.com/nnutter/timber
 
 ## Configuration
 
-Run `timber config` to show settings and create the config file if absent.
+`timber config show` prints every setting and creates the config file if absent.
 The file is `$XDG_CONFIG_HOME/timber/config.toml` (fallback: `~/.config/timber/config.toml`).
+The other subcommands read and change one setting by name: `get` prints its values one per line, `set` replaces the value, `append` adds values to a list setting, and `remove` (alias `rm`) resets a setting or drops matching list values.
+Setting names complete in the shell, as do the values of boolean settings and the stored values of list settings when they are removed.
+
+```bash
+timber config show
+timber config get auto_mise_trust
+timber config set auto_mise_trust true
+timber config append strip_github_owners nnutter acme
+timber config remove strip_github_owners nnutter
+timber config rm strip_github_owners
+```
+
 Automatic mise trust and automatic hk hook installation are disabled by default.
 On the first eligible worktree creation in an interactive terminal, Timber offers to enable each feature.
 The prompts default to No and save your answers, so Timber does not ask again.
-After No, a prompt shows the matching `timber config` flag so you can enable the feature later.
-An explicit `--no-auto-mise-trust` or `--no-auto-hk-install` also suppresses its prompt.
+After No, a prompt shows the matching `timber config set ...` command so you can enable the feature later.
+Setting either setting records the choice explicitly, which also suppresses its prompt.
 Non-interactive creation does not prompt or record a choice.
 
-```bash
-timber config --auto-mise-trust
-timber config --no-auto-mise-trust
-timber config --auto-hk-install
-timber config --no-auto-hk-install
-timber config --strip-github-owner nnutter
-timber config --no-strip-github-owner nnutter
-```
-
-`--strip-github-owner` is repeatable and records `strip_github_owners` in the config file; `repo add` and `repo import` drop a listed owner from names they derive from GitHub remotes.
+`strip_github_owners` lists the owners whose GitHub repositories register under the short name; `repo add` and `repo import` drop a listed owner from names they derive from GitHub remotes.
 
 Enabling automatic trust permits mise configuration in eligible worktrees to execute code.
 Eligibility requires a root-level, regular `mise.toml` and a GitHub upstream owned by you or one of your organizations.
@@ -430,7 +433,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `repo fix` | Move bare repositories from the old data directory into the worktree root, repair worktree links, and set `push.default=current` |
 | `repo remove` | Unregister a bare repository once its worktrees are gone |
 | `repo rename` | Rename a repository and move its worktree directories |
-| `config` | Show settings or change them with `--auto-mise-trust` / `--no-auto-mise-trust` / `--auto-hk-install` / `--no-auto-hk-install` / `--strip-github-owner` / `--no-strip-github-owner` |
+| `config` | Show settings or change them with `show`, `get`, `set`, `append`, and `remove` (`rm`); keys and values complete in the shell |
 | `create` | Create a worktree for a branch (`--no-herdr` skips the Herdr space) |
 | `switch` | Shell-only: `cd` into a worktree, creating it first with `-c` |
 | `tui` | Interactively open an existing worktree or create a new one |
