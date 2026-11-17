@@ -56,7 +56,7 @@ func TestRepoAddStripsConfiguredGitHubOwner(t *testing.T) {
 	t.Run("listed owner is stripped", func(t *testing.T) {
 		t.Parallel()
 		runtime := githubRedirectRuntime(t, "nnutter/timber")
-		configure := runTimberCommandWithRuntime(t, runtime, "config", "--strip-github-owner", "NNutter")
+		configure := runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "NNutter")
 		require.NoError(t, configure.err, configure.stderr)
 
 		result := runTimberCommandWithRuntime(t, runtime, "repo", "add", "nnutter/timber")
@@ -69,7 +69,7 @@ func TestRepoAddStripsConfiguredGitHubOwner(t *testing.T) {
 	t.Run("explicit name wins", func(t *testing.T) {
 		t.Parallel()
 		runtime := githubRedirectRuntime(t, "nnutter/timber")
-		configure := runTimberCommandWithRuntime(t, runtime, "config", "--strip-github-owner", "nnutter")
+		configure := runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "nnutter")
 		require.NoError(t, configure.err, configure.stderr)
 
 		result := runTimberCommandWithRuntime(t, runtime, "repo", "add", "--name", "nnutter/timber", "nnutter/timber")

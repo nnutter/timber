@@ -18,16 +18,16 @@ func configureHKInstallRuntime(t *testing.T, runtime timber.Runtime, enabled, ex
 	t.Helper()
 	runtime.GhExecutable = filepath.Join(resolvedTempDir(t), "missing-gh")
 	if enabled {
-		result := runTimberCommandWithRuntime(t, runtime, "config", "--auto-hk-install")
+		result := runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_hk_install", "true")
 		require.NoError(t, result.err)
 	}
 	if explicitDisable {
-		result := runTimberCommandWithRuntime(t, runtime, "config", "--no-auto-hk-install")
+		result := runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_hk_install", "false")
 		require.NoError(t, result.err)
 	}
 	if interactive {
 		// Keep automatic mise trust from asking its own question first.
-		result := runTimberCommandWithRuntime(t, runtime, "config", "--no-auto-mise-trust")
+		result := runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_mise_trust", "false")
 		require.NoError(t, result.err)
 	}
 	writeHKInstallCache(t, runtime, cache, noOrganizations)
@@ -129,7 +129,7 @@ func assertHKInstallPrompt(t *testing.T, runtime timber.Runtime, result commandR
 func assertHKInstallRefusal(t *testing.T, runtime timber.Runtime, result commandResult, logPath, timberBin string, wantInstall bool, answer string) {
 	t.Helper()
 	if !wantInstall {
-		assert.Contains(t, result.stderr, "Enable it later with: timber config --auto-hk-install")
+		assert.Contains(t, result.stderr, "Enable it later with: timber config set auto_hk_install true")
 	}
 	again := interactiveCreate(t, runtime, timberBin, answer, "second")
 	require.NoError(t, again.err)
@@ -139,7 +139,7 @@ func assertHKInstallRefusal(t *testing.T, runtime timber.Runtime, result command
 	}
 	assert.NoFileExists(t, logPath)
 	// The documented command can reverse a saved refusal.
-	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-hk-install").err)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_hk_install", "true").err)
 	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "create", "--upstream", "source/main", at(testRepoName, "third")).err)
 	assert.FileExists(t, logPath)
 }

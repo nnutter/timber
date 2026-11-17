@@ -136,8 +136,8 @@ func TestCreateTrustsMiseBeforeInstallingHKHooks(t *testing.T) {
 	runtime := repository.runtime
 	cache := fmt.Sprintf(`{"username":"alice","organizations":[],"fetched_at":%q}`, time.Now().UTC().Format(time.RFC3339Nano))
 	writeIdentityCache(t, runtime, cache)
-	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-mise-trust").err)
-	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "--auto-hk-install").err)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_mise_trust", "true").err)
+	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "set", "auto_hk_install", "true").err)
 
 	bin := resolvedTempDir(t)
 	logPath := filepath.Join(bin, "automation.log")

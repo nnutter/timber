@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	coreconfig "github.com/nnutter/timber/internal/timber/config"
 )
 
 // Queries supplies the completion candidates.
@@ -176,4 +178,86 @@ func canonicalName(command *cobra.Command, word string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// ConfigReader supplies stored settings for config value completion.
+type ConfigReader interface {
+	ReadConfig() (coreconfig.Settings, error)
+}
+
+// ConfigValueMode selects which values a config command offers.
+type ConfigValueMode int
+
+const (
+	// ConfigValueSet offers true and false for boolean settings.
+	ConfigValueSet ConfigValueMode = iota
+	// ConfigValueRemove offers the stored values of a list setting.
+	ConfigValueRemove
+	// ConfigValueNone offers no value candidates.
+	ConfigValueNone
+)
+
+// ConfigArgs completes config setting names, then the value that suits the
+// selected setting and command.
+func ConfigArgs(reader ConfigReader, mode ConfigValueMode) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) == 0 {
+			candidates := make([]string, 0)
+			for _, key := range coreconfig.Keys() {
+				candidates = append(candidates, key.Name+"	"+key.Description)
+			}
+			return matchingPrefix(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
+		}
+		if len(args) > 1 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		switch mode {
+		case ConfigValueSet:
+			return matchingPrefix(boolValues(args[0]), toComplete), cobra.ShellCompDirectiveNoFileComp
+		case ConfigValueRemove:
+			return listValues(reader, args[0], toComplete)
+		default:
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+	}
+}
+
+func boolValues(name string) []string {
+	key, err := coreconfig.LookupKey(name)
+	if err != nil {
+		return nil
+	}
+	if key.Kind != coreconfig.KindBool {
+		return nil
+	}
+	return []string{"true", "false"}
+}
+
+func listValues(reader ConfigReader, name, toComplete string) ([]string, cobra.ShellCompDirective) {
+	key, err := coreconfig.LookupKey(name)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	if key.Kind != coreconfig.KindList {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	settings, err := reader.ReadConfig()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	values, err := coreconfig.Get(settings, name)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	return matchingPrefix(values, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+func matchingPrefix(candidates []string, prefix string) []string {
+	matches := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if strings.HasPrefix(candidate, prefix) {
+			matches = append(matches, candidate)
+		}
+	}
+	return matches
 }
