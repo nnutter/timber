@@ -116,6 +116,21 @@ func (x *repositoryRenamePlan) findCurrentTargetDirectory() error {
 	return nil
 }
 
+// removeEmptyDestinations prunes the destination directories that creating
+// the rename destinations left empty after a rollback moved everything back.
+func (x repositoryRenamePlan) removeEmptyDestinations() error {
+	var removeErrors []error
+	for _, move := range x.worktreeMoves {
+		if err := x.runtime.removeEmptyBareParents(move.Destination); err != nil {
+			removeErrors = append(removeErrors, err)
+		}
+	}
+	if err := x.runtime.removeEmptyBareParents(x.destinationRepo.BarePath); err != nil {
+		removeErrors = append(removeErrors, err)
+	}
+	return errors.Join(removeErrors...)
+}
+
 func (x repositoryRenamePlan) repairAndVerify(
 	repairWorktrees repairWorktreesFunc,
 	barePath string,
@@ -154,6 +169,9 @@ func (x repositoryRenamePlan) rollback(
 		if err := renamePath(move.Destination, move.Source); err != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Errorf("restore worktree %q: %w", move.Source, err))
 		}
+	}
+	if err := x.removeEmptyDestinations(); err != nil {
+		rollbackErrors = append(rollbackErrors, fmt.Errorf("remove empty rename destinations: %w", err))
 	}
 	if err := repairWorktrees(x.sourceRepo.BarePath, originalLinkedPaths(x.linkedWorktrees)); err != nil {
 		rollbackErrors = append(rollbackErrors, fmt.Errorf("repair restored worktrees: %w", err))
