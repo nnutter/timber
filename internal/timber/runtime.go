@@ -114,7 +114,7 @@ func (runtime Runtime) AddRepo(source, name, alias string) (string, string, erro
 	if err != nil {
 		return "", "", err
 	}
-	settings, err := runtime.readConfig()
+	settings, err := runtime.ReadConfig()
 	if err != nil {
 		return "", "", err
 	}
@@ -372,7 +372,7 @@ func (runtime Runtime) ImportRepo(source, name string, reporter ImportReporter) 
 		return err
 	}
 
-	settings, err := runtime.readConfig()
+	settings, err := runtime.ReadConfig()
 	if err != nil {
 		return err
 	}
@@ -619,6 +619,23 @@ func (x Runtime) QueryWorktreeNamesAcrossRepos(toComplete string) ([]string, err
 	}
 	slices.Sort(completions)
 	return completions, nil
+}
+
+// ReadConfig loads the persistent settings without creating the file. A
+// missing file describes the default settings.
+func (x Runtime) ReadConfig() (config, error) {
+	var settings config
+	metadata, err := toml.DecodeFile(x.configPath(), &settings)
+	if errors.Is(err, os.ErrNotExist) {
+		return config{}, nil
+	}
+	if err != nil {
+		return config{}, fmt.Errorf("read config: %w", err)
+	}
+	if keys := metadata.Undecoded(); len(keys) != 0 {
+		return config{}, fmt.Errorf("unknown config setting: %s", keys[0])
+	}
+	return settings, nil
 }
 
 func (runtime Runtime) RemoveRepo(repoName string) error {
@@ -1711,7 +1728,7 @@ func (x Runtime) loadConfig() (config, error) {
 	if err := x.ensureConfigFile(); err != nil {
 		return config{}, err
 	}
-	return x.readConfig()
+	return x.ReadConfig()
 }
 
 // managedWorktreePath returns
@@ -1994,23 +2011,6 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 	}
 
 	return pullRequestTarget{remote: remote, owner: owner, repo: repo, head: head, base: base, headSHA: headSHA}, nil
-}
-
-// readConfig loads the persistent settings without creating the file. A
-// missing file describes the default settings.
-func (x Runtime) readConfig() (config, error) {
-	var settings config
-	metadata, err := toml.DecodeFile(x.configPath(), &settings)
-	if errors.Is(err, os.ErrNotExist) {
-		return config{}, nil
-	}
-	if err != nil {
-		return config{}, fmt.Errorf("read config: %w", err)
-	}
-	if keys := metadata.Undecoded(); len(keys) != 0 {
-		return config{}, fmt.Errorf("unknown config setting: %s", keys[0])
-	}
-	return settings, nil
 }
 
 // Standard-layout worktrees predate explicit name records. An empty name
