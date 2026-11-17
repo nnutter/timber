@@ -1289,6 +1289,27 @@ func (x Runtime) enrichWorktreeForList(repository *Repository, worktree managedW
 	return worktree, nil
 }
 
+// ensureConfigFile creates an empty configuration file when none exists.
+func (x Runtime) ensureConfigFile() error {
+	path := x.configPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+	// Do not overwrite settings if another process creates the file first.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err == nil {
+		encodeErr := toml.NewEncoder(file).Encode(config{})
+		if err := errors.Join(encodeErr, file.Close()); err != nil {
+			return fmt.Errorf("create config: %w", err)
+		}
+		return nil
+	}
+	if !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("create config: %w", err)
+	}
+	return nil
+}
+
 // ensureHerdrParentWorkspace returns the ID of the Herdr workspace rooted at
 // the repository's bare directory, creating it when no such workspace exists.
 // A parent left behind by an earlier workflow keeps its label unless it is
@@ -1679,29 +1700,10 @@ func (x Runtime) listWorktreesForWizard(repos []registeredRepo) ([]managedWorktr
 }
 
 func (x Runtime) loadConfig() (config, error) {
-	path := x.configPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return config{}, fmt.Errorf("create config directory: %w", err)
+	if err := x.ensureConfigFile(); err != nil {
+		return config{}, err
 	}
-	// Do not overwrite settings if another process creates the file first.
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err == nil {
-		encodeErr := toml.NewEncoder(file).Encode(config{})
-		if err := errors.Join(encodeErr, file.Close()); err != nil {
-			return config{}, fmt.Errorf("create config: %w", err)
-		}
-	} else if !errors.Is(err, os.ErrExist) {
-		return config{}, fmt.Errorf("create config: %w", err)
-	}
-	var settings config
-	metadata, err := toml.DecodeFile(path, &settings)
-	if err != nil {
-		return config{}, fmt.Errorf("read config: %w", err)
-	}
-	if keys := metadata.Undecoded(); len(keys) != 0 {
-		return config{}, fmt.Errorf("unknown config setting: %s", keys[0])
-	}
-	return settings, nil
+	return x.readConfig()
 }
 
 // managedWorktreePath returns
@@ -1984,6 +1986,23 @@ func (runtime Runtime) pullRequestTarget(input io.Reader, draft PullRequestDraft
 	}
 
 	return pullRequestTarget{remote: remote, owner: owner, repo: repo, head: head, base: base, headSHA: headSHA}, nil
+}
+
+// readConfig loads the persistent settings without creating the file. A
+// missing file describes the default settings.
+func (x Runtime) readConfig() (config, error) {
+	var settings config
+	metadata, err := toml.DecodeFile(x.configPath(), &settings)
+	if errors.Is(err, os.ErrNotExist) {
+		return config{}, nil
+	}
+	if err != nil {
+		return config{}, fmt.Errorf("read config: %w", err)
+	}
+	if keys := metadata.Undecoded(); len(keys) != 0 {
+		return config{}, fmt.Errorf("unknown config setting: %s", keys[0])
+	}
+	return settings, nil
 }
 
 // Standard-layout worktrees predate explicit name records. An empty name
