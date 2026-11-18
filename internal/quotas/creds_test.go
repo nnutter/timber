@@ -52,7 +52,7 @@ func TestXAITokenUsesClientSignInsInOrder(t *testing.T) {
 				require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 			}
 			source := Source{UserHome: func() string { return home }, Env: func(string) string { return "" }}
-			token, err := source.XAIToken()
+			token, _, err := source.XAIToken()
 			if tc.want == "" {
 				var missing MissingError
 				require.ErrorAs(t, err, &missing)
@@ -102,7 +102,7 @@ func TestPiAPIKeysPrecedeHermesButNotEnvironment(t *testing.T) {
 					}
 					return nil, os.ErrNotExist
 				}
-				key, err := source.APIKey(provider.id, []string{provider.envKey}, provider.id)
+				key, _, err := source.APIKey(provider.id, []string{provider.envKey}, provider.id)
 				require.NoError(t, err)
 				assert.Equal(t, tc.want, key)
 			})
@@ -139,7 +139,7 @@ func TestCopilotUsesPiBeforeGitHubCLI(t *testing.T) {
 				assert.Equal(t, "gh-token", tc.want, "GitHub CLI should only run as a fallback")
 				return []byte("gh-token\n"), nil
 			}
-			token, err := source.CopilotToken(t.Context())
+			token, _, err := source.CopilotToken(t.Context())
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, token)
 		})
@@ -152,7 +152,7 @@ func TestDotEnvBeatsAStaleEnvironmentKey(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "from-env")
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".env"), []byte("DEEPSEEK_API_KEY=from-dotenv\n"), 0o600))
 
-	key, err := (Source{}).APIKey("deepseek", []string{"DEEPSEEK_API_KEY"}, "DeepSeek")
+	key, _, err := (Source{}).APIKey("deepseek", []string{"DEEPSEEK_API_KEY"}, "DeepSeek")
 	require.NoError(t, err)
 	assert.Equal(t, "from-dotenv", key)
 }
@@ -165,7 +165,7 @@ func TestPoolSuppliesAKeyTheEnvironmentDoesNot(t *testing.T) {
 	t.Setenv("Z_AI_API_KEY", "")
 	require.NoError(t, os.WriteFile(filepath.Join(home, "auth.json"), []byte(`{"credential_pool":{"zai":[{"access_token":"pool-zai"}]}}`), 0o600))
 
-	key, err := (Source{}).APIKey("zai", []string{"GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"}, "Z.ai")
+	key, _, err := (Source{}).APIKey("zai", []string{"GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"}, "Z.ai")
 	require.NoError(t, err)
 	assert.Equal(t, "pool-zai", key)
 }
@@ -176,7 +176,7 @@ func TestConsoleAPIKeyIsNotAClaudePlan(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "")
 	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-api-test")
 
-	_, err := (Source{}).AnthropicPlanToken()
+	_, _, err := (Source{}).AnthropicPlanToken()
 	var missing MissingError
 	require.ErrorAs(t, err, &missing)
 	assert.Contains(t, missing.Error(), "Console API key")
@@ -192,7 +192,7 @@ func TestClaudeCodeFileSuppliesAPlanToken(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", ".credentials.json"), []byte(`{"claudeAiOauth":{"accessToken":"sk-ant-oat-file"}}`), 0o600))
 
-	token, err := (Source{UserHome: func() string { return home }}).AnthropicPlanToken()
+	token, _, err := (Source{UserHome: func() string { return home }}).AnthropicPlanToken()
 	require.NoError(t, err)
 	assert.Equal(t, "sk-ant-oat-file", token)
 }

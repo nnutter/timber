@@ -13,11 +13,11 @@ const (
 )
 
 func fetchMiniMax(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	token, err := source.MiniMaxToken()
+	token, credentialSource, err := source.MiniMaxToken()
 	if err != nil {
 		return Report{}, err
 	}
-	decoded, err := getJSON(ctx, client, miniMaxURL, bearer(token), readWait)
+	decoded, err := getJSON(ctx, client, miniMaxURL, bearer(token), readWait, credentialSource)
 	if err != nil {
 		return Report{}, err
 	}
@@ -25,21 +25,21 @@ func fetchMiniMax(ctx context.Context, source Source, client *http.Client) (Repo
 	if !ok {
 		return Report{}, SaidError{Text: "It answered with something that is not a report."}
 	}
-	if err := miniMaxRefusal(body); err != nil {
+	if err := miniMaxRefusal(body, credentialSource); err != nil {
 		return Report{}, err
 	}
 	limits, notes := miniMaxCollect(body)
 	return Report{Name: miniMaxName, Limits: limits, Notes: notes}, nil
 }
 
-func miniMaxRefusal(body map[string]any) error {
+func miniMaxRefusal(body map[string]any, credentialSource string) error {
 	base, _ := asObject(body["base_resp"])
 	code, codeOK := asNumber(base["status_code"])
 	if codeOK && !refusedCode(code) {
 		return nil
 	}
 	if code == 1004 {
-		return SaidError{Text: "It refused the key: sign in again in Hermes."}
+		return SaidError{Text: credentialRejected("code 1004", credentialSource)}
 	}
 	shown := "unknown"
 	if codeOK {

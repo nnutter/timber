@@ -16,12 +16,12 @@ const (
 )
 
 func fetchZAI(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	key, err := source.APIKey(zaiID, []string{"GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"}, "Z.ai")
+	key, credentialSource, err := source.APIKey(zaiID, []string{"GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"}, "Z.ai")
 	if err != nil {
 		return Report{}, err
 	}
 	headers := bearer(key)
-	decoded, err := getJSON(ctx, client, zaiURL, headers, readWait)
+	decoded, err := getJSON(ctx, client, zaiURL, headers, readWait, credentialSource)
 	if err != nil {
 		return Report{}, err
 	}
@@ -169,7 +169,7 @@ func zaiWindow(unit, count any) string {
 }
 
 func zaiPlanName(ctx context.Context, client *http.Client, headers map[string]string) string {
-	decoded, err := getJSON(ctx, client, zaiPlan, headers, 5*time.Second)
+	decoded, err := getJSON(ctx, client, zaiPlan, headers, 5*time.Second, "")
 	if err != nil {
 		return ""
 	}

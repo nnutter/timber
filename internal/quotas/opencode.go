@@ -14,11 +14,11 @@ const (
 )
 
 func fetchOpenCode(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	key, err := source.APIKey(openCodeID, []string{"OPENCODE_GO_API_KEY"}, "OpenCode Go")
+	key, credentialSource, err := source.APIKey(openCodeID, []string{"OPENCODE_GO_API_KEY"}, "OpenCode Go")
 	if err != nil {
 		return Report{}, err
 	}
-	decoded, err := getJSON(ctx, client, openCodeURL, bearer(key), readWait)
+	decoded, err := getJSON(ctx, client, openCodeURL, bearer(key), readWait, credentialSource)
 	if err != nil {
 		return Report{}, err
 	}

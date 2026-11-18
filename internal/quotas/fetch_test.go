@@ -133,6 +133,70 @@ func TestZAIRefusesAKeyWithoutACodingPlan(t *testing.T) {
 	assert.Equal(t, "This key has no GLM Coding Plan: subscribe at z.ai/subscribe.", said.Error())
 }
 
+func TestQuotaRefusalsNameCredentialSource(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		fetch  func(context.Context, Source, *http.Client) (Report, error)
+		source Source
+		status int
+		body   string
+		want   string
+	}{
+		{"DeepSeek environment", fetchDeepSeek, envSource(map[string]string{"DEEPSEEK_API_KEY": "test-key"}), http.StatusUnauthorized, "", "DEEPSEEK_API_KEY environment variable"},
+		{"MiniMax body refusal", fetchMiniMax, envSource(map[string]string{"MINIMAX_API_KEY": "test-key"}), http.StatusOK, `{"base_resp":{"status_code":1004}}`, "MINIMAX_API_KEY environment variable"},
+		{"Copilot Pi sign-in", fetchCopilot, Source{
+			UserHome: func() string { return "/test-home" },
+			Env:      func(string) string { return "" },
+			ReadFile: func(path string) ([]byte, error) {
+				if path == "/test-home/.pi/agent/auth.json" {
+					return []byte(`{"github-copilot":{"type":"oauth","access":"test-key"}}`), nil
+				}
+				return nil, os.ErrNotExist
+			},
+		}, http.StatusForbidden, "", "Pi"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := stubClient(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			})
+			_, err := tc.fetch(t.Context(), tc.source, client)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+			assert.NotContains(t, err.Error(), "test-key")
+		})
+	}
+}
+
+func TestGrokNamesRejectedCredentialSource(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{"Grok CLI", ".grok/auth.json", `{"https://auth.x.ai::client":{"auth_mode":"oidc","key":"token"}}`},
+		{"Pi", ".pi/agent/auth.json", `{"xai":{"type":"oauth","access":"token"}}`},
+		{"Hermes", ".hermes/auth.json", `{"providers":{"xai-oauth":{"tokens":{"access_token":"token"}}}}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			path := filepath.Join(home, tc.path)
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte(tc.body), 0o600))
+			source := Source{UserHome: func() string { return home }, Env: func(string) string { return "" }}
+			client := stubClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) })
+			_, err := fetchGrok(t.Context(), source, client)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "401")
+			assert.Contains(t, err.Error(), tc.name)
+		})
+	}
+}
+
 func TestGrokNamesATeamAccount(t *testing.T) {
 	t.Parallel()
 	client := stubClient(t, func(w http.ResponseWriter, _ *http.Request) {

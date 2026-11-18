@@ -16,14 +16,14 @@ const (
 )
 
 func fetchAnthropic(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	token, err := source.AnthropicPlanToken()
+	token, credentialSource, err := source.AnthropicPlanToken()
 	if err != nil {
 		return Report{}, err
 	}
 	decoded, err := getJSON(ctx, client, anthropicURL, map[string]string{
 		"Authorization":  "Bearer " + token,
 		"anthropic-beta": "oauth-2025-04-20",
-	}, readWait)
+	}, readWait, credentialSource)
 	if err != nil {
 		return Report{}, err
 	}

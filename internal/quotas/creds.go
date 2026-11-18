@@ -26,49 +26,49 @@ type Source struct {
 }
 
 // APIKey reads provider keys, including Pi keys for Ollama Cloud and OpenCode Go.
-func (s Source) APIKey(provider string, vars []string, what string) (string, error) {
+func (s Source) APIKey(provider string, vars []string, what string) (string, string, error) {
 	switch provider {
 	case "ollama-cloud", "opencode-go":
 		for _, key := range vars {
 			if value := strings.TrimSpace(s.env(key)); value != "" {
-				return value, nil
+				return value, key + " environment variable", nil
 			}
 		}
 		if token := s.piToken(provider, "api_key", "key"); token != "" {
-			return token, nil
+			return token, "Pi", nil
 		}
 	}
 	dotenv := s.dotEnv()
 	for _, key := range vars {
-		if value := preferDotEnv(dotenv, key, s.env(key)); value != "" {
-			return value, nil
+		if value, location := preferDotEnv(dotenv, key, s.env(key)); value != "" {
+			return value, location, nil
 		}
 	}
 	if token := s.poolToken(provider); token != "" {
-		return token, nil
+		return token, "Hermes", nil
 	}
-	return "", MissingError{Text: fmt.Sprintf("Add a %s key in Hermes to read its plan.", what)}
+	return "", "", MissingError{Text: fmt.Sprintf("Add a %s key in Hermes to read its plan.", what)}
 }
 
 // AnthropicPlanToken is Claude's plan sign-in. A Console API key has no plan.
-func (s Source) AnthropicPlanToken() (string, error) {
+func (s Source) AnthropicPlanToken() (string, string, error) {
 	dotenv := s.dotEnv()
-	if token := firstSecret(dotenv, s.env, "ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"); token != "" {
-		return requirePlanToken(token)
+	if token, location := firstSecret(dotenv, s.env, "ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"); token != "" {
+		return requirePlanToken(token, location)
 	}
-	if token := preferDotEnv(dotenv, "ANTHROPIC_API_KEY", s.env("ANTHROPIC_API_KEY")); token != "" {
-		return requirePlanToken(token)
+	if token, location := preferDotEnv(dotenv, "ANTHROPIC_API_KEY", s.env("ANTHROPIC_API_KEY")); token != "" {
+		return requirePlanToken(token, location)
 	}
 	if token := s.poolToken("anthropic"); claudeOAuth(token) {
-		return token, nil
+		return token, "Hermes", nil
 	}
 	if token := s.claudeCodeToken(); claudeOAuth(token) {
-		return token, nil
+		return token, "Claude Code", nil
 	}
 	if token := s.hermesOAuthToken(); claudeOAuth(token) {
-		return token, nil
+		return token, "Hermes", nil
 	}
-	return "", MissingError{Text: "Sign in to Claude in Hermes to read its plan."}
+	return "", "", MissingError{Text: "Sign in to Claude in Hermes to read its plan."}
 }
 
 // Command finds a service CLI from an override, PATH, or mise's shims.
@@ -86,60 +86,60 @@ func (s Source) Command(overrideEnv, name, missing string) (string, error) {
 }
 
 // CopilotToken is the GitHub token behind Copilot's premium requests.
-func (s Source) CopilotToken(ctx context.Context) (string, error) {
+func (s Source) CopilotToken(ctx context.Context) (string, string, error) {
 	for _, key := range []string{"GITHUB_TOKEN", "GH_TOKEN"} {
 		if value := strings.TrimSpace(s.env(key)); value != "" {
-			return value, nil
+			return value, key + " environment variable", nil
 		}
 	}
 	if token := s.piToken("github-copilot", "oauth", "access"); token != "" {
-		return token, nil
+		return token, "Pi", nil
 	}
 	gh, err := s.look("gh")
 	if err != nil || blank(gh) {
 		gh = s.shim("gh")
 	}
 	if gh == "" {
-		return "", MissingError{Text: "Sign in with the GitHub CLI (`gh auth login`) to read Copilot's plan."}
+		return "", "", MissingError{Text: "Sign in with the GitHub CLI (`gh auth login`) to read Copilot's plan."}
 	}
 	output, err := s.run(ctx, gh, "auth", "token")
 	token := strings.TrimSpace(string(output))
 	if err != nil || blank(token) {
-		return "", MissingError{Text: "Sign in with the GitHub CLI (`gh auth login`) to read Copilot's plan."}
+		return "", "", MissingError{Text: "Sign in with the GitHub CLI (`gh auth login`) to read Copilot's plan."}
 	}
-	return token, nil
+	return token, "GitHub CLI", nil
 }
 
 // MiniMaxToken is a Coding Plan key, or the OAuth access token for that plan.
-func (s Source) MiniMaxToken() (string, error) {
-	token, err := s.APIKey("minimax", []string{"MINIMAX_API_KEY"}, "MiniMax")
+func (s Source) MiniMaxToken() (string, string, error) {
+	token, location, err := s.APIKey("minimax", []string{"MINIMAX_API_KEY"}, "MiniMax")
 	if err == nil {
-		return token, nil
+		return token, location, nil
 	}
 	if oauth := s.providerToken("minimax-oauth"); oauth != "" {
-		return oauth, nil
+		return oauth, "Hermes", nil
 	}
 	if oauth := s.poolToken("minimax-oauth"); oauth != "" {
-		return oauth, nil
+		return oauth, "Hermes", nil
 	}
-	return "", err
+	return "", "", err
 }
 
 // XAIToken is a SuperGrok or X Premium sign-in, never an xAI API key.
-func (s Source) XAIToken() (string, error) {
+func (s Source) XAIToken() (string, string, error) {
 	if token := s.grokCLIToken(); token != "" {
-		return token, nil
+		return token, "Grok CLI", nil
 	}
 	if token := s.piToken("xai", "oauth", "access"); token != "" {
-		return token, nil
+		return token, "Pi", nil
 	}
 	if token := s.providerToken("xai-oauth"); token != "" {
-		return token, nil
+		return token, "Hermes", nil
 	}
 	if token := s.poolToken("xai-oauth"); token != "" {
-		return token, nil
+		return token, "Hermes", nil
 	}
-	return "", MissingError{Text: "Sign in to Grok with the Grok CLI, Pi, or Hermes to read its plan."}
+	return "", "", MissingError{Text: "Sign in to Grok with the Grok CLI, Pi, or Hermes to read its plan."}
 }
 
 func (s Source) authDocuments() []map[string]any {
@@ -317,31 +317,31 @@ func (s Source) userHome() string {
 	return home
 }
 
-func preferDotEnv(dotenv map[string]string, key, environ string) string {
+func preferDotEnv(dotenv map[string]string, key, environ string) (string, string) {
 	raw := strings.TrimSpace(dotenv[key])
 	if strings.HasPrefix(raw, "op://") {
 		raw = ""
 	}
 	if raw != "" {
-		return raw
+		return raw, "Hermes .env (" + key + ")"
 	}
-	return strings.TrimSpace(environ)
+	return strings.TrimSpace(environ), key + " environment variable"
 }
 
-func firstSecret(dotenv map[string]string, env func(string) string, keys ...string) string {
+func firstSecret(dotenv map[string]string, env func(string) string, keys ...string) (string, string) {
 	for _, key := range keys {
-		if value := preferDotEnv(dotenv, key, env(key)); value != "" {
-			return value
+		if value, location := preferDotEnv(dotenv, key, env(key)); value != "" {
+			return value, location
 		}
 	}
-	return ""
+	return "", ""
 }
 
-func requirePlanToken(token string) (string, error) {
+func requirePlanToken(token, location string) (string, string, error) {
 	if claudeOAuth(token) {
-		return token, nil
+		return token, location, nil
 	}
-	return "", MissingError{Text: "Claude's plan is only reported for a Claude sign-in, not a Console API key."}
+	return "", "", MissingError{Text: "Claude's plan is only reported for a Claude sign-in, not a Console API key."}
 }
 
 func claudeOAuth(token string) bool {
