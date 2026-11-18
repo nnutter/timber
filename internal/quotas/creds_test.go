@@ -52,7 +52,7 @@ func TestXAITokenUsesClientSignInsInOrder(t *testing.T) {
 				require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 			}
 			source := Source{UserHome: func() string { return home }, Env: func(string) string { return "" }}
-			token, err := source.XAIToken()
+			token, _, err := source.XAIToken()
 			if tc.want == "" {
 				var missing MissingError
 				require.ErrorAs(t, err, &missing)

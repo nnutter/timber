@@ -126,20 +126,20 @@ func (s Source) MiniMaxToken() (string, error) {
 }
 
 // XAIToken is a SuperGrok or X Premium sign-in, never an xAI API key.
-func (s Source) XAIToken() (string, error) {
+func (s Source) XAIToken() (string, string, error) {
 	if token := s.grokCLIToken(); token != "" {
-		return token, nil
+		return token, "Grok CLI", nil
 	}
 	if token := s.piToken("xai", "oauth", "access"); token != "" {
-		return token, nil
+		return token, "Pi", nil
 	}
 	if token := s.providerToken("xai-oauth"); token != "" {
-		return token, nil
+		return token, "Hermes", nil
 	}
 	if token := s.poolToken("xai-oauth"); token != "" {
-		return token, nil
+		return token, "Hermes", nil
 	}
-	return "", MissingError{Text: "Sign in to Grok with the Grok CLI, Pi, or Hermes to read its plan."}
+	return "", "", MissingError{Text: "Sign in to Grok with the Grok CLI, Pi, or Hermes to read its plan."}
 }
 
 func (s Source) authDocuments() []map[string]any {
