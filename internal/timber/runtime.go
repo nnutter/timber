@@ -477,7 +477,7 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 		}
 		return enriched, err
 	}
-	worktrees, err := runtime.collectWorktrees(repos, enrich)
+	worktrees, err := collectListedWorktrees(runtime, repos, enrich)
 	if err != nil {
 		return err
 	}
@@ -1123,7 +1123,6 @@ func (x Runtime) defineCurrentHerdrSpace(ctx context.Context, worktree managedWo
 	return space.focus(ctx)
 }
 
-// displayHomePath replaces a leading home directory with "~" for display.
 // A qualified lookup walks only the target's ancestors. Use the same walk as
 // discovery so that case, symlinks, and enclosing repositories behave alike.
 func (x Runtime) discoverRegisteredRepos(name string) ([]registeredRepo, error) {
@@ -1166,6 +1165,7 @@ func (x Runtime) discoverRegisteredRepos(name string) ([]registeredRepo, error) 
 	return repos, nil
 }
 
+// displayHomePath replaces a leading home directory with "~" for display.
 func (x Runtime) displayHomePath(path string) string {
 	home := x.HomeDirectory
 	if home == "" {
@@ -2088,8 +2088,8 @@ func (x Runtime) registeredRepoAt(root string, path string) (registeredRepo, boo
 	if !info.IsDir() {
 		return registeredRepo{}, false, true
 	}
-	bare, bareErr := pathIsBareRepository(x, gitDir)
-	if !bare || !isSame(bareErr, nil) {
+	resolvedGitDir, err := registeredBareGitDir(x, gitDir)
+	if err != nil {
 		return registeredRepo{}, false, true
 	}
 	relative, err := filepath.Rel(root, path)
@@ -2100,7 +2100,7 @@ func (x Runtime) registeredRepoAt(root string, path string) (registeredRepo, boo
 	if err := validateRepoName(repoName); err != nil {
 		return registeredRepo{}, false, true
 	}
-	return registeredRepo{Name: repoName, BarePath: gitDir}, true, true
+	return registeredRepo{Name: repoName, BarePath: gitDir, GitDir: resolvedGitDir}, true, true
 }
 
 func (x Runtime) registeredRepoByName(name string) (registeredRepo, error) {
