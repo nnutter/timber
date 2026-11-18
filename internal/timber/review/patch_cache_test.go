@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"charm.land/log/v2"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,6 +79,27 @@ func TestSnapshotPatchCacheTracksDiffInputs(t *testing.T) {
 			require.Equal(t, uncached, after.Stacks[0].PatchHash)
 		})
 	}
+}
+
+func TestSnapshotRefreshesPatchForAttributesOnOneOfSeveralStacks(t *testing.T) {
+	r := testRepo(t)
+	for _, path := range []string{"first file", "second"} {
+		require.NoError(t, os.WriteFile(filepath.Join(r.Dir, path), []byte("text\n"), 0o600))
+		gitTest(t, r.Dir, "add", "--", path)
+		gitTest(t, r.Dir, "commit", "-m", "Add "+path)
+	}
+	before, err := r.Snapshot(t.Context())
+	require.NoError(t, err)
+	require.Len(t, before.Stacks, 2)
+
+	attributes := filepath.Join(r.Dir, ".git", "info", "attributes")
+	require.NoError(t, os.WriteFile(attributes, []byte("\"first file\" -diff\n"), 0o600))
+	after, err := r.Snapshot(t.Context())
+	require.NoError(t, err)
+	require.Len(t, after.Stacks, 2)
+	assert.Equal(t, before.Head, after.Head)
+	assert.NotEqual(t, before.Stacks[0].PatchHash, after.Stacks[0].PatchHash)
+	assert.Equal(t, before.Stacks[1].PatchHash, after.Stacks[1].PatchHash)
 }
 
 func TestSnapshotPatchCacheFailureIsDisposable(t *testing.T) {
