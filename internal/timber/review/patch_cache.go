@@ -16,6 +16,7 @@ import (
 type patchCache struct {
 	dir, context string
 	repo         string
+	pathsByTip   map[string][]string
 	writable     bool
 }
 
@@ -25,7 +26,16 @@ func (c *patchCache) hash(ctx context.Context, r Repository, base, tip string) (
 	}
 	root := r
 	root.Dir = c.repo
-	attributes, err := patchAttributes(ctx, root, base, tip)
+	paths, ok := c.pathsByTip[tip]
+	if !ok {
+		var err error
+		paths, err = patchPaths(ctx, root, base, tip)
+		if err != nil {
+			r.logger().Debug("Patch cache unavailable", "error", err)
+			return r.patchHash(ctx, base, tip)
+		}
+	}
+	attributes, err := patchAttributes(ctx, root, paths)
 	if err != nil {
 		r.logger().Debug("Patch cache unavailable", "error", err)
 		return r.patchHash(ctx, base, tip)
@@ -73,6 +83,14 @@ func newPatchCache(ctx context.Context, r Repository, view Snapshot, repo string
 	}
 	inputs := []string{"patch-context-v3", version, config, environmentValue(r.Environment, "GIT_DIFF_OPTS"), environmentValue(r.Environment, "GIT_ATTR_SOURCE")}
 	cache := &patchCache{dir: patchCachePath(view), repo: repo, context: fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(inputs, "\x00"))))}
+	if len(view.Stacks) > 1 {
+		paths, err := batchPatchPaths(ctx, root, view.Stacks)
+		if err != nil {
+			r.logger().Debug("Batched patch paths unavailable", "error", err)
+		} else {
+			cache.pathsByTip = paths
+		}
+	}
 	if err := os.MkdirAll(cache.dir, 0o700); err != nil {
 		r.logger().Debug("Patch cache is read-only", "error", err)
 	} else {
@@ -83,19 +101,13 @@ func newPatchCache(ctx context.Context, r Repository, view Snapshot, repo string
 
 // Attribute inputs belong to one stack, not the snapshot that selected it.
 // Git resolves worktree, index, info, and global/system attribute sources.
-func patchAttributes(ctx context.Context, r Repository, base, tip string) (string, error) {
-	paths, err := r.gitOutput(ctx, "diff-tree", "--no-commit-id", "--name-only", "--no-renames", "-r", "-z", base, tip)
-	if err != nil {
-		return "", err
+func patchAttributes(ctx context.Context, r Repository, paths []string) (string, error) {
+	if len(paths) == 0 {
+		return "", nil
 	}
-	names := strings.Split(strings.TrimSuffix(paths, "\x00"), "\x00")
-	slices.Sort(names)
-	names = slices.Compact(names)
-	input := ""
-	if paths != "" {
-		input = strings.Join(names, "\x00") + "\x00"
-	}
-	return r.gitInput(ctx, input, "check-attr", "--all", "--stdin", "-z")
+	slices.Sort(paths)
+	paths = slices.Compact(paths)
+	return r.gitInput(ctx, strings.Join(paths, "\x00")+"\x00", "check-attr", "--all", "--stdin", "-z")
 }
 
 func readPatchCache(path string) (string, bool) {
