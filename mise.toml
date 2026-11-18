@@ -15,8 +15,8 @@ CONDA_PREFIX = false
 jactionlint = "latest"
 # constable embeds the errcheck, sumtype, testifylint, and nilaway analyzers,
 # so it replaces those linters rather than running beside them.
-"github:nnutter/constable" = "latest"
-"github:nnutter/mdlint" = "latest"
+"github:nnutter/constable" = { version = "latest", "minimum_release_age" = "0" }
+"github:nnutter/mdlint" = { version = "latest", "minimum_release_age" = "0" }
 "github:securego/gosec" = "latest"
 betterleaks = "latest"
 go = "latest"
