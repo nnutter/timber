@@ -28,7 +28,7 @@ func NewHTTPClient() *http.Client {
 	}
 }
 
-func getJSON(ctx context.Context, client *http.Client, endpoint string, headers map[string]string, wait time.Duration) (any, error) {
+func getJSON(ctx context.Context, client *http.Client, endpoint string, headers map[string]string, wait time.Duration, credentialSource string) (any, error) {
 	if client == nil {
 		client = NewHTTPClient()
 	}
@@ -55,7 +55,7 @@ func getJSON(ctx context.Context, client *http.Client, endpoint string, headers 
 	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode >= 300 {
-		return nil, StatusError{Status: response.StatusCode, Text: answered(response.StatusCode)}
+		return nil, StatusError{Status: response.StatusCode, Text: answered(response.StatusCode, credentialSource)}
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, readLimit+1))
 	if err != nil {
@@ -85,14 +85,21 @@ func requestFailure(ctx context.Context, err error, wait time.Duration) error {
 	return SaidError{Text: "It could not be reached: try again later."}
 }
 
-func answered(status int) string {
-	if status == http.StatusUnauthorized || forbidden(status) {
-		return fmt.Sprintf("It refused the sign-in (%d): sign in again in Hermes.", status)
+func answered(status int, credentialSource string) string {
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return credentialRejected(fmt.Sprint(status), credentialSource)
+	default:
+		return fmt.Sprintf("It answered %d.", status)
 	}
-	return fmt.Sprintf("It answered %d.", status)
 }
 
-func forbidden(status int) bool { return status == http.StatusForbidden }
+func credentialRejected(code, credentialSource string) string {
+	if credentialSource == "" {
+		return fmt.Sprintf("It refused the credential (%s): check or replace it.", code)
+	}
+	return fmt.Sprintf("It refused the credential from %s (%s): check or replace that credential.", credentialSource, code)
+}
 
 func readFailure(err error) string {
 	if errors.Is(err, context.DeadlineExceeded) {

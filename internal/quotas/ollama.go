@@ -13,11 +13,11 @@ const (
 )
 
 func fetchOllama(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	key, _, err := source.APIKey("ollama-cloud", []string{"OLLAMA_API_KEY"}, "Ollama Cloud")
+	key, credentialSource, err := source.APIKey("ollama-cloud", []string{"OLLAMA_API_KEY"}, "Ollama Cloud")
 	if err != nil {
 		return Report{}, err
 	}
-	decoded, err := getJSON(ctx, client, ollamaURL, bearer(key), readWait)
+	decoded, err := getJSON(ctx, client, ollamaURL, bearer(key), readWait, credentialSource)
 	if err != nil {
 		return Report{}, err
 	}

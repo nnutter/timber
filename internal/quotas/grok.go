@@ -24,9 +24,9 @@ func fetchGrok(ctx context.Context, source Source, client *http.Client) (Report,
 		"Authorization":    "Bearer " + token,
 		"x-xai-token-auth": "xai-grok-cli", // #nosec G101 -- client name the Grok CLI sends, not a secret
 	}
-	decoded, err := getJSON(ctx, client, grokBilling, headers, readWait)
+	decoded, err := getJSON(ctx, client, grokBilling, headers, readWait, credentialSource)
 	if err != nil {
-		return Report{}, grokError(err, credentialSource)
+		return Report{}, grokError(err)
 	}
 	body, ok := asObject(decoded)
 	if !ok {
@@ -59,20 +59,15 @@ func fetchGrok(ctx context.Context, source Source, client *http.Client) (Report,
 	return Report{Name: grokPlanName(ctx, client, headers), Limits: limits, Notes: notes}, nil
 }
 
-func grokError(err error, credentialSource string) error {
-	if status, ok := errors.AsType[StatusError](err); ok {
-		if teamAccount(status) {
-			return SaidError{Text: "Grok keeps no personal quota for a team account."}
-		}
-		if status.Status == http.StatusUnauthorized || forbidden(status.Status) {
-			return SaidError{Text: fmt.Sprintf("It refused the %s sign-in (%d): sign in again in %s.", credentialSource, status.Status, credentialSource)}
-		}
+func grokError(err error) error {
+	if status, ok := errors.AsType[StatusError](err); ok && teamAccount(status) {
+		return SaidError{Text: "Grok keeps no personal quota for a team account."}
 	}
 	return err
 }
 
 func grokPlanName(ctx context.Context, client *http.Client, headers map[string]string) string {
-	decoded, err := getJSON(ctx, client, grokSettings, headers, 5*time.Second)
+	decoded, err := getJSON(ctx, client, grokSettings, headers, 5*time.Second, "")
 	if err != nil {
 		return grokName
 	}

@@ -14,14 +14,14 @@ const (
 )
 
 func fetchCopilot(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	token, _, err := source.CopilotToken(ctx)
+	token, credentialSource, err := source.CopilotToken(ctx)
 	if err != nil {
 		return Report{}, err
 	}
 	decoded, err := getJSON(ctx, client, copilotURL, map[string]string{
 		"Authorization":        "token " + token,
 		"X-GitHub-Api-Version": "2025-04-01",
-	}, readWait)
+	}, readWait, credentialSource)
 	if err != nil {
 		return Report{}, err
 	}

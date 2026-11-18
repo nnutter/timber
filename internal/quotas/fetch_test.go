@@ -133,6 +133,43 @@ func TestZAIRefusesAKeyWithoutACodingPlan(t *testing.T) {
 	assert.Equal(t, "This key has no GLM Coding Plan: subscribe at z.ai/subscribe.", said.Error())
 }
 
+func TestQuotaRefusalsNameCredentialSource(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		fetch  func(context.Context, Source, *http.Client) (Report, error)
+		source Source
+		status int
+		body   string
+		want   string
+	}{
+		{"DeepSeek environment", fetchDeepSeek, envSource(map[string]string{"DEEPSEEK_API_KEY": "test-key"}), http.StatusUnauthorized, "", "DEEPSEEK_API_KEY environment variable"},
+		{"MiniMax body refusal", fetchMiniMax, envSource(map[string]string{"MINIMAX_API_KEY": "test-key"}), http.StatusOK, `{"base_resp":{"status_code":1004}}`, "MINIMAX_API_KEY environment variable"},
+		{"Copilot Pi sign-in", fetchCopilot, Source{
+			UserHome: func() string { return "/test-home" },
+			Env:      func(string) string { return "" },
+			ReadFile: func(path string) ([]byte, error) {
+				if path == "/test-home/.pi/agent/auth.json" {
+					return []byte(`{"github-copilot":{"type":"oauth","access":"test-key"}}`), nil
+				}
+				return nil, os.ErrNotExist
+			},
+		}, http.StatusForbidden, "", "Pi"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := stubClient(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			})
+			_, err := tc.fetch(t.Context(), tc.source, client)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+			assert.NotContains(t, err.Error(), "test-key")
+		})
+	}
+}
+
 func TestGrokNamesRejectedCredentialSource(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
