@@ -6,6 +6,25 @@ import (
 	"strings"
 )
 
+func snapshotPatchPaths(ctx context.Context, r Repository, stacks []Stack) (map[string][]string, error) {
+	if len(stacks) > 1 {
+		paths, err := batchPatchPaths(ctx, r, stacks)
+		if err == nil {
+			return paths, nil
+		}
+		r.logger().Debug("Batched patch paths unavailable", "error", err)
+	}
+	pathsByTip := make(map[string][]string, len(stacks))
+	for _, stack := range stacks {
+		paths, err := patchPaths(ctx, r, stack.Base, stack.Tip)
+		if err != nil {
+			return nil, err
+		}
+		pathsByTip[stack.Tip] = paths
+	}
+	return pathsByTip, nil
+}
+
 func patchPaths(ctx context.Context, r Repository, base, tip string) ([]string, error) {
 	out, err := r.gitOutput(ctx, "diff-tree", "--no-commit-id", "--name-only", "--no-renames", "-r", "-z", base, tip)
 	if err != nil {
