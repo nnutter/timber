@@ -1124,6 +1124,48 @@ func (x Runtime) defineCurrentHerdrSpace(ctx context.Context, worktree managedWo
 }
 
 // displayHomePath replaces a leading home directory with "~" for display.
+// A qualified lookup walks only the target's ancestors. Use the same walk as
+// discovery so that case, symlinks, and enclosing repositories behave alike.
+func (x Runtime) discoverRegisteredRepos(name string) ([]registeredRepo, error) {
+	root := x.worktreeRoot()
+	var target string
+	if name != "" {
+		target = filepath.Join(root, filepath.FromSlash(name))
+	}
+	if _, err := os.Stat(root); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return make([]registeredRepo, 0), nil
+		}
+		return nil, fmt.Errorf("read worktree root %q: %w", root, err)
+	}
+
+	repos := make([]registeredRepo, 0)
+	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || !entry.IsDir() {
+			return nil
+		}
+		if !discoveryIncludesPath(root, path, target) {
+			return filepath.SkipDir
+		}
+		repo, found, skipChildren := x.registeredRepoAt(root, path)
+		if found {
+			repos = append(repos, repo)
+		}
+		if skipChildren {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("read worktree root %q: %w", root, walkErr)
+	}
+
+	slices.SortFunc(repos, func(left, right registeredRepo) int {
+		return strings.Compare(left.Name, right.Name)
+	})
+	return repos, nil
+}
+
 func (x Runtime) displayHomePath(path string) string {
 	home := x.HomeDirectory
 	if home == "" {
@@ -1675,36 +1717,7 @@ func (x Runtime) listLegacyRepos() ([]registeredRepo, error) {
 }
 
 func (x Runtime) listRegisteredRepos() ([]registeredRepo, error) {
-	root := x.worktreeRoot()
-	if _, err := os.Stat(root); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return make([]registeredRepo, 0), nil
-		}
-		return nil, fmt.Errorf("read worktree root %q: %w", root, err)
-	}
-
-	repos := make([]registeredRepo, 0)
-	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || !entry.IsDir() {
-			return nil
-		}
-		repo, found, skipChildren := x.registeredRepoAt(root, path)
-		if found {
-			repos = append(repos, repo)
-		}
-		if skipChildren {
-			return filepath.SkipDir
-		}
-		return nil
-	})
-	if walkErr != nil {
-		return nil, fmt.Errorf("read worktree root %q: %w", root, walkErr)
-	}
-
-	slices.SortFunc(repos, func(left, right registeredRepo) int {
-		return strings.Compare(left.Name, right.Name)
-	})
-	return repos, nil
+	return x.discoverRegisteredRepos("")
 }
 
 func (x Runtime) listRegisteredReposForWizard() ([]registeredRepo, error) {
@@ -2091,7 +2104,7 @@ func (x Runtime) registeredRepoAt(root string, path string) (registeredRepo, boo
 }
 
 func (x Runtime) registeredRepoByName(name string) (registeredRepo, error) {
-	repos, err := x.listRegisteredRepos()
+	repos, err := x.discoverRegisteredRepos(name)
 	if err != nil {
 		return registeredRepo{}, err
 	}
@@ -2508,6 +2521,10 @@ func RuntimeFromProcess() (Runtime, error) {
 		RenamePathFile:     os.Getenv(repoRenamePathFileEnvVarName),
 		Environment:        slices.Clone(os.Environ()),
 	}, nil
+}
+
+func discoveryIncludesPath(root, path, target string) bool {
+	return isEmpty(target) || isSame(path, root) || isSame(path, target) || strings.HasPrefix(target, path+string(filepath.Separator))
 }
 
 // movedCurrentDirectory maps a directory inside the source worktree to the
