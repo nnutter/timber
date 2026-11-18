@@ -14,7 +14,7 @@ const (
 )
 
 func fetchCopilot(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	token, err := source.CopilotToken(ctx)
+	token, _, err := source.CopilotToken(ctx)
 	if err != nil {
 		return Report{}, err
 	}

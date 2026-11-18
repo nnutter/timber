@@ -16,7 +16,7 @@ const (
 )
 
 func fetchAnthropic(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	token, err := source.AnthropicPlanToken()
+	token, _, err := source.AnthropicPlanToken()
 	if err != nil {
 		return Report{}, err
 	}

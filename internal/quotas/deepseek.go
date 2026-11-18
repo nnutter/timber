@@ -12,7 +12,7 @@ const (
 )
 
 func fetchDeepSeek(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	key, err := source.APIKey(deepSeekID, []string{"DEEPSEEK_API_KEY"}, "DeepSeek")
+	key, _, err := source.APIKey(deepSeekID, []string{"DEEPSEEK_API_KEY"}, "DeepSeek")
 	if err != nil {
 		return Report{}, err
 	}

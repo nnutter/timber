@@ -13,7 +13,7 @@ const (
 )
 
 func fetchMiniMax(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	token, err := source.MiniMaxToken()
+	token, _, err := source.MiniMaxToken()
 	if err != nil {
 		return Report{}, err
 	}

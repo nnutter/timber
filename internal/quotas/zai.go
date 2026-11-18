@@ -16,7 +16,7 @@ const (
 )
 
 func fetchZAI(ctx context.Context, source Source, client *http.Client) (Report, error) {
-	key, err := source.APIKey(zaiID, []string{"GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"}, "Z.ai")
+	key, _, err := source.APIKey(zaiID, []string{"GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"}, "Z.ai")
 	if err != nil {
 		return Report{}, err
 	}
