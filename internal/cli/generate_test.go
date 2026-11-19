@@ -664,9 +664,11 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 	sortValue := runComplete("t list --sort rec", "recency")
 	assert.Contains(t, sortValue, "t list --sort recency")
 
-	wrapperFlags := runComplete("t create --no-", "--no-cd", "--no-herdr")
-	assert.Contains(t, wrapperFlags, "--no-cd")
-	assert.Contains(t, wrapperFlags, "--no-herdr")
+	for _, command := range []string{"create", "c"} {
+		wrapperFlags := runComplete("t "+command+" --no-", "--no-cd", "--no-herdr")
+		assert.Contains(t, wrapperFlags, "--no-cd", "command=%s", command)
+		assert.Contains(t, wrapperFlags, "--no-herdr", "command=%s", command)
+	}
 }
 
 func TestGeneratedZshWrapperAutoloadsAfterCompinit(t *testing.T) {
@@ -710,29 +712,46 @@ func TestGeneratedZshWrapperChangesToRenamedCurrentWorktree(t *testing.T) {
 	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	worktreeParent := resolvedTempDir(t)
-	oldWorktree := filepath.Join(worktreeParent, "old")
-	oldSubdirectory := filepath.Join(oldWorktree, "nested")
-	require.NoError(t, os.MkdirAll(oldSubdirectory, 0o755))
+	type testCase struct {
+		name       string
+		invocation string
+	}
+	for _, tc := range []testCase{
+		{name: "repo rename", invocation: "repo rename"},
+		{name: "repo mv", invocation: "repo mv"},
+		{name: "rp rename", invocation: "rp rename"},
+		{name: "rp mv", invocation: "rp mv"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			worktreeParent := resolvedTempDir(t)
+			oldWorktree := filepath.Join(worktreeParent, "old")
+			oldSubdirectory := filepath.Join(oldWorktree, "nested")
+			require.NoError(t, os.MkdirAll(oldSubdirectory, 0o755))
 
-	binDir := resolvedTempDir(t)
-	fakeTimber := `#!/bin/sh
+			binDir := resolvedTempDir(t)
+			fakeTimber := `#!/bin/sh
 old_worktree=$(dirname "$PWD")
 new_worktree=$(dirname "$old_worktree")/new
 mv "$old_worktree" "$new_worktree" || exit $?
-printf '%s\n' "$new_worktree/nested" > "$TIMBER_RENAME_PATH_FILE"
+if [ -n "${TIMBER_RENAME_PATH_FILE:-}" ]; then
+    printf '%s\n' "$new_worktree/nested" > "$TIMBER_RENAME_PATH_FILE"
+fi
 `
-	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := shellTestCommand(t,
-		"zsh", "-f", "-c",
-		`source "$1"; cd "$2"; t repo rename old new >/dev/null; pwd -P`,
-		"--", filepath.Join(outDir, "t"), oldSubdirectory,
-	)
-	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	output, err := command.CombinedOutput()
-	require.NoError(t, err, string(output))
-	assert.Equal(t, shellCanonicalPath(filepath.Join(worktreeParent, "new", "nested")), strings.TrimSpace(string(output)))
+			command := shellTestCommand(t,
+				"zsh", "-f", "-c",
+				`source "$1"; cd "$2"; t `+tc.invocation+` old new >/dev/null; printf '%s\n%s\n' "$PWD" "$(pwd -P)"`,
+				"--", filepath.Join(outDir, "t"), oldSubdirectory,
+			)
+			command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			output, err := command.CombinedOutput()
+			require.NoError(t, err, string(output))
+			want := shellCanonicalPath(filepath.Join(worktreeParent, "new", "nested"))
+			assert.Equal(t, want+"\n"+want, strings.TrimSpace(string(output)))
+		})
+	}
 }
 
 func TestGeneratedZshWrapperChangesToMovedCurrentWorktree(t *testing.T) {
@@ -744,29 +763,37 @@ func TestGeneratedZshWrapperChangesToMovedCurrentWorktree(t *testing.T) {
 	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	worktreeParent := resolvedTempDir(t)
-	oldWorktree := filepath.Join(worktreeParent, "old")
-	oldSubdirectory := filepath.Join(oldWorktree, "nested")
-	require.NoError(t, os.MkdirAll(oldSubdirectory, 0o755))
+	for _, subcommand := range []string{"move", "mv"} {
+		t.Run(subcommand, func(t *testing.T) {
+			t.Parallel()
+			worktreeParent := resolvedTempDir(t)
+			oldWorktree := filepath.Join(worktreeParent, "old")
+			oldSubdirectory := filepath.Join(oldWorktree, "nested")
+			require.NoError(t, os.MkdirAll(oldSubdirectory, 0o755))
 
-	binDir := resolvedTempDir(t)
-	fakeTimber := `#!/bin/sh
+			binDir := resolvedTempDir(t)
+			fakeTimber := `#!/bin/sh
 old_worktree=$(dirname "$PWD")
 new_worktree=$(dirname "$old_worktree")/new
 mv "$old_worktree" "$new_worktree" || exit $?
-printf '%s\n' "$new_worktree/nested" > "$TIMBER_RENAME_PATH_FILE"
+if [ -n "${TIMBER_RENAME_PATH_FILE:-}" ]; then
+    printf '%s\n' "$new_worktree/nested" > "$TIMBER_RENAME_PATH_FILE"
+fi
 `
-	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := shellTestCommand(t,
-		"zsh", "-f", "-c",
-		`source "$1"; cd "$2"; t move feature@repo "$3" >/dev/null; pwd -P`,
-		"--", filepath.Join(outDir, "t"), oldSubdirectory, filepath.Join(worktreeParent, "new"),
-	)
-	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	output, err := command.CombinedOutput()
-	require.NoError(t, err, string(output))
-	assert.Equal(t, shellCanonicalPath(filepath.Join(worktreeParent, "new", "nested")), strings.TrimSpace(string(output)))
+			command := shellTestCommand(t,
+				"zsh", "-f", "-c",
+				`source "$1"; cd "$2"; t `+subcommand+` feature@repo "$3" >/dev/null; printf '%s\n%s\n' "$PWD" "$(pwd -P)"`,
+				"--", filepath.Join(outDir, "t"), oldSubdirectory, filepath.Join(worktreeParent, "new"),
+			)
+			command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			output, err := command.CombinedOutput()
+			require.NoError(t, err, string(output))
+			want := shellCanonicalPath(filepath.Join(worktreeParent, "new", "nested"))
+			assert.Equal(t, want+"\n"+want, strings.TrimSpace(string(output)))
+		})
+	}
 }
 
 func TestGeneratedZshWrapperRestoresDirectoryOnFailure(t *testing.T) {
@@ -832,37 +859,49 @@ func TestGeneratedZshWrapperLeavesRemovedCurrentDirectoryForHome(t *testing.T) {
 	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	removedDir := resolvedTempDir(t)
-	binDir := resolvedTempDir(t)
-	fakeTimber := `#!/bin/sh
+	for _, subcommand := range []string{"remove", "rm"} {
+		t.Run(subcommand, func(t *testing.T) {
+			t.Parallel()
+			removedDir := resolvedTempDir(t)
+			binDir := resolvedTempDir(t)
+			fakeTimber := `#!/bin/sh
 cd / && rm -rf "$2"
 `
-	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := shellTestCommand(t,
-		"zsh", "-f", "-c",
-		`source "$1"; cd "$2"; t remove "$2" >/dev/null; printf '%s' "$PWD"`,
-		"--", filepath.Join(outDir, "t"), removedDir,
-	)
-	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	output, err := command.CombinedOutput()
-	require.NoError(t, err, string(output))
-	assert.Equal(t, shellCanonicalPath(command.Dir), strings.TrimSpace(string(output)))
+			command := shellTestCommand(t,
+				"zsh", "-f", "-c",
+				`source "$1"; cd "$2"; t `+subcommand+` "$2" >/dev/null; printf '%s' "$PWD"`,
+				"--", filepath.Join(outDir, "t"), removedDir,
+			)
+			command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			output, err := command.CombinedOutput()
+			require.NoError(t, err, string(output))
+			assert.Equal(t, shellCanonicalPath(command.Dir), strings.TrimSpace(string(output)))
+		})
+	}
 }
 
 func TestGeneratedZshWrapperChangesDirectoryOnSwitch(t *testing.T) {
 	t.Parallel()
-	targetDir := resolvedTempDir(t)
-	fakeTimber := `#!/bin/sh
-printf '%s\n' "$TIMBER_SWITCH_PATH_FILE_TARGET" > "$TIMBER_SWITCH_PATH_FILE"
+	for _, subcommand := range []string{"switch", "sw"} {
+		t.Run(subcommand, func(t *testing.T) {
+			t.Parallel()
+			targetDir := resolvedTempDir(t)
+			fakeTimber := `#!/bin/sh
+if [ -n "${TIMBER_SWITCH_PATH_FILE:-}" ]; then
+    printf '%s\n' "$TIMBER_SWITCH_PATH_FILE_TARGET" > "$TIMBER_SWITCH_PATH_FILE"
+fi
 `
-	command := generatedZshCommand(t, fakeTimber,
-		`source "$1"; t switch feature@repo >/dev/null; pwd -P`,
-	)
-	command.Env = shellTestEnvironment(command.Env, "TIMBER_SWITCH_PATH_FILE_TARGET="+targetDir)
-	output, err := command.CombinedOutput()
-	require.NoError(t, err, string(output))
-	assert.Equal(t, shellCanonicalPath(targetDir), strings.TrimSpace(string(output)))
+			command := generatedZshCommand(t, fakeTimber,
+				`source "$1"; t `+subcommand+` feature@repo >/dev/null; pwd -P`,
+			)
+			command.Env = shellTestEnvironment(command.Env, "TIMBER_SWITCH_PATH_FILE_TARGET="+targetDir)
+			output, err := command.CombinedOutput()
+			require.NoError(t, err, string(output))
+			assert.Equal(t, shellCanonicalPath(targetDir), strings.TrimSpace(string(output)))
+		})
+	}
 }
 
 func TestGeneratedZshWrapperLeavesImportedSourceDirectory(t *testing.T) {
@@ -874,23 +913,28 @@ func TestGeneratedZshWrapperLeavesImportedSourceDirectory(t *testing.T) {
 	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	startDir := resolvedTempDir(t)
-	sourceDir := resolvedTempDir(t)
-	binDir := resolvedTempDir(t)
-	fakeTimber := `#!/bin/sh
+	for _, subcommand := range []string{"repo", "rp"} {
+		t.Run(subcommand, func(t *testing.T) {
+			t.Parallel()
+			startDir := resolvedTempDir(t)
+			sourceDir := resolvedTempDir(t)
+			binDir := resolvedTempDir(t)
+			fakeTimber := `#!/bin/sh
 rm -rf "$3"
 `
-	require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(binDir, "timber"), []byte(fakeTimber), 0o755))
 
-	command := shellTestCommand(t,
-		"zsh", "-f", "-c",
-		`source "$1"; cd "$2"; t repo import "$3" >/dev/null; printf '%s' "$PWD"`,
-		"--", filepath.Join(outDir, "t"), startDir, sourceDir,
-	)
-	command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	output, err := command.CombinedOutput()
-	require.NoError(t, err, string(output))
-	assert.Equal(t, shellCanonicalPath(command.Dir), strings.TrimSpace(string(output)))
+			command := shellTestCommand(t,
+				"zsh", "-f", "-c",
+				`source "$1"; cd "$2"; t `+subcommand+` import "$3" >/dev/null; printf '%s' "$PWD"`,
+				"--", filepath.Join(outDir, "t"), startDir, sourceDir,
+			)
+			command.Env = shellTestEnvironment(command.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			output, err := command.CombinedOutput()
+			require.NoError(t, err, string(output))
+			assert.Equal(t, shellCanonicalPath(command.Dir), strings.TrimSpace(string(output)))
+		})
+	}
 }
 
 func TestGeneratedZshWrapperRestoresDirectoryOnFailedImport(t *testing.T) {
