@@ -90,8 +90,9 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 		clilist.New(clilist.Dependencies{
 			List: func(ctx context.Context, stdout io.Writer, options timber.ListOptions) error {
 				return runtime.ListWorktrees(ctx, stdout, options, timber.ListRenderers{
-					Table: clilist.ReportTable,
-					JSON:  clilist.ReportJSON,
+					Table:     clilist.ReportTable,
+					JSON:      clilist.ReportJSON,
+					Locations: clilist.ReportLocations,
 				})
 			},
 			Complete: cliComplete.RepoQualifiers(runtime),

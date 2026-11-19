@@ -66,8 +66,14 @@ func New(deps Dependencies) *cobra.Command {
 	command.Flags().BoolVarP(&options.Todo, "todo", "t", false, "Include TODO progress (implied by --json)")
 	command.Flags().BoolVarP(&options.Review, "review", "r", false, "Include commit review progress (implied by --json)")
 	command.Flags().BoolVarP(&options.Location, "location", "L", false, "Include worktree location as the last column")
+	command.Flags().BoolVar(&options.LocationsOnly, "locations-only", false, "Print only worktree locations, one per line")
 	command.Flags().BoolVar(&options.JSON, "json", false, "Output worktrees as JSON instead of a table")
 	command.Flags().Var(&sortBy, "sort", "Sort worktrees by recency (newest commit first), repo, or worktree")
+	command.MarkFlagsMutuallyExclusive("locations-only", "json")
+	command.MarkFlagsMutuallyExclusive("locations-only", "pr")
+	command.MarkFlagsMutuallyExclusive("locations-only", "todo")
+	command.MarkFlagsMutuallyExclusive("locations-only", "review")
+	command.MarkFlagsMutuallyExclusive("locations-only", "location")
 	if err := command.RegisterFlagCompletionFunc("sort", completeSort); err != nil {
 		panic(err)
 	}

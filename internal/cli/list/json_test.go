@@ -53,3 +53,9 @@ func TestReportTableReturnsWriterError(t *testing.T) {
 	writeErr := errors.New("write failed")
 	assert.ErrorIs(t, ReportTable(failingWriter{err: writeErr}, nil, false, false, false, false), writeErr)
 }
+
+func TestReportLocationsReturnsWriterError(t *testing.T) {
+	t.Parallel()
+	writeErr := errors.New("write failed")
+	assert.ErrorIs(t, ReportLocations(failingWriter{err: writeErr}, []string{"~/worktrees/repo/feature/repo"}), writeErr)
+}

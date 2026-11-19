@@ -76,6 +76,9 @@ func listWorktreeEnricher(runtime Runtime, sortBy listSort, options ListOptions)
 		if err != nil {
 			return managedWorktree{}, err
 		}
+		if options.LocationsOnly {
+			return enriched, nil
+		}
 		enriched, err = runtime.enrichWorktreeForList(repository, enriched)
 		if err == nil && isSame(enriched.ListError, false) {
 			enriched.Todo = runtime.todoProgressForWorktree(enriched, options.Todo, options.JSON)
@@ -85,6 +88,12 @@ func listWorktreeEnricher(runtime Runtime, sortBy listSort, options ListOptions)
 }
 
 func renderWorktreeList(runtime Runtime, stdout io.Writer, worktrees []managedWorktree, options ListOptions, renderers ListRenderers) error {
+	if options.LocationsOnly {
+		if renderers.Locations == nil {
+			return errors.New("list locations renderer is not configured")
+		}
+		return renderers.Locations(stdout, worktreeLocations(runtime, worktrees))
+	}
 	if options.JSON {
 		if renderers.JSON == nil {
 			return errors.New("list JSON renderer is not configured")
@@ -95,6 +104,14 @@ func renderWorktreeList(runtime Runtime, stdout io.Writer, worktrees []managedWo
 		return errors.New("list table renderer is not configured")
 	}
 	return renderers.Table(stdout, runtime.worktreesToListTable(worktrees, options.Location), options.PullRequests, options.Todo, options.Review, options.Location)
+}
+
+func worktreeLocations(runtime Runtime, worktrees []managedWorktree) []string {
+	locations := make([]string, 0, len(worktrees))
+	for _, worktree := range worktrees {
+		locations = append(locations, runtime.displayHomePath(worktree.Path))
+	}
+	return locations
 }
 
 func validateCreateReporters(runtime Runtime, herdr, noHerdr bool, reporters CreateReporters) error {

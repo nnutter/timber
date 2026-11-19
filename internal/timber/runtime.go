@@ -449,8 +449,9 @@ func (x Runtime) ListRepos(details bool) ([]repomodel.Repo, error) {
 	return result, nil
 }
 
-// ListWorktrees lists managed worktrees as a table or JSON document. All
-// output is written to the given writers, preserving CLI reporting order.
+// ListWorktrees lists managed worktrees as a table, JSON document, or one
+// location per line. All output is written to the given writers, preserving
+// CLI reporting order.
 func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, options ListOptions, renderers ListRenderers) error {
 	var sortBy listSort
 	if err := sortBy.Set(options.SortMode); err != nil {
@@ -475,9 +476,11 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, opti
 		return err
 	}
 	sortBy.sort(worktrees)
-	runtime.enrichListedWorktreesWithReviews(ctx, worktrees, options.Review, options.JSON)
-	if err := attachPullRequests(runtime, ctx, worktrees, options.PullRequests); err != nil {
-		return err
+	if !options.LocationsOnly {
+		runtime.enrichListedWorktreesWithReviews(ctx, worktrees, options.Review, options.JSON)
+		if err := attachPullRequests(runtime, ctx, worktrees, options.PullRequests); err != nil {
+			return err
+		}
 	}
 	return renderWorktreeList(runtime, stdout, worktrees, options, renderers)
 }
