@@ -451,15 +451,15 @@ func (x Runtime) ListRepos(details bool) ([]repomodel.Repo, error) {
 
 // ListWorktrees lists managed worktrees as a table or JSON document. All
 // output is written to the given writers, preserving CLI reporting order.
-func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, todo, review, location, jsonOutput bool, sortMode string, renderers ListRenderers) error {
+func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, options ListOptions, renderers ListRenderers) error {
 	var sortBy listSort
-	if err := sortBy.Set(sortMode); err != nil {
+	if err := sortBy.Set(options.SortMode); err != nil {
 		return err
 	}
 
 	selection := repoSelection{runtime: runtime}
-	if repoArg != "" {
-		repo, err := runtime.parseRepoOnlyArg(repoArg)
+	if options.RepoArg != "" {
+		repo, err := runtime.parseRepoOnlyArg(options.RepoArg)
 		if err != nil {
 			return err
 		}
@@ -473,7 +473,7 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 	enrich := func(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
 		enriched, err := enrichWorktreeForSort(runtime, repository, worktree, sortBy)
 		if err == nil && isSame(enriched.ListError, false) {
-			enriched.Todo = runtime.todoProgressForWorktree(enriched, todo, jsonOutput)
+			enriched.Todo = runtime.todoProgressForWorktree(enriched, options.Todo, options.JSON)
 		}
 		return enriched, err
 	}
@@ -482,11 +482,11 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 		return err
 	}
 	sortBy.sort(worktrees)
-	runtime.enrichListedWorktreesWithReviews(ctx, worktrees, review, jsonOutput)
-	if err := attachPullRequests(runtime, ctx, worktrees, pullRequests); err != nil {
+	runtime.enrichListedWorktreesWithReviews(ctx, worktrees, options.Review, options.JSON)
+	if err := attachPullRequests(runtime, ctx, worktrees, options.PullRequests); err != nil {
 		return err
 	}
-	return renderWorktreeList(runtime, stdout, worktrees, pullRequests, todo, review, location, jsonOutput, renderers)
+	return renderWorktreeList(runtime, stdout, worktrees, options, renderers)
 }
 
 // LoadConfig loads the persistent Timber settings.

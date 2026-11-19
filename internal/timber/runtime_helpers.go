@@ -70,8 +70,8 @@ func attachPullRequests(runtime Runtime, ctx context.Context, worktrees []manage
 	return runtime.enrichListedWorktreesWithPullRequests(ctx, worktrees)
 }
 
-func renderWorktreeList(runtime Runtime, stdout io.Writer, worktrees []managedWorktree, pullRequests, todo, review, location, jsonOutput bool, renderers ListRenderers) error {
-	if jsonOutput {
+func renderWorktreeList(runtime Runtime, stdout io.Writer, worktrees []managedWorktree, options ListOptions, renderers ListRenderers) error {
+	if options.JSON {
 		if renderers.JSON == nil {
 			return errors.New("list JSON renderer is not configured")
 		}
@@ -80,7 +80,7 @@ func renderWorktreeList(runtime Runtime, stdout io.Writer, worktrees []managedWo
 	if renderers.Table == nil {
 		return errors.New("list table renderer is not configured")
 	}
-	return renderers.Table(stdout, runtime.worktreesToListTable(worktrees, location), pullRequests, todo, review, location)
+	return renderers.Table(stdout, runtime.worktreesToListTable(worktrees, options.Location), options.PullRequests, options.Todo, options.Review, options.Location)
 }
 
 func validateCreateReporters(runtime Runtime, herdr, noHerdr bool, reporters CreateReporters) error {

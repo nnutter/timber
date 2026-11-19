@@ -21,7 +21,7 @@ func TestListWorktreesRequiresSelectedRenderer(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			runtime := testRuntime(t)
-			err := runtime.ListWorktrees(t.Context(), io.Discard, "", false, false, false, false, testCase.jsonOutput, "recency", ListRenderers{})
+			err := runtime.ListWorktrees(t.Context(), io.Discard, ListOptions{JSON: testCase.jsonOutput, SortMode: "recency"}, ListRenderers{})
 			require.ErrorContains(t, err, testCase.errorText)
 		})
 	}
@@ -51,7 +51,7 @@ func TestListWorktreesReturnsRendererError(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			runtime := testRuntime(t)
-			err := runtime.ListWorktrees(t.Context(), io.Discard, "", false, false, false, false, testCase.jsonOutput, "recency", testCase.renderers)
+			err := runtime.ListWorktrees(t.Context(), io.Discard, ListOptions{JSON: testCase.jsonOutput, SortMode: "recency"}, testCase.renderers)
 			assert.ErrorIs(t, err, writeErr)
 		})
 	}
