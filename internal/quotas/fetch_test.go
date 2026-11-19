@@ -266,6 +266,155 @@ printf '%s\n' '{"allowance":{"usedPercent":36,"windowDurationMins":300,"resetsAt
 	assert.Empty(t, report.Notes)
 }
 
+func TestGoogleReadsQuotaGroupsIntoSeparateReports(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 19, 16, 0, 0, 0, time.UTC)
+	script := writeScript(t, `#!/bin/sh
+if [ "$1" != "-p" ] || [ "$2" != "/usage" ] || [ "$3" != "--output-format" ] || [ "$4" != "json" ]; then
+  echo "unexpected args: $*" >&2
+  exit 1
+fi
+cat <<'EOF'
+{
+  "status": "SUCCESS",
+  "command": {
+    "name": "usage",
+    "data": {
+      "groups": [
+        {
+          "name": "Gemini Models",
+          "description": "Models within this group: Gemini 4 Neon, Gemini 3.8 Flash",
+          "buckets": [
+            {"id": "gemini-weekly", "name": "Weekly Limit Remaining", "window": "weekly", "remaining_fraction": 0.9, "reset_time": "2026-11-26T14:00:00Z"},
+            {"id": "gemini-5h", "name": "Five Hour Limit Remaining", "window": "5h", "remaining_fraction": 0.65, "reset_time": "2026-11-19T19:00:00Z"}
+          ]
+        },
+        {
+          "name": "Claude and GPT models",
+          "description": "Models within this group: Claude Opus 5.5, GPT-OSS 120B",
+          "buckets": [
+            {"id": "3p-weekly", "name": "Weekly Limit Remaining", "window": "weekly", "reset_time": "2026-11-26T16:00:00Z"},
+            {"id": "3p-5h", "name": "Five Hour Limit Remaining", "window": "5h", "remaining_fraction": 0.8, "reset_time": "2026-11-19T21:00:00Z"}
+          ]
+        },
+        {
+          "name": "Gemini 4 Argon",
+          "description": "For paid Pro plans, Argon quota is separate.",
+          "buckets": [
+            {"id": "gemini-argon-wtu-weekly", "name": "Gemini 4 Argon Weekly Limit", "window": "weekly", "remaining_fraction": 1, "reset_time": "2026-11-20T16:00:00Z"}
+          ]
+        },
+        {
+          "name": "Empty",
+          "buckets": []
+        }
+      ]
+    }
+  }
+}
+EOF
+`)
+	source := envSource(map[string]string{"QUOTAS_AGY_COMMAND": script})
+	collector := &Collector{
+		now: func() time.Time { return now },
+		fetchers: []fetcher{{
+			id:   googleID,
+			name: googleName,
+			fetch: func(ctx context.Context) ([]Report, error) {
+				return fetchGoogle(ctx, source, nil)
+			},
+		}},
+	}
+
+	snapshot, err := collector.Reports(t.Context(), true)
+	require.NoError(t, err)
+	require.Len(t, snapshot.Reports, 3)
+
+	gemini := snapshot.Reports[0]
+	assert.Equal(t, "google-ai-gemini-models", gemini.ID)
+	assert.Equal(t, "Google AI (Gemini Models)", gemini.Name)
+	assert.Equal(t, []string{"5 hours", "Week"}, labels(gemini.Limits))
+	assert.InDelta(t, 35.0, gemini.Limits[0].Percent, 1e-9)
+	assert.InDelta(t, 10.0, gemini.Limits[1].Percent, 1e-9)
+	assert.Equal(t, []string{"Models: Gemini 4 Neon, Gemini 3.8 Flash"}, gemini.Notes)
+
+	thirdParty := snapshot.Reports[1]
+	assert.Equal(t, "google-ai-claude-and-gpt-models", thirdParty.ID)
+	assert.Equal(t, "Google AI (Claude and GPT models)", thirdParty.Name)
+	// An exhausted week (omitted remaining_fraction with reset_time) drops only this group's 5-hour limit.
+	assert.Equal(t, []string{"Week"}, labels(thirdParty.Limits))
+	assert.InDelta(t, 100.0, thirdParty.Limits[0].Percent, 1e-9)
+	assert.Equal(t, LevelCritical, thirdParty.Limits[0].Level)
+
+	argon := snapshot.Reports[2]
+	assert.Equal(t, "google-ai-gemini-4-argon", argon.ID)
+	assert.Equal(t, "Google AI (Gemini 4 Argon)", argon.Name)
+	assert.Equal(t, []string{"Week"}, labels(argon.Limits))
+	assert.InDelta(t, 0.0, argon.Limits[0].Percent, 1e-9)
+	assert.Empty(t, argon.Notes)
+
+	assert.Equal(t, []string{
+		"Google AI (Gemini 4 Argon)",
+		"Google AI (Gemini Models)",
+		"Google AI (Claude and GPT models)",
+	}, names(Ordered(snapshot.Reports, now)))
+}
+
+func TestGoogleCancelsAuthPromptAsMissing(t *testing.T) {
+	t.Parallel()
+	script := writeScript(t, `#!/bin/sh
+echo "Authentication required. Please visit the URL to log in:" >&2
+sleep 30
+`)
+	start := time.Now()
+	_, err := fetchGoogle(t.Context(), envSource(map[string]string{"QUOTAS_AGY_COMMAND": script}), nil)
+	var missing MissingError
+	require.ErrorAs(t, err, &missing)
+	assert.Less(t, time.Since(start), 5*time.Second)
+}
+
+func TestGoogleHandlesCLIExitAndErrors(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		script      string
+		wantMissing bool
+	}{
+		{
+			name:        "exit code 2 API key mode",
+			script:      "#!/bin/sh\nexit 2\n",
+			wantMissing: true,
+		},
+		{
+			name:        "auth error payload",
+			script:      "#!/bin/sh\nprintf '%s\n' '{\"status\":\"ERROR\",\"error\":\"authentication failed or timed out\"}'\n",
+			wantMissing: true,
+		},
+		{
+			name:   "general CLI failure",
+			script: "#!/bin/sh\nexit 1\n",
+		},
+		{
+			name:   "malformed JSON",
+			script: "#!/bin/sh\nprintf 'not-json'\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			script := writeScript(t, tc.script)
+			_, err := fetchGoogle(t.Context(), envSource(map[string]string{"QUOTAS_AGY_COMMAND": script}), nil)
+			if tc.wantMissing {
+				var missing MissingError
+				require.ErrorAs(t, err, &missing)
+				return
+			}
+			var said SaidError
+			require.ErrorAs(t, err, &said)
+		})
+	}
+}
+
 func TestCollectorOmitsAMissingSignInAndReusesAFreshRead(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)

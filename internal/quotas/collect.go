@@ -177,6 +177,9 @@ func defaultFetchers(source Source, client *http.Client) []fetcher {
 		singleFetcher(museID, museName, func(ctx context.Context) (Report, error) {
 			return fetchMuse(ctx, source, client)
 		}),
+		{id: googleID, name: googleName, fetch: func(ctx context.Context) ([]Report, error) {
+			return fetchGoogle(ctx, source, client)
+		}},
 	}
 }
 
