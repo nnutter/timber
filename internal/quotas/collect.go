@@ -15,7 +15,7 @@ const (
 
 type fetcher struct {
 	id, name string
-	fetch    func(context.Context) (Report, error)
+	fetch    func(context.Context) ([]Report, error)
 }
 
 // Collector shares one read of every service.
@@ -62,15 +62,12 @@ func (c *Collector) clock() time.Time {
 }
 
 func (c *Collector) read(ctx context.Context) (Snapshot, error) {
-	results := make([]Report, len(c.fetchers))
-	keep := make([]bool, len(c.fetchers))
+	results := make([][]Report, len(c.fetchers))
 	var group sync.WaitGroup
 	for index, item := range c.fetchers {
 		group.Go(func() {
-			report, err := item.fetch(ctx)
-			kept, ok := guard(item.id, item.name, report, err)
-			results[index] = kept
-			keep[index] = ok
+			reports, err := item.fetch(ctx)
+			results[index] = guard(item.id, item.name, reports, err)
 		})
 	}
 	group.Wait()
@@ -78,10 +75,8 @@ func (c *Collector) read(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	reports := make([]Report, 0, len(results))
-	for index, report := range results {
-		if keep[index] {
-			reports = append(reports, report)
-		}
+	for _, batch := range results {
+		reports = append(reports, batch...)
 	}
 	return Snapshot{FetchedAt: c.clock().UTC(), Reports: reports}, nil
 }
@@ -97,16 +92,33 @@ func NewCollector() *Collector {
 	}
 }
 
-func guard(id, name string, report Report, err error) (Report, bool) {
-	if err == nil {
-		report.ID = id
-		if report.Name == "" {
-			report.Name = name
+func guard(id, name string, reports []Report, err error) []Report {
+	if err != nil {
+		if failed, ok := errorReport(id, name, err); ok {
+			return []Report{failed}
 		}
-		report.OK = true
-		report.Limits = Standing(report.Limits)
-		return report, true
+		return nil
 	}
+	kept := make([]Report, 0, len(reports))
+	for _, report := range reports {
+		kept = append(kept, normalizeReport(id, name, report))
+	}
+	return kept
+}
+
+func normalizeReport(id, name string, report Report) Report {
+	if report.ID == "" {
+		report.ID = id
+	}
+	if report.Name == "" {
+		report.Name = name
+	}
+	report.OK = true
+	report.Limits = Standing(report.Limits)
+	return report
+}
+
+func errorReport(id, name string, err error) (Report, bool) {
 	if _, ok := errors.AsType[MissingError](err); ok {
 		return Report{}, false
 	}
@@ -119,38 +131,52 @@ func guard(id, name string, report Report, err error) (Report, bool) {
 	return Report{ID: id, Name: name, Error: readFailure(err)}, true
 }
 
+func singleFetcher(id, name string, fetch func(context.Context) (Report, error)) fetcher {
+	return fetcher{
+		id:   id,
+		name: name,
+		fetch: func(ctx context.Context) ([]Report, error) {
+			report, err := fetch(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return []Report{report}, nil
+		},
+	}
+}
+
 func defaultFetchers(source Source, client *http.Client) []fetcher {
 	return []fetcher{
-		{anthropicID, anthropicName, func(ctx context.Context) (Report, error) {
+		singleFetcher(anthropicID, anthropicName, func(ctx context.Context) (Report, error) {
 			return fetchAnthropic(ctx, source, client)
-		}},
-		{copilotID, copilotName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(copilotID, copilotName, func(ctx context.Context) (Report, error) {
 			return fetchCopilot(ctx, source, client)
-		}},
-		{codexID, codexName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(codexID, codexName, func(ctx context.Context) (Report, error) {
 			return fetchCodex(ctx, source, client)
-		}},
-		{openCodeID, openCodeName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(openCodeID, openCodeName, func(ctx context.Context) (Report, error) {
 			return fetchOpenCode(ctx, source, client)
-		}},
-		{grokID, grokName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(grokID, grokName, func(ctx context.Context) (Report, error) {
 			return fetchGrok(ctx, source, client)
-		}},
-		{zaiID, zaiName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(zaiID, zaiName, func(ctx context.Context) (Report, error) {
 			return fetchZAI(ctx, source, client)
-		}},
-		{miniMaxID, miniMaxName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(miniMaxID, miniMaxName, func(ctx context.Context) (Report, error) {
 			return fetchMiniMax(ctx, source, client)
-		}},
-		{deepSeekID, deepSeekName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(deepSeekID, deepSeekName, func(ctx context.Context) (Report, error) {
 			return fetchDeepSeek(ctx, source, client)
-		}},
-		{ollamaID, ollamaName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(ollamaID, ollamaName, func(ctx context.Context) (Report, error) {
 			return fetchOllama(ctx, source, client)
-		}},
-		{museID, museName, func(ctx context.Context) (Report, error) {
+		}),
+		singleFetcher(museID, museName, func(ctx context.Context) (Report, error) {
 			return fetchMuse(ctx, source, client)
-		}},
+		}),
 	}
 }
 

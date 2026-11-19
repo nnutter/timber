@@ -32,9 +32,10 @@ func TestAnthropicReadsSessionAndWeek(t *testing.T) {
 		"ANTHROPIC_TOKEN": "sk-ant-oat-test",
 	}), client)
 	require.NoError(t, err)
-	report, ok := guard(anthropicID, anthropicName, fetched, err)
+	reports := guard(anthropicID, anthropicName, []Report{fetched}, err)
 
-	require.True(t, ok)
+	require.Len(t, reports, 1)
+	report := reports[0]
 	assert.Equal(t, anthropicName, report.Name)
 	assert.Equal(t, []string{"Week, all models", "Week, Opus"}, labels(report.Limits))
 	assert.Equal(t, []string{"Extra usage is off."}, report.Notes)
@@ -272,13 +273,13 @@ func TestCollectorOmitsAMissingSignInAndReusesAFreshRead(t *testing.T) {
 	collector := &Collector{
 		now: func() time.Time { return now },
 		fetchers: []fetcher{
-			{id: "a", name: "Alpha", fetch: func(context.Context) (Report, error) {
+			singleFetcher("a", "Alpha", func(context.Context) (Report, error) {
 				calls++
 				return Report{Limits: []Limit{{Label: "Week", Percent: 10, Window: time.Hour, ResetsAt: now.Add(time.Hour)}}}, nil
-			}},
-			{id: "b", name: "Beta", fetch: func(context.Context) (Report, error) {
+			}),
+			singleFetcher("b", "Beta", func(context.Context) (Report, error) {
 				return Report{}, MissingError{Text: "missing"}
-			}},
+			}),
 		},
 	}
 
