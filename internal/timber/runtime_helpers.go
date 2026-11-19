@@ -70,6 +70,20 @@ func attachPullRequests(runtime Runtime, ctx context.Context, worktrees []manage
 	return runtime.enrichListedWorktreesWithPullRequests(ctx, worktrees)
 }
 
+func listWorktreeEnricher(runtime Runtime, sortBy listSort, options ListOptions) worktreeEnricher {
+	return func(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
+		enriched, err := enrichWorktreeForSort(repository, worktree, sortBy)
+		if err != nil {
+			return managedWorktree{}, err
+		}
+		enriched, err = runtime.enrichWorktreeForList(repository, enriched)
+		if err == nil && isSame(enriched.ListError, false) {
+			enriched.Todo = runtime.todoProgressForWorktree(enriched, options.Todo, options.JSON)
+		}
+		return enriched, err
+	}
+}
+
 func renderWorktreeList(runtime Runtime, stdout io.Writer, worktrees []managedWorktree, options ListOptions, renderers ListRenderers) error {
 	if options.JSON {
 		if renderers.JSON == nil {

@@ -470,14 +470,7 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, opti
 	if err != nil {
 		return err
 	}
-	enrich := func(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
-		enriched, err := enrichWorktreeForSort(runtime, repository, worktree, sortBy)
-		if err == nil && isSame(enriched.ListError, false) {
-			enriched.Todo = runtime.todoProgressForWorktree(enriched, options.Todo, options.JSON)
-		}
-		return enriched, err
-	}
-	worktrees, err := collectListedWorktrees(runtime, repos, enrich)
+	worktrees, err := collectListedWorktrees(runtime, repos, listWorktreeEnricher(runtime, sortBy, options))
 	if err != nil {
 		return err
 	}

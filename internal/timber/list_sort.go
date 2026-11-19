@@ -50,7 +50,7 @@ const (
 
 // Read the recorded HEAD from the bare repository, not the checkout: even a
 // missing worktree can be ordered. An unborn HEAD has no commit timestamp.
-func enrichWorktreeForSort(runtime Runtime, repository *Repository, worktree managedWorktree, sortBy listSort) (managedWorktree, error) {
+func enrichWorktreeForSort(repository *Repository, worktree managedWorktree, sortBy listSort) (managedWorktree, error) {
 	if sortBy == listSortRecency && !isZeroCommitHash(worktree.CommitHash) {
 		result, err := repository.git("show", "-s", "--format=%ct", worktree.CommitHash, "--")
 		if err != nil {
@@ -62,5 +62,5 @@ func enrichWorktreeForSort(runtime Runtime, repository *Repository, worktree man
 		}
 		worktree.CommitTime = time.Unix(seconds, 0)
 	}
-	return runtime.enrichWorktreeForList(repository, worktree)
+	return worktree, nil
 }
