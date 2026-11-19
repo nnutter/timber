@@ -12,16 +12,17 @@ import (
 func TestListWorktreesRequiresSelectedRenderer(t *testing.T) {
 	t.Parallel()
 	for _, testCase := range []struct {
-		name       string
-		jsonOutput bool
-		errorText  string
+		name      string
+		options   ListOptions
+		errorText string
 	}{
-		{name: "table", errorText: "list table renderer is not configured"},
-		{name: "JSON", jsonOutput: true, errorText: "list JSON renderer is not configured"},
+		{name: "table", options: ListOptions{SortMode: "recency"}, errorText: "list table renderer is not configured"},
+		{name: "JSON", options: ListOptions{JSON: true, SortMode: "recency"}, errorText: "list JSON renderer is not configured"},
+		{name: "locations", options: ListOptions{LocationsOnly: true, SortMode: "recency"}, errorText: "list locations renderer is not configured"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			runtime := testRuntime(t)
-			err := runtime.ListWorktrees(t.Context(), io.Discard, "", false, false, false, false, testCase.jsonOutput, "recency", ListRenderers{})
+			err := runtime.ListWorktrees(t.Context(), io.Discard, testCase.options, ListRenderers{})
 			require.ErrorContains(t, err, testCase.errorText)
 		})
 	}
@@ -31,27 +32,35 @@ func TestListWorktreesReturnsRendererError(t *testing.T) {
 	t.Parallel()
 	writeErr := errors.New("write failed")
 	for _, testCase := range []struct {
-		name       string
-		jsonOutput bool
-		renderers  ListRenderers
+		name      string
+		options   ListOptions
+		renderers ListRenderers
 	}{
 		{
-			name: "table",
+			name:    "table",
+			options: ListOptions{SortMode: "recency"},
 			renderers: ListRenderers{Table: func(io.Writer, []ListWorktreeView, bool, bool, bool, bool) error {
 				return writeErr
 			}},
 		},
 		{
-			name:       "JSON",
-			jsonOutput: true,
+			name:    "JSON",
+			options: ListOptions{JSON: true, SortMode: "recency"},
 			renderers: ListRenderers{JSON: func(io.Writer, []ListJSONWorktree) error {
+				return writeErr
+			}},
+		},
+		{
+			name:    "locations",
+			options: ListOptions{LocationsOnly: true, SortMode: "recency"},
+			renderers: ListRenderers{Locations: func(io.Writer, []string) error {
 				return writeErr
 			}},
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			runtime := testRuntime(t)
-			err := runtime.ListWorktrees(t.Context(), io.Discard, "", false, false, false, false, testCase.jsonOutput, "recency", testCase.renderers)
+			err := runtime.ListWorktrees(t.Context(), io.Discard, testCase.options, testCase.renderers)
 			assert.ErrorIs(t, err, writeErr)
 		})
 	}

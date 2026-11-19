@@ -449,17 +449,18 @@ func (x Runtime) ListRepos(details bool) ([]repomodel.Repo, error) {
 	return result, nil
 }
 
-// ListWorktrees lists managed worktrees as a table or JSON document. All
-// output is written to the given writers, preserving CLI reporting order.
-func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repoArg string, pullRequests, todo, review, location, jsonOutput bool, sortMode string, renderers ListRenderers) error {
+// ListWorktrees lists managed worktrees as a table, JSON document, or one
+// location per line. All output is written to the given writers, preserving
+// CLI reporting order.
+func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, options ListOptions, renderers ListRenderers) error {
 	var sortBy listSort
-	if err := sortBy.Set(sortMode); err != nil {
+	if err := sortBy.Set(options.SortMode); err != nil {
 		return err
 	}
 
 	selection := repoSelection{runtime: runtime}
-	if repoArg != "" {
-		repo, err := runtime.parseRepoOnlyArg(repoArg)
+	if options.RepoArg != "" {
+		repo, err := runtime.parseRepoOnlyArg(options.RepoArg)
 		if err != nil {
 			return err
 		}
@@ -470,23 +471,18 @@ func (runtime Runtime) ListWorktrees(ctx context.Context, stdout io.Writer, repo
 	if err != nil {
 		return err
 	}
-	enrich := func(repository *Repository, worktree managedWorktree) (managedWorktree, error) {
-		enriched, err := enrichWorktreeForSort(runtime, repository, worktree, sortBy)
-		if err == nil && isSame(enriched.ListError, false) {
-			enriched.Todo = runtime.todoProgressForWorktree(enriched, todo, jsonOutput)
-		}
-		return enriched, err
-	}
-	worktrees, err := collectListedWorktrees(runtime, repos, enrich)
+	worktrees, err := collectListedWorktrees(runtime, repos, listWorktreeEnricher(runtime, sortBy, options))
 	if err != nil {
 		return err
 	}
 	sortBy.sort(worktrees)
-	runtime.enrichListedWorktreesWithReviews(ctx, worktrees, review, jsonOutput)
-	if err := attachPullRequests(runtime, ctx, worktrees, pullRequests); err != nil {
-		return err
+	if !options.LocationsOnly {
+		runtime.enrichListedWorktreesWithReviews(ctx, worktrees, options.Review, options.JSON)
+		if err := attachPullRequests(runtime, ctx, worktrees, options.PullRequests); err != nil {
+			return err
+		}
 	}
-	return renderWorktreeList(runtime, stdout, worktrees, pullRequests, todo, review, location, jsonOutput, renderers)
+	return renderWorktreeList(runtime, stdout, worktrees, options, renderers)
 }
 
 // LoadConfig loads the persistent Timber settings.

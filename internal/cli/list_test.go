@@ -57,6 +57,79 @@ func TestListLocationIsOptionalLastColumn(t *testing.T) {
 	}
 }
 
+func TestListLocationsOnly(t *testing.T) {
+	t.Parallel()
+	repository := newTestRepository(t)
+
+	empty := repository.runTimber(t, "ls", "--locations-only")
+	require.NoError(t, empty.err, empty.stderr)
+	assert.Empty(t, empty.stdout)
+
+	registerAdditionalRepo(t, repository, "aaa")
+	const standardName = "feature/standard"
+	const otherName = "feature/other"
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, standardName)).err)
+	require.NoError(t, repository.runTimber(t, "create", at("aaa", otherName)).err)
+	customPath := filepath.Join(resolvedTempDir(t), "checkout with spaces")
+	runGitCommand(t, repository.barePath, "worktree", "add", "-b", "feature/manual", customPath, "origin/main")
+
+	standardLocation := filepath.Join("~", "worktrees", testRepoName, standardName, testRepoName)
+	otherLocation := filepath.Join("~", "worktrees", "aaa", otherName, "aaa")
+
+	byRepo := repository.runTimber(t, "ls", "--locations-only", "--sort", "repo")
+	require.NoError(t, byRepo.err, byRepo.stderr)
+	assert.Equal(t, strings.Join([]string{otherLocation, customPath, standardLocation}, "\n")+"\n", byRepo.stdout)
+
+	byWorktree := repository.runTimber(t, "ls", "--locations-only", "--sort", "worktree")
+	require.NoError(t, byWorktree.err, byWorktree.stderr)
+	assert.Equal(t, strings.Join([]string{customPath, otherLocation, standardLocation}, "\n")+"\n", byWorktree.stdout)
+
+	scoped := repository.runTimber(t, "ls", at("aaa", ""), "--locations-only")
+	require.NoError(t, scoped.err, scoped.stderr)
+	assert.Equal(t, otherLocation+"\n", scoped.stdout)
+
+	// Recency sorting must still order by committer date even when status
+	// enrichment is skipped and a checkout directory is missing.
+	for _, commit := range []struct{ dir, committer string }{
+		{customPath, "2020-01-01T00:00:00Z"},
+		{repoTestWorktreePath(repository.runtime, "aaa", otherName), "2021-01-01T00:00:00Z"},
+		{repository.worktreePath(standardName), "2022-01-01T00:00:00Z"},
+	} {
+		runtime := withTestEnvironment(repository.runtime,
+			"GIT_AUTHOR_DATE="+commit.committer, "GIT_COMMITTER_DATE="+commit.committer,
+			"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
+		command := gitCommand(t, commit.dir, "commit", "--allow-empty", "-m", "order")
+		command.Env = runtime.Environment
+		output, err := command.CombinedOutput()
+		require.NoError(t, err, string(output))
+	}
+	require.NoError(t, os.RemoveAll(repository.worktreePath(standardName)))
+
+	byRecency := repository.runTimber(t, "ls", "--locations-only")
+	require.NoError(t, byRecency.err, byRecency.stderr)
+	assert.Equal(t, strings.Join([]string{standardLocation, otherLocation, customPath}, "\n")+"\n", byRecency.stdout)
+
+	for _, conflict := range []struct {
+		flag string
+		name string
+	}{
+		{"--json", "json"},
+		{"--pr", "pr"},
+		{"--todo", "todo"},
+		{"-t", "todo"},
+		{"--review", "review"},
+		{"-r", "review"},
+		{"--location", "location"},
+		{"-L", "location"},
+	} {
+		result := repository.runTimber(t, "ls", "--locations-only", conflict.flag)
+		require.Error(t, result.err, "flag=%s", conflict.flag)
+		assert.Contains(t, result.err.Error(), "locations-only")
+		assert.Contains(t, result.err.Error(), conflict.name)
+	}
+}
+
 func TestListReportsTodoProgress(t *testing.T) {
 	t.Parallel()
 	const branchName = "feature/todo-progress"
