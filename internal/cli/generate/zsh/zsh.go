@@ -215,11 +215,13 @@ _%[1]s()
 
     # The shell wrapper adds 'create --no-cd', which timber itself does not
     # define, so offer it alongside Cobra's completions when completing flags.
-    if [[ ${words[2]} == create && ${lastParam} == -* ]]; then
-        if (( ${completions[(I)--no-cd:*]:-0} == 0 )); then
+    case "${words[2]}" in
+    create|c)
+        if [[ ${lastParam} == -* ]] && (( ${completions[(I)--no-cd:*]:-0} == 0 )); then
             completions+=('--no-cd:Create without changing directories')
         fi
-    fi
+        ;;
+    esac
 
     # The 'switch' subcommand is hidden from 'timber --help' (the wrapper
     # handles 'switch|sw' itself so it can cd), which also hides it from
@@ -370,7 +372,7 @@ func (x *zshCommandOptions) writeFunctionFile(target string) error {
 
 ` + x.name + `() {
     case "$1" in
-    create)
+    create|c)
         shift
         local no_cd=0 herdr=0 no_herdr=0 skip_next=0
         local -a forward=()
@@ -459,7 +461,7 @@ func (x *zshCommandOptions) writeFunctionFile(target string) error {
         fi
         cd "$target_dir"
         ;;
-    repo)
+    repo|rp)
         case "$2" in
         rename|mv)
             local path_file

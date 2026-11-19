@@ -12,30 +12,42 @@ import (
 
 func TestFunctionalZshCreateChangesDirectoryToReportedPath(t *testing.T) {
 	t.Parallel()
-	for _, custom := range []bool{false, true} {
-		name := "default"
-		if custom {
-			name = "custom"
-		}
-		t.Run(name, func(t *testing.T) {
+	type testCase struct {
+		name       string
+		subcommand string
+		custom     bool
+	}
+	for _, tc := range []testCase{
+		{name: "create default", subcommand: "create"},
+		{name: "create custom", subcommand: "create", custom: true},
+		{name: "alias default", subcommand: "c"},
+		{name: "alias custom", subcommand: "c", custom: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			target := filepath.Join(resolvedTempDir(t), "worktree with spaces")
 			require.NoError(t, os.Mkdir(target, 0o755))
-			invocation := `source "$1"; t create feature@repo >/dev/null || exit $?; pwd -P`
-			if custom {
-				invocation = `source "$1"; t create feature@repo "$TARGET_DIR" >/dev/null || exit $?; pwd -P`
+			invocation := `source "$1"; t ` + tc.subcommand + ` feature@repo >/dev/null || exit $?; pwd -P`
+			if tc.custom {
+				invocation = `source "$1"; t ` + tc.subcommand + ` feature@repo "$TARGET_DIR" >/dev/null || exit $?; pwd -P`
 			}
 			command := generatedZshCommand(t, `#!/bin/sh
-[ "$1" = create ] && [ "$2" = feature@repo ] || exit 98
+case "$1" in
+create|c) ;;
+*) exit 98 ;;
+esac
+[ "$2" = feature@repo ] || exit 98
 if [ "$CUSTOM_PATH" = true ]; then
     [ "$#" = 3 ] && [ "$3" = "$TARGET_DIR" ] || exit 97
 else
     [ "$#" = 2 ] || exit 96
 fi
-printf '%s\n' "$TARGET_DIR" > "$TIMBER_CREATE_PATH_FILE"
+if [ -n "${TIMBER_CREATE_PATH_FILE:-}" ]; then
+    printf '%s\n' "$TARGET_DIR" > "$TIMBER_CREATE_PATH_FILE"
+fi
 `, invocation)
 			customValue := "false"
-			if custom {
+			if tc.custom {
 				customValue = "true"
 			}
 			command.Env = shellTestEnvironment(command.Env, "TARGET_DIR="+target, "CUSTOM_PATH="+customValue)
