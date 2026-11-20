@@ -9,8 +9,10 @@ import (
 )
 
 func TestReviewSelectsWithinInclusiveBounds(t *testing.T) {
+	t.Parallel()
 	for _, bounds := range []string{"start", "end", "both"} {
 		t.Run(bounds, func(t *testing.T) {
+			t.Parallel()
 			reviewer, _, store := testReviewer(t)
 			r := reviewer.Service.Repository
 			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Second")
@@ -66,8 +68,10 @@ func TestReviewSelectsWithinInclusiveBounds(t *testing.T) {
 }
 
 func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
+	t.Parallel()
 	for _, outcome := range []string{"approved", "feedback", "incomplete", "cancelled", "error"} {
 		t.Run(outcome, func(t *testing.T) {
+			t.Parallel()
 			reviewer, _, firstStore := testReviewer(t)
 			r := reviewer.Service.Repository
 			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Second")
@@ -135,6 +139,7 @@ if [ "$(git rev-parse HEAD)" = "$TEST_FAIL_TIP" ]; then exit 1; fi`, "TEST_LAUNC
 }
 
 func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	gitTest(t, r.Dir, "commit", "--allow-empty", "--fixup=HEAD")
@@ -189,6 +194,7 @@ func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
 }
 
 func TestReviewRejectsInvalidBoundsWithoutStateChanges(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Second")
@@ -212,6 +218,7 @@ func TestReviewRejectsInvalidBoundsWithoutStateChanges(t *testing.T) {
 }
 
 func TestBoundedReviewRetainsDeferredAndActiveAttempts(t *testing.T) {
+	t.Parallel()
 	reviewer, view, store := testReviewer(t)
 	r := reviewer.Service.Repository
 	first := view.Stacks[0]

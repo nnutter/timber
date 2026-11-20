@@ -71,6 +71,7 @@ func TestAppendedFeedbackWithUnchangedPatchRequiresReview(t *testing.T) {
 }
 
 func TestReviewStatusAfterStackRewrite(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, status, rewrite, want string
 		legacy                      bool
@@ -174,6 +175,7 @@ func assertStateCounts(t *testing.T, counts []StateCount, status string, commits
 // A rebase can change blob identities and hunk offsets without changing the
 // reviewed patch. Python indentation must still distinguish rewritten content.
 func TestApprovalAfterTouchedFileRebase(t *testing.T) {
+	t.Parallel()
 	for _, indentChanged := range []bool{false, true} {
 		name := "shifted hunk"
 		if indentChanged {
@@ -249,6 +251,7 @@ func rewriteTestStack(t *testing.T, r Repository, view Snapshot, kind string) {
 }
 
 func TestStackRewriteDoesNotRestoreSupersededApproval(t *testing.T) {
+	t.Parallel()
 	for _, status := range []string{"incomplete", "addressed"} {
 		t.Run(status, func(t *testing.T) {
 			r := testRepo(t)

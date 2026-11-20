@@ -87,6 +87,7 @@ func carryRepository(t *testing.T) (Reviewer, Snapshot) {
 }
 
 func TestCarrySavedReviewKeepsMarksAcrossRewrite(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name         string
 		message      string
@@ -154,6 +155,7 @@ func TestCarrySavedReviewKeepsMarksAcrossRewrite(t *testing.T) {
 }
 
 func TestCarrySavedReviewLeavesAMatchingRangeAlone(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
@@ -176,6 +178,7 @@ func TestCarrySavedReviewLeavesAMatchingRangeAlone(t *testing.T) {
 // A review that a rewrite moved records the carried progress, so the result and
 // the session that tuicr shows describe the same work.
 func TestReviewRecordsCarriedProgress(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
@@ -198,6 +201,7 @@ func TestReviewRecordsCarriedProgress(t *testing.T) {
 // the path that the reader reports differs from the path that names the store.
 // The move must still find the index entry.
 func TestCarrySavedReviewThroughAliasedStore(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	alias := filepath.Join(t.TempDir(), "alias")
@@ -220,6 +224,7 @@ func TestCarrySavedReviewThroughAliasedStore(t *testing.T) {
 // the session stores. A carried session must store them the way that tuicr
 // stores them, or tuicr names the session under another name.
 func TestCarrySavedReviewStoresTheRangeTheWayTuicrStoresIt(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
@@ -251,6 +256,7 @@ func TestCarrySavedReviewStoresTheRangeTheWayTuicrStoresIt(t *testing.T) {
 // A range of more than one commit carries, because tuicr stores the range
 // from the newest commit to the oldest.
 func TestCarrySavedReviewCarriesARangeOfSeveralCommits(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	dir := reviewer.Service.Repository.Dir
 	gitTest(t, dir, "reset", "--hard", "main")
@@ -292,6 +298,7 @@ func TestCarrySavedReviewCarriesARangeOfSeveralCommits(t *testing.T) {
 // keep the name that tuicr gives a session, because tuicr finds a session by
 // that name and writes a second session for a range that it cannot find.
 func TestReviewContinuesAfterASquashedCommit(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
@@ -313,6 +320,7 @@ func TestReviewContinuesAfterASquashedCommit(t *testing.T) {
 // session that tuicr wrote. The review continues with the session that the
 // index recorded last, because that is the session that tuicr reopens.
 func TestReviewContinuesWithTheLastRecordedSession(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}

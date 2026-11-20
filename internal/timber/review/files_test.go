@@ -29,6 +29,7 @@ func fileFixture(t *testing.T, repo, diffSource, base string, store string, revi
 }
 
 func TestReadFilePristineAndWorkingTree(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	repo, err := r.git(t.Context(), "rev-parse", "--show-toplevel")
@@ -59,6 +60,7 @@ func TestReadFilePristineAndWorkingTree(t *testing.T) {
 }
 
 func TestReadFileOutcomes(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	repo, err := r.git(t.Context(), "rev-parse", "--show-toplevel")
@@ -91,6 +93,7 @@ func TestReadFileOutcomes(t *testing.T) {
 }
 
 func TestReadFileChoosesTheLastRecordedSession(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	repo, err := r.git(t.Context(), "rev-parse", "--show-toplevel")
@@ -120,6 +123,7 @@ func TestReadFileChoosesTheLastRecordedSession(t *testing.T) {
 }
 
 func TestFilesReviewArgMappingAndLock(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "file.txt"), []byte("File to review\n"), 0o600))
@@ -159,6 +163,7 @@ func TestFilesReviewArgMappingAndLock(t *testing.T) {
 }
 
 func TestFilesReviewCancelledWithoutSession(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 	store := t.TempDir()

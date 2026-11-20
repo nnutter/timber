@@ -9,6 +9,7 @@ import (
 )
 
 func TestReviewCheckoutIsSharedAcrossFeatureWorktrees(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	other := filepath.Join(t.TempDir(), "other")
@@ -28,6 +29,7 @@ func TestReviewCheckoutIsSharedAcrossFeatureWorktrees(t *testing.T) {
 }
 
 func TestReviewCheckoutRejectsUnownedDirectory(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	path, err := WorktreePath(t.Context(), reviewer.Service.Repository.Dir)
 	require.NoError(t, err)
@@ -42,6 +44,7 @@ func TestReviewCheckoutRejectsUnownedDirectory(t *testing.T) {
 }
 
 func TestReviewCheckoutRejectsReplacedGitRegistration(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	path, err := WorktreePath(t.Context(), r.Dir)
@@ -57,6 +60,7 @@ func TestReviewCheckoutRejectsReplacedGitRegistration(t *testing.T) {
 }
 
 func TestReviewCheckoutRejectsAttachedBranch(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	path, err := WorktreePath(t.Context(), r.Dir)

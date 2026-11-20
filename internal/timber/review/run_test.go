@@ -35,6 +35,7 @@ func testReviewer(t *testing.T) (Reviewer, Snapshot, string) {
 }
 
 func TestReviewCapturesScopeAndReadsResult(t *testing.T) {
+	t.Parallel()
 	reviewer, view, store := testReviewer(t)
 	gitTest(t, reviewer.Service.Repository.Dir, "commit", "--allow-empty", "-m", "fixup! Feature")
 	view, err := reviewer.Service.Repository.Snapshot(t.Context())
@@ -62,6 +63,7 @@ func TestReviewCapturesScopeAndReadsResult(t *testing.T) {
 }
 
 func TestReviewContinuesThroughEligibleStacksByDefault(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		feedback   bool
@@ -128,6 +130,7 @@ func TestReviewContinuesThroughEligibleStacksByDefault(t *testing.T) {
 // A review resumes the attempt that captured the same stack, and a stack that a
 // fixup changed starts a new attempt.
 func TestInterruptedReviewResumesTheCapturedAttempt(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		amend      bool
@@ -173,6 +176,7 @@ func TestInterruptedReviewResumesTheCapturedAttempt(t *testing.T) {
 // A saved session that still has work left belongs to a current stack, so a
 // recovery must resume that attempt and keep the progress it recorded.
 func TestInterruptedReviewResumesSavedProgress(t *testing.T) {
+	t.Parallel()
 	reviewer, view, store := testReviewer(t)
 	fakeTuicr(t, &reviewer.Service.Repository, "exit 1")
 	_, err := reviewer.Review(t.Context(), ReviewOptions{})
@@ -204,6 +208,7 @@ func TestInterruptedReviewResumesSavedProgress(t *testing.T) {
 }
 
 func TestReviewDiscardsUntouchedExit(t *testing.T) {
+	t.Parallel()
 	for _, savedSession := range []bool{false, true} {
 		t.Run(fmt.Sprintf("saved=%t", savedSession), func(t *testing.T) {
 			reviewer, view, store := testReviewer(t)
@@ -228,6 +233,7 @@ func TestReviewDiscardsUntouchedExit(t *testing.T) {
 }
 
 func TestReviewReusesDisposableCheckoutAtSelectedTip(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
@@ -263,6 +269,7 @@ func TestReviewReusesDisposableCheckoutAtSelectedTip(t *testing.T) {
 }
 
 func TestDeferredReviewsRemainPending(t *testing.T) {
+	t.Parallel()
 	reviewer, view, _ := testReviewer(t)
 	require.NoError(t, (Store{Path: view.Path}).Update(func(state *State) error {
 		attempt := newAttempt(view.Stacks[0], "incomplete")
@@ -280,6 +287,7 @@ func TestDeferredReviewsRemainPending(t *testing.T) {
 // A review holds the worktree lock for the whole of tuicr, so nothing else can
 // start a review, approve, or rewrite the state while the human reviews.
 func TestReviewHoldsActivityLockDuringLaunch(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	started := filepath.Join(t.TempDir(), "started")
 	released := filepath.Join(t.TempDir(), "released")
@@ -293,7 +301,7 @@ while [ ! -f "$TEST_RELEASED" ]; do sleep 0.05; done`, "TEST_STARTED="+started, 
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(started)
 		return err == nil
-	}, 5*time.Second, 10*time.Millisecond)
+	}, 30*time.Second, 10*time.Millisecond, "tuicr did not start")
 	running, err := reviewer.Service.ReviewRunning(t.Context())
 	require.NoError(t, err)
 	require.True(t, running, "the launch is part of the live review")
@@ -305,6 +313,7 @@ while [ ! -f "$TEST_RELEASED" ]; do sleep 0.05; done`, "TEST_STARTED="+started, 
 }
 
 func TestRecoverablePriorIgnoresRecordedModelResults(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("one\n"), 0o600))
 	gitTest(t, r.Dir, "add", "value")
@@ -336,6 +345,7 @@ func TestRecoverablePriorIgnoresRecordedModelResults(t *testing.T) {
 }
 
 func TestReviewDiscardsEarlierStackVersion(t *testing.T) {
+	t.Parallel()
 	for _, status := range []string{"incomplete", "reviewing"} {
 		t.Run(status, func(t *testing.T) {
 			reviewer, view, store := testReviewer(t)
