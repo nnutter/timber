@@ -45,8 +45,8 @@ go tool vhs docs/demo/demo.tape
 '''
 
 [tasks.coverage]
-description = "Run tests and generate coverage report"
-run = "go test -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
+description = "Measure coverage across package boundaries"
+run = "go test -coverpkg=./... -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
 
 [tasks.upgrade]
 description = "Upgrade the tools to their newest releases"
