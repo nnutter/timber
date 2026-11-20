@@ -5,7 +5,6 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -17,7 +16,6 @@ import (
 )
 
 func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
-	binary := buildGitReview(t)
 	dir := featureRepo(t)
 	git(t, dir, "commit", "--allow-empty", "-m", "fixup! Add feature")
 	for i, subject := range []string{"Active", "Feedback", "Partial", "Approved"} {
@@ -41,7 +39,7 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 	want := []review.StateCount{{State: "needs_review", Count: 3}, {State: "reviewing", Count: 1}, {State: "feedback"}, {State: "incomplete", Count: 1}, {State: "auto_reviewed"}, {State: "approved", Count: 2}}
 	entryStates := []string{"needs_review", "reviewing", "needs_review", "incomplete", "approved"}
 	for _, args := range [][]string{{"status", "--json"}, {"--json", "status"}} {
-		out, terminal, err := executeBinary(t, binary, dir, args...)
+		out, terminal, err := execute(t, dir, args...)
 		require.NoError(t, err)
 		require.Empty(t, terminal)
 		var result review.Result
@@ -61,7 +59,7 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 		require.Len(t, result.Active, 1)
 		require.Equal(t, "reviewing", result.Active[0].ID)
 	}
-	out, terminal, err := executeBinary(t, binary, dir, "status")
+	out, terminal, err := execute(t, dir, "status")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	require.Contains(t, out, "COMMITS (inclusive)")
@@ -75,14 +73,14 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 		require.Contains(t, out, stack.Subject)
 		require.Contains(t, out, reviewdisplay.StatusLabel(entryStates[i]))
 	}
-	filtered, terminal, err := executeBinary(t, binary, dir, "status", "--needs-review")
+	filtered, terminal, err := execute(t, dir, "status", "--needs-review")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	for _, stack := range view.Stacks[:4] {
 		require.Contains(t, filtered, reviewdisplay.ShortStack(stack))
 	}
 	require.NotContains(t, filtered, reviewdisplay.ShortStack(view.Stacks[4]))
-	filtered, _, err = executeBinary(t, binary, dir, "status", "--needs-review", "--json")
+	filtered, _, err = execute(t, dir, "status", "--needs-review", "--json")
 	require.NoError(t, err)
 	var result review.Result
 	require.NoError(t, json.Unmarshal([]byte(filtered), &result))
@@ -101,13 +99,13 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 
 	// A changed stack loses approval, and removed stacks contribute nothing.
 	git(t, dir, "commit", "--allow-empty", "-m", "fixup! Approved")
-	out, _, err = executeBinary(t, binary, dir, "status", "--json")
+	out, _, err = execute(t, dir, "status", "--json")
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
 	require.Equal(t, []review.StateCount{{State: "needs_review", Count: 6}, {State: "reviewing", Count: 1}, {State: "feedback"}, {State: "incomplete", Count: 1}, {State: "auto_reviewed"}, {State: "approved", Count: 0}}, result.Summary)
-	assertStatusVerbosity(t, binary, dir, out)
+	assertStatusVerbosity(t, dir, out)
 	git(t, dir, "reset", "--hard", "main")
-	out, _, err = executeBinary(t, binary, dir, "status", "--json")
+	out, _, err = execute(t, dir, "status", "--json")
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal([]byte(out), &result))
 	require.Equal(t, []review.StateCount{{State: "needs_review"}, {State: "reviewing"}, {State: "feedback"}, {State: "incomplete"}, {State: "auto_reviewed"}, {State: "approved"}}, result.Summary)
@@ -118,14 +116,14 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 	require.Empty(t, result.Active)
 }
 
-func assertStatusVerbosity(t *testing.T, binary, dir, out string) {
+func assertStatusVerbosity(t *testing.T, dir, out string) {
 	t.Helper()
 	for _, flag := range []string{"", "-v", "--verbose"} {
 		args := []string{"status"}
 		if flag != "" {
 			args = append(args, flag)
 		}
-		text, terminal, err := executeBinary(t, binary, dir, args...)
+		text, terminal, err := execute(t, dir, args...)
 		require.NoError(t, err)
 		require.Empty(t, terminal)
 		require.Contains(t, text, "Active attempt: reviewing")
@@ -138,7 +136,7 @@ func assertStatusVerbosity(t *testing.T, binary, dir, out string) {
 			require.Contains(t, text, "Saved review details")
 			require.Less(t, strings.LastIndex(text, "Saved review details"), strings.Index(text, "COMMITS (inclusive)"))
 		}
-		jsonOut, _, err := executeBinary(t, binary, dir, append(args, "--json")...)
+		jsonOut, _, err := execute(t, dir, append(args, "--json")...)
 		require.NoError(t, err)
 		require.JSONEq(t, out, jsonOut)
 	}
@@ -219,15 +217,12 @@ func TestStatusDebugLogsStayOffJSON(t *testing.T) {
 }
 
 func TestStatusOutsideGitRepository(t *testing.T) {
-	binary := buildGitReview(t)
 	dir := t.TempDir()
 	const message = "timber review must be used from inside a Git repository"
 	for _, args := range [][]string{{"status"}, {"status", "--json"}} {
 		t.Run(args[len(args)-1], func(t *testing.T) {
-			out, terminal, err := executeBinary(t, binary, dir, args...)
-			var exit *exec.ExitError
-			require.ErrorAs(t, err, &exit)
-			require.Equal(t, 1, exit.ExitCode())
+			out, terminal, err := execute(t, dir, args...)
+			require.Error(t, err)
 			if len(args) == 2 {
 				require.Empty(t, terminal)
 				var failed display.ErrorResult

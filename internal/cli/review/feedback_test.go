@@ -13,7 +13,6 @@ import (
 )
 
 func TestFeedbackReadsPersistedCurrentAndHistoricalNotes(t *testing.T) {
-	binary := buildGitReview(t)
 	dir := featureRepo(t)
 	repository := review.Repository{Dir: dir}
 	original, err := repository.Snapshot(t.Context())
@@ -41,7 +40,7 @@ func TestFeedbackReadsPersistedCurrentAndHistoricalNotes(t *testing.T) {
 	before, err := os.ReadFile(changed.Path)
 	require.NoError(t, err)
 	for _, args := range [][]string{{"feedback", "--json"}, {"--json", "feedback"}} {
-		out, terminal, err := executeBinary(t, binary, dir, args...)
+		out, terminal, err := execute(t, dir, args...)
 		require.NoError(t, err)
 		require.Empty(t, terminal)
 		var result review.Result
@@ -62,7 +61,7 @@ func TestFeedbackReadsPersistedCurrentAndHistoricalNotes(t *testing.T) {
 			require.Equal(t, "Explain the change", *saved.SessionNotes)
 		}
 	}
-	out, terminal, err := executeBinary(t, binary, dir, "feedback")
+	out, terminal, err := execute(t, dir, "feedback")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	require.Contains(t, out, "Historical feedback: removed-stack")
@@ -80,7 +79,7 @@ func TestFeedbackReadsPersistedCurrentAndHistoricalNotes(t *testing.T) {
 		state.Attempts[3].Replacement = &changed.Stacks[0]
 		return nil
 	}))
-	out, _, err = executeBinary(t, binary, dir, "feedback", "--json")
+	out, _, err = execute(t, dir, "feedback", "--json")
 	require.NoError(t, err)
 	var result review.Result
 	require.NoError(t, json.Unmarshal([]byte(out), &result))

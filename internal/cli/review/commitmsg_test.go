@@ -14,7 +14,6 @@ import (
 // `timber hooks commit-msg` that earlier installed hooks still call.
 
 func TestCommitMsgMatchesGerritHook(t *testing.T) {
-	binary := buildGitReview(t)
 	reference, err := filepath.Abs("testdata/commit-msg")
 	require.NoError(t, err)
 	t.Setenv("GIT_COMMITTER_DATE", "2001-02-03T04:05:06 +0000")
@@ -59,7 +58,7 @@ func TestCommitMsgMatchesGerritHook(t *testing.T) {
 			cmd := exec.CommandContext(t.Context(), "sh", reference, "reference message")
 			cmd.Dir = dir
 			refOut, refErr := cmd.CombinedOutput()
-			out, stderr, actualErr := executeBinary(t, binary, dir, "commit-msg", "actual message")
+			out, stderr, actualErr := execute(t, dir, "commit-msg", "actual message")
 			require.Equal(t, refErr == nil, actualErr == nil, "reference: %s; actual: %s", refOut, stderr)
 			require.Empty(t, out)
 			expected, err := os.ReadFile(filepath.Join(dir, "reference message"))
@@ -68,7 +67,7 @@ func TestCommitMsgMatchesGerritHook(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, string(expected), string(actual))
 			if actualErr == nil {
-				_, stderr, err = executeBinary(t, binary, dir, "commit-msg", "actual message")
+				_, stderr, err = execute(t, dir, "commit-msg", "actual message")
 				require.NoError(t, err, "%s", stderr)
 				again, err := os.ReadFile(filepath.Join(dir, "actual message"))
 				require.NoError(t, err)

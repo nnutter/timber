@@ -134,7 +134,7 @@ func TestLogHunkPager(t *testing.T) {
 	t.Setenv("HUNK_OUTPUT", capture)
 	t.Setenv("TERM", "xterm")
 
-	out, terminal, err := executeBinary(t, binary, dir, "log", "--hunk")
+	out, terminal, err := execute(t, dir, "log", "--hunk")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	require.Contains(t, out, "+example content\n")
