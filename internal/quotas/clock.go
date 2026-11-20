@@ -25,26 +25,6 @@ func Lit(percent float64) int {
 	return gaugeCells
 }
 
-// WindowShare is how far a limit is into its window, in percent.
-// The second result is false when the service gives no clock.
-func WindowShare(limit Limit, now time.Time) (int, bool) {
-	share, ok := shareOf(limit, now)
-	if !ok {
-		return 0, false
-	}
-	return int(math.Round(share)), true
-}
-
-// Lag is how far a limit is behind its window: the share that has passed,
-// and the points use is behind that share.
-func Lag(limit Limit, now time.Time) (share int, points float64, ok bool) {
-	share, ok = WindowShare(limit, now)
-	if !ok {
-		return 0, 0, false
-	}
-	return share, float64(share) - limit.Percent, true
-}
-
 // UntilReset is "in 2d 4h", "in 3h 10m", "in 12m", or "now".
 func UntilReset(reset time.Time, now time.Time) (string, bool) {
 	if reset.IsZero() {
