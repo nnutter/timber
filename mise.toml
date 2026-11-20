@@ -16,10 +16,11 @@ go = "latest"
 gofumpt = "latest"
 hk = "2.12.0"
 pkl = "latest"
-"pypi:agentskills-tools" = "latest"
+"pipx:agentskills-tools" = "latest"
 staticcheck = "latest"
 tombi = "latest"
 yamlfmt = "latest"
+python = "3.14"
 
 [tasks.all]
 description = "Run fix, test, and check"
