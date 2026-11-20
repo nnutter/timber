@@ -22,6 +22,7 @@ import (
 	"github.com/zalando/go-keyring"
 	"gopkg.in/yaml.v3"
 
+	"github.com/nnutter/timber/internal/process"
 	coreconfig "github.com/nnutter/timber/internal/timber/config"
 	repomodel "github.com/nnutter/timber/internal/timber/repo"
 	"github.com/nnutter/timber/internal/timber/review"
@@ -1022,7 +1023,7 @@ func (x Runtime) command(ctx context.Context, name string, args ...string) *exec
 		name = x.MiseExecutable
 	}
 
-	command := exec.CommandContext(ctx, name, args...)
+	command := process.Command(ctx, name, args...)
 	if x.Environment != nil {
 		command.Env = slices.Clone(x.Environment)
 	}

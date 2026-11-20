@@ -9,6 +9,7 @@ import (
 	"github.com/nnutter/timber/internal/cli"
 	"github.com/nnutter/timber/internal/cli/root"
 	"github.com/nnutter/timber/internal/display"
+	"github.com/nnutter/timber/internal/process"
 
 	"charm.land/fang/v2"
 
@@ -28,9 +29,15 @@ var reviewSkillContent string
 var version string
 
 func main() {
-	runtime, err := timber.RuntimeFromProcess(context.Background())
+	os.Exit(run())
+}
+
+func run() int {
+	ctx, stop := process.InterruptContext(context.Background())
+	defer stop()
+	runtime, err := timber.RuntimeFromProcess(ctx)
 	if err != nil {
-		os.Exit(1)
+		return 1
 	}
 	runtime.TodoSkillContent = todoSkillContent
 	runtime.SkillContent = skillContent
@@ -38,7 +45,7 @@ func main() {
 
 	root := root.New(runtime.HomeDirectory, runtime.SkillContent, cli.Commands(runtime)...)
 	if err := fang.Execute(
-		context.Background(),
+		ctx,
 		root,
 		fang.WithVersion(version),
 		fang.WithErrorHandler(func(w io.Writer, styles fang.Styles, err error) {
@@ -55,6 +62,10 @@ func main() {
 			fang.DefaultErrorHandler(w, styles, err)
 		}),
 	); err != nil {
-		os.Exit(1)
+		return 1
 	}
+	if ctx.Err() != nil {
+		return 1
+	}
+	return 0
 }

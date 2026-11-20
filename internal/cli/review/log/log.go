@@ -4,10 +4,10 @@ package log
 import (
 	"fmt"
 	"io"
-	"os/exec"
 
 	"github.com/spf13/cobra"
 
+	"github.com/nnutter/timber/internal/process"
 	"github.com/nnutter/timber/internal/timber/review"
 )
 
@@ -34,7 +34,7 @@ func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 	if asJSON {
 		return fmt.Errorf("log does not support --json")
 	}
-	git := exec.CommandContext(cmd.Context(), "git", c.gitArgs()...)
+	git := process.Command(cmd.Context(), "git", c.gitArgs()...)
 	git.Dir = c.Service.Repository.Dir
 	git.Stdin = c.Input
 	git.Stdout = c.Output
