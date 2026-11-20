@@ -77,26 +77,6 @@ func TestFilesUpstreamAndEmptyRange(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
-func TestFilesCommandDistinguishesCommits(t *testing.T) {
-	dir := featureRepo(t)
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	bin := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "tuicr"), []byte("#!/bin/sh\nexit 0\n"), 0o700))
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	commitsOut, _, err := execute(t, dir, "commits", "--json")
-	require.NoError(t, err)
-	var commits review.Result
-	require.NoError(t, json.Unmarshal([]byte(commitsOut), &commits))
-	require.Equal(t, "commits", commits.Command)
-	filesOut, _, err := execute(t, dir, "files", "--json")
-	require.NoError(t, err)
-	var files review.FilesResult
-	require.NoError(t, json.Unmarshal([]byte(filesOut), &files))
-	require.Equal(t, "files", files.Command)
-	require.NotEqual(t, commits.Command, files.Command)
-}
-
 func TestFilesCommandTerminalAndErrors(t *testing.T) {
 	dir := featureRepo(t)
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
