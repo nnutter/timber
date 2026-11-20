@@ -21,6 +21,7 @@ staticcheck = "latest"
 tombi = "latest"
 yamlfmt = "latest"
 python = "3.14"
+uv = "0.13.9"
 
 [tasks.all]
 description = "Run fix, test, and check"
