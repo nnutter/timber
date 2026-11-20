@@ -32,7 +32,7 @@ func TestReviewSelectsWithinInclusiveBounds(t *testing.T) {
 					return nil
 				}))
 			}
-			path, err := WorktreePath(r.Dir)
+			path, err := WorktreePath(t.Context(), r.Dir)
 			require.NoError(t, err)
 			scope := view.Stacks[1]
 			scope.Repo = path
@@ -77,7 +77,7 @@ func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
 			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Fourth")
 			view, err := r.Snapshot(t.Context())
 			require.NoError(t, err)
-			path, err := WorktreePath(r.Dir)
+			path, err := WorktreePath(t.Context(), r.Dir)
 			require.NoError(t, err)
 			first, second := view.Stacks[1], view.Stacks[2]
 			first.Repo, second.Repo = path, path
@@ -145,7 +145,7 @@ func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Outside range")
 	view, err := r.Snapshot(t.Context())
 	require.NoError(t, err)
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	wantLaunch := ""
 	for i, stack := range view.Stacks[:3] {
@@ -237,7 +237,7 @@ func TestBoundedReviewRetainsDeferredAndActiveAttempts(t *testing.T) {
 		state.Attempts = append(state.Attempts, active)
 		return nil
 	}))
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	scope := first
 	scope.Repo = path

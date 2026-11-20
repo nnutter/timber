@@ -169,7 +169,7 @@ func TestPrepareWorktreeMirrorsMiseTrust(t *testing.T) {
 	require.NoError(t, os.WriteFile(trustedPath, []byte(r.Dir+"\n"), 0o600))
 	view, err := r.Snapshot(t.Context())
 	require.NoError(t, err)
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	require.NoError(t, prepareWorktree(t.Context(), r, path, view.Stacks[0]))
 	data, err := os.ReadFile(trustedPath)

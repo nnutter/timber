@@ -156,7 +156,7 @@ func (r FileReviewer) lockReview(ctx context.Context) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	path, err := WorktreePath(r.Service.Repository.Dir)
+	path, err := WorktreePath(ctx, r.Service.Repository.Dir)
 	if err != nil {
 		return nil, err
 	}

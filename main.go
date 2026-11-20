@@ -28,7 +28,7 @@ var reviewSkillContent string
 var version string
 
 func main() {
-	runtime, err := timber.RuntimeFromProcess()
+	runtime, err := timber.RuntimeFromProcess(context.Background())
 	if err != nil {
 		os.Exit(1)
 	}

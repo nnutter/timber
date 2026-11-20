@@ -13,8 +13,8 @@ import (
 )
 
 // WorktreePath shares one persistent review checkout across a repository's branches.
-func WorktreePath(repo string) (string, error) {
-	common, err := (Repository{Dir: repo}).git(context.Background(), "rev-parse", "--path-format=absolute", "--git-common-dir")
+func WorktreePath(ctx context.Context, repo string) (string, error) {
+	common, err := (Repository{Dir: repo}).git(ctx, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", err
 	}
@@ -130,7 +130,7 @@ func resetReviewCheckout(ctx context.Context, source Repository, path string, st
 // identify the same old review checkout and registration.
 func repairMovedReviewCheckout(ctx context.Context, source Repository, path string) error {
 	invalid := fmt.Errorf("review checkout path already exists or is not a safely movable review checkout: %s", path)
-	if err := reviewCheckoutExpected(source, path, invalid); err != nil {
+	if err := reviewCheckoutExpected(ctx, source, path, invalid); err != nil {
 		return err
 	}
 	if err := reviewCheckoutDir(path, invalid); err != nil {
@@ -151,8 +151,8 @@ func repairMovedReviewCheckout(ctx context.Context, source Repository, path stri
 	return err
 }
 
-func reviewCheckoutExpected(source Repository, path string, invalid error) error {
-	expected, err := WorktreePath(source.Dir)
+func reviewCheckoutExpected(ctx context.Context, source Repository, path string, invalid error) error {
+	expected, err := WorktreePath(ctx, source.Dir)
 	if err != nil || !isSame(path, expected) {
 		return invalid
 	}
@@ -245,7 +245,7 @@ func registeredReviewWorktree(ctx context.Context, source Repository, path strin
 }
 
 func validateReviewCheckout(ctx context.Context, source Repository, path string) error {
-	expected, err := WorktreePath(source.Dir)
+	expected, err := WorktreePath(ctx, source.Dir)
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func validateReviewCheckout(ctx context.Context, source Repository, path string)
 	if root != path {
 		return fmt.Errorf("review checkout root mismatch: %s", path)
 	}
-	owned, err := WorktreePath(path)
+	owned, err := WorktreePath(ctx, path)
 	if err != nil {
 		return err
 	}

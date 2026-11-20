@@ -67,14 +67,14 @@ func carrySavedReviews(ctx context.Context, repository Repository, reader SavedR
 
 // carrySavedSession moves the session that captured from onto the current stack.
 func carrySavedSession(ctx context.Context, repository Repository, reader SavedReader, from Attempt, to Stack) error {
-	source, err := carrySource(reader, from)
+	source, err := carrySource(ctx, reader, from)
 	if err != nil {
 		return err
 	}
 	if source == nil {
 		return nil
 	}
-	checkout, err := WorktreePath(to.Repo)
+	checkout, err := WorktreePath(ctx, to.Repo)
 	if err != nil {
 		return err
 	}
@@ -95,8 +95,8 @@ func carrySavedSession(ctx context.Context, repository Repository, reader SavedR
 
 // carrySource reads the session that captured an attempt, or nil when the
 // attempt left no session to move.
-func carrySource(reader SavedReader, from Attempt) (*carriedSession, error) {
-	saved, err := readAttempt(reader, from, "")
+func carrySource(ctx context.Context, reader SavedReader, from Attempt) (*carriedSession, error) {
+	saved, err := readAttempt(ctx, reader, from, "")
 	if err != nil {
 		return nil, err
 	}

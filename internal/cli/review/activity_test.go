@@ -15,7 +15,7 @@ import (
 func TestReviewRunningReportsLiveLockNotPersistedAttempt(t *testing.T) {
 	binary := buildGitReview(t)
 	dir := featureRepo(t)
-	path, err := review.WorktreePath(dir)
+	path, err := review.WorktreePath(t.Context(), dir)
 	require.NoError(t, err)
 	check := func(cwd string, running bool) {
 		t.Helper()

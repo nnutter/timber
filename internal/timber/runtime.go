@@ -38,6 +38,9 @@ const (
 // timber command. A Runtime is captured once at the CLI boundary and should
 // be treated as immutable for the lifetime of a command.
 type Runtime struct {
+	// processContext covers Git calls from helpers without a command context.
+	processContext context.Context
+
 	CurrentDirectory string
 
 	HomeDirectory      string
@@ -2493,7 +2496,7 @@ func (x Runtime) xdgDataHome() string {
 }
 
 // RuntimeFromProcess captures the process state needed by a timber command.
-func RuntimeFromProcess() (Runtime, error) {
+func RuntimeFromProcess(ctx context.Context) (Runtime, error) {
 	currentDirectory, err := os.Getwd()
 	if err != nil {
 		return Runtime{}, fmt.Errorf("get current directory: %w", err)
@@ -2505,6 +2508,7 @@ func RuntimeFromProcess() (Runtime, error) {
 	}
 
 	return Runtime{
+		processContext:     ctx,
 		CurrentDirectory:   currentDirectory,
 		HomeDirectory:      homeDirectory,
 		DataHome:           cmp.Or(os.Getenv("XDG_DATA_HOME"), filepath.Join(homeDirectory, ".local", "share")),

@@ -40,7 +40,7 @@ func TestReviewCapturesScopeAndReadsResult(t *testing.T) {
 	t.Setenv("TEST_LAUNCH_LOG", log)
 	fakeTuicr(t, `printf '%s\n' "$PWD" "$@" > "$TEST_LAUNCH_LOG"`)
 	scope := view.Stacks[0]
-	path, err := WorktreePath(scope.Repo)
+	path, err := WorktreePath(t.Context(), scope.Repo)
 	require.NoError(t, err)
 	scope.Repo = path
 	savedFixture(t, scope, store, true)
@@ -80,7 +80,7 @@ func TestReviewContinuesThroughEligibleStacksByDefault(t *testing.T) {
 			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Fourth")
 			view, err := r.Snapshot(t.Context())
 			require.NoError(t, err)
-			path, err := WorktreePath(r.Dir)
+			path, err := WorktreePath(t.Context(), r.Dir)
 			require.NoError(t, err)
 			log := filepath.Join(t.TempDir(), "launch")
 			t.Setenv("TEST_LAUNCH_LOG", log)
@@ -141,7 +141,7 @@ func TestInterruptedReviewResumesTheCapturedAttempt(t *testing.T) {
 			fakeTuicr(t, "exit 1")
 			_, err := reviewer.Review(t.Context(), ReviewOptions{})
 			require.ErrorContains(t, err, "tuicr interrupted")
-			path, err := WorktreePath(view.Stacks[0].Repo)
+			path, err := WorktreePath(t.Context(), view.Stacks[0].Repo)
 			require.NoError(t, err)
 			scope := view.Stacks[0]
 			scope.Repo = path
@@ -176,7 +176,7 @@ func TestInterruptedReviewResumesSavedProgress(t *testing.T) {
 	fakeTuicr(t, "exit 1")
 	_, err := reviewer.Review(t.Context(), ReviewOptions{})
 	require.ErrorContains(t, err, "tuicr interrupted")
-	path, err := WorktreePath(view.Stacks[0].Repo)
+	path, err := WorktreePath(t.Context(), view.Stacks[0].Repo)
 	require.NoError(t, err)
 	scope := view.Stacks[0]
 	scope.Repo = path
@@ -209,7 +209,7 @@ func TestReviewDiscardsUntouchedExit(t *testing.T) {
 			fakeTuicr(t, "exit 0")
 			if savedSession {
 				scope := view.Stacks[0]
-				path, err := WorktreePath(scope.Repo)
+				path, err := WorktreePath(t.Context(), scope.Repo)
 				require.NoError(t, err)
 				scope.Repo = path
 				savedFixture(t, scope, store, false)
@@ -238,7 +238,7 @@ func TestReviewReusesDisposableCheckoutAtSelectedTip(t *testing.T) {
 	result, err := reviewer.Review(t.Context(), ReviewOptions{Stack: first})
 	require.NoError(t, err)
 	require.Equal(t, "cancelled", result.Status)
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(path, "file.txt"), []byte("incidental edit"), 0o600))
 	for _, name := range []string{"local.txt", "artifact.txt"} {
@@ -342,7 +342,7 @@ func TestReviewDiscardsEarlierStackVersion(t *testing.T) {
 			reviewer, view, store := testReviewer(t)
 			r := reviewer.Service.Repository
 			first := view.Stacks[0]
-			path, err := WorktreePath(first.Repo)
+			path, err := WorktreePath(t.Context(), first.Repo)
 			require.NoError(t, err)
 			// The review of the version before the fixup commit left a session.
 			earlier := savedSession(t, store, Stack{Repo: path, Commits: first.Commits}, "aaaaaaaaaaaaaaaa")

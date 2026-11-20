@@ -2,6 +2,7 @@ package timber
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -17,7 +18,7 @@ type gitCommandResult struct {
 }
 
 func gitOutput(runtime Runtime, directory string, args ...string) (gitCommandResult, error) {
-	command := runtime.command(context.Background(), "git", args...)
+	command := runtime.command(cmp.Or(runtime.processContext, context.Background()), "git", args...)
 	command.Dir = directory
 
 	var stdout bytes.Buffer
