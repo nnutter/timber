@@ -9,6 +9,7 @@ import (
 )
 
 func TestAutomaticReviewDoesNotTransferToRewrittenCommits(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("one\n"), 0o600))
 	gitTest(t, r.Dir, "add", "value")
@@ -37,6 +38,7 @@ func TestAutomaticReviewDoesNotTransferToRewrittenCommits(t *testing.T) {
 // A model result resets when the stack content changes, and a rewritten message
 // is content that the model read.
 func TestAutomaticReviewResetsWhenContentOrMessageChanges(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		rewrite func(t *testing.T, dir string)
@@ -85,6 +87,7 @@ func TestAutomaticReviewResetsWhenContentOrMessageChanges(t *testing.T) {
 }
 
 func TestAutomaticReviewValidation(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("one\n"), 0o600))
 	gitTest(t, r.Dir, "add", "value")
@@ -124,6 +127,7 @@ func TestAutomaticReviewValidation(t *testing.T) {
 }
 
 func TestAutomaticReviewUnderAnotherPolicyDoesNotApply(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("one\n"), 0o600))
 	gitTest(t, r.Dir, "add", "value")

@@ -35,6 +35,7 @@ func testRepo(t *testing.T) Repository {
 }
 
 func TestSnapshot(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	id := "I" + strings.Repeat("a", 40)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Add feature\n\nChange-Id: "+id)
@@ -75,6 +76,7 @@ func TestSnapshotGroupsNativeFixupsTargetingStackTip(t *testing.T) {
 }
 
 func TestSnapshotTreatsOrphanFeedbackAsNormalCommit(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name         string
 		subjects     []string
@@ -111,6 +113,7 @@ func TestSnapshotTreatsOrphanFeedbackAsNormalCommit(t *testing.T) {
 }
 
 func TestSnapshotRejectsUnsafeHistory(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		setup   func(*testing.T, Repository)

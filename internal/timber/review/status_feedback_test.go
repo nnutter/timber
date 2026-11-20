@@ -10,6 +10,7 @@ import (
 )
 
 func TestStatusOmitsFeedbackFromEarlierStacks(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	for _, name := range []string{"one", "two"} {
 		require.NoError(t, os.WriteFile(filepath.Join(r.Dir, name), []byte(name+"\n"), 0o600))

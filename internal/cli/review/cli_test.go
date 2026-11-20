@@ -70,6 +70,7 @@ func checkNeedsReviewJSON(t *testing.T, out string) {
 }
 
 func TestCommandsShareStructuredResults(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	for _, args := range [][]string{
 		{"status", "--needs-review", "--json"},
@@ -104,6 +105,7 @@ func TestCommandsShareStructuredResults(t *testing.T) {
 }
 
 func TestJSONErrorsIncludeArgumentAndGitFailures(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	git(t, dir, "branch", "--unset-upstream")
 	for _, args := range [][]string{
@@ -173,6 +175,7 @@ func TestReviewAliasResumesTheInterruptedAttempt(t *testing.T) {
 }
 
 func TestTerminalRenderingRetainsFeedbackAndRemovesControlSequences(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
 	require.NoError(t, err)
@@ -244,6 +247,7 @@ func TestTuicrKeepsWorktreeLockedAfterGitReviewDies(t *testing.T) {
 }
 
 func TestHelpAndVersion(t *testing.T) {
+	t.Parallel()
 	out, _, err := execute(t, t.TempDir(), "--help")
 	require.NoError(t, err)
 	require.Contains(t, out, "approve")

@@ -13,6 +13,7 @@ import (
 )
 
 func TestSnapshotPatchCache(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	var logs bytes.Buffer
 	r.Logger = log.NewWithOptions(&logs, log.Options{Level: log.DebugLevel})
@@ -47,6 +48,7 @@ func TestSnapshotPatchCache(t *testing.T) {
 }
 
 func TestSnapshotPatchCacheTracksDiffInputs(t *testing.T) {
+	t.Parallel()
 	for _, source := range []string{"worktree", "info", "global", "driver-config"} {
 		t.Run(source, func(t *testing.T) {
 			r := testRepo(t)
@@ -82,6 +84,7 @@ func TestSnapshotPatchCacheTracksDiffInputs(t *testing.T) {
 }
 
 func TestSnapshotRefreshesPatchForAttributesOnOneOfSeveralStacks(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	for _, path := range []string{"first file", "second"} {
 		require.NoError(t, os.WriteFile(filepath.Join(r.Dir, path), []byte("text\n"), 0o600))
@@ -103,6 +106,7 @@ func TestSnapshotRefreshesPatchForAttributesOnOneOfSeveralStacks(t *testing.T) {
 }
 
 func TestSnapshotPatchCacheFailureIsDisposable(t *testing.T) {
+	t.Parallel()
 	for _, failure := range []string{"corrupt", "unavailable"} {
 		t.Run(failure, func(t *testing.T) {
 			r := testRepo(t)

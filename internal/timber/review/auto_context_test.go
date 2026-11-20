@@ -10,6 +10,7 @@ import (
 )
 
 func TestAutoContextReadsOnlyCapturedObjects(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	file := filepath.Join(r.Dir, "code.go")
 	require.NoError(t, os.WriteFile(file, []byte("package example\nconst Old = 1\n"), 0o600))
@@ -36,6 +37,7 @@ func TestAutoContextReadsOnlyCapturedObjects(t *testing.T) {
 }
 
 func TestAutoContextRestrictsPathsSearchesAndOutput(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	for _, name := range []string{"normal.go", ".env", "nested/credentials/data", "nested/.env.local"} {
 		file := filepath.Join(r.Dir, name)
@@ -67,6 +69,7 @@ func TestAutoContextRestrictsPathsSearchesAndOutput(t *testing.T) {
 }
 
 func TestAutoContextReportsGitFailures(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	_, err := r.autoGit(t.Context(), autoContextLimit, "cat-file", "blob", "missing:missing")
 	require.ErrorContains(t, err, "read automatic review context")

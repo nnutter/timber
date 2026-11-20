@@ -88,6 +88,7 @@ while [ ! -f "$TEST_RELEASED" ]; do sleep 0.05; done`)
 }
 
 func TestReviewRunningOutsideRepository(t *testing.T) {
+	t.Parallel()
 	out, terminal, err := execute(t, t.TempDir(), "status", "--is-reviewing", "--json")
 	require.Error(t, err)
 	require.Empty(t, terminal)
@@ -95,6 +96,7 @@ func TestReviewRunningOutsideRepository(t *testing.T) {
 }
 
 func TestStatusIsReviewingTerminalAndConflicts(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	out, terminal, err := execute(t, dir, "status", "--is-reviewing")
 	require.NoError(t, err)

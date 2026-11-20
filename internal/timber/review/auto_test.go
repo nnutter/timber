@@ -35,6 +35,7 @@ func autoRepo(t *testing.T) Repository {
 }
 
 func TestAutoDryRunEvaluatesCompleteStackWithoutRecordingApproval(t *testing.T) {
+	t.Parallel()
 	r := autoRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte("two\n"), 0o600))
 	gitTest(t, r.Dir, "commit", "-am", "fixup! Refactor: Extract constant")
@@ -68,6 +69,7 @@ func TestAutoDryRunEvaluatesCompleteStackWithoutRecordingApproval(t *testing.T) 
 }
 
 func TestAutoRecordsModelEvidenceAndSkipsApprovedStack(t *testing.T) {
+	t.Parallel()
 	r := autoRepo(t)
 	service := Service{Repository: r}
 	result, err := service.Auto(t.Context(), approvingEvaluator(), AutoOptions{})
@@ -90,6 +92,7 @@ func TestAutoRecordsModelEvidenceAndSkipsApprovedStack(t *testing.T) {
 }
 
 func TestAutoFailsClosedDuringEvaluation(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		run  func(*testing.T, Repository, context.Context) (autoreview.Verdict, error)
@@ -139,6 +142,7 @@ func TestAutoFailsClosedDuringEvaluation(t *testing.T) {
 }
 
 func TestAutoResumesAfterALaterStackFails(t *testing.T) {
+	t.Parallel()
 	r := autoRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Refactor: Second change")
 	service := Service{Repository: r}
@@ -171,6 +175,7 @@ func TestAutoResumesAfterALaterStackFails(t *testing.T) {
 }
 
 func TestAutoSkipsIneligibleAndPreviouslyReviewedStacks(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		subject string
@@ -209,6 +214,7 @@ func TestAutoSkipsIneligibleAndPreviouslyReviewedStacks(t *testing.T) {
 }
 
 func TestAutoAbstentionRecordsResultWithoutApproving(t *testing.T) {
+	t.Parallel()
 	for _, decision := range []string{"needs-human-review", "not-eligible"} {
 		t.Run(decision, func(t *testing.T) {
 			r := autoRepo(t)
@@ -239,6 +245,7 @@ func abstainingEvaluator(decision string) autoreview.Evaluator {
 }
 
 func TestAutoSkipsRecordedResultUntilContentChanges(t *testing.T) {
+	t.Parallel()
 	r := autoRepo(t)
 	service := Service{Repository: r}
 	_, err := service.Auto(t.Context(), abstainingEvaluator("needs-human-review"), AutoOptions{})
@@ -263,6 +270,7 @@ func TestAutoSkipsRecordedResultUntilContentChanges(t *testing.T) {
 }
 
 func TestAutoRejectsOversizedDiffWithoutCallingProvider(t *testing.T) {
+	t.Parallel()
 	r := autoRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "value"), []byte(strings.Repeat("a", autoreview.MaxInputBytes+1)), 0o600))
 	gitTest(t, r.Dir, "commit", "-am", "fixup! Refactor: Extract constant")
@@ -274,6 +282,7 @@ func TestAutoRejectsOversizedDiffWithoutCallingProvider(t *testing.T) {
 }
 
 func TestAutoReportsOnlyProviderRequests(t *testing.T) {
+	t.Parallel()
 	r := autoRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Add behavior")
 	view, err := r.Snapshot(t.Context())
@@ -291,6 +300,7 @@ func TestAutoReportsOnlyProviderRequests(t *testing.T) {
 }
 
 func TestAutoSkipsBinaryChangesBeforeAnyRequest(t *testing.T) {
+	t.Parallel()
 	r := autoRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "blob.bin"), []byte{0, 1, 2}, 0o600))
 	gitTest(t, r.Dir, "add", "blob.bin")
@@ -304,6 +314,7 @@ func TestAutoSkipsBinaryChangesBeforeAnyRequest(t *testing.T) {
 }
 
 func TestAutoRequiresNoActiveReview(t *testing.T) {
+	t.Parallel()
 	r := autoRepo(t)
 	view, err := r.Snapshot(t.Context())
 	require.NoError(t, err)

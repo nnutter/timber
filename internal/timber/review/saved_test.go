@@ -38,6 +38,7 @@ func savedFixture(t *testing.T, stack Stack, store string, reviewed bool) map[st
 }
 
 func TestSavedReviewOutcomes(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		mutate func(map[string]any)
@@ -93,6 +94,7 @@ func TestSavedReviewOutcomes(t *testing.T) {
 }
 
 func TestSavedReviewRejectsCorruption(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		mutate  func(map[string]any)
@@ -124,6 +126,7 @@ func TestSavedReviewRejectsCorruption(t *testing.T) {
 }
 
 func TestSavedReviewScopeAndDiscovery(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	view, err := r.Snapshot(t.Context())
@@ -194,6 +197,7 @@ func writeSavedIndex(t *testing.T, store string, entries ...savedEntry) {
 }
 
 func TestSavedWriterDeletesCapturedSession(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	first, err := r.Snapshot(t.Context())
@@ -236,6 +240,7 @@ func TestSavedWriterDeletesCapturedSession(t *testing.T) {
 }
 
 func TestSavedWriterToleratesMissingStore(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	view, err := r.Snapshot(t.Context())

@@ -13,6 +13,7 @@ import (
 )
 
 func TestFeedbackReadsPersistedCurrentAndHistoricalNotes(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	repository := review.Repository{Dir: dir}
 	original, err := repository.Snapshot(t.Context())
@@ -92,6 +93,7 @@ func TestFeedbackReadsPersistedCurrentAndHistoricalNotes(t *testing.T) {
 }
 
 func TestFeedbackDoesNotLaunchOrRecoverReviews(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
 	require.NoError(t, err)

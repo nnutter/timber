@@ -9,6 +9,7 @@ import (
 )
 
 func TestFileFeedbackDiscoversNotesWithoutChangingSessions(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	store := t.TempDir()
 	path := filepath.Join(store, "sessions/0123456789abcdef.json")

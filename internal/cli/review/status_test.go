@@ -16,6 +16,7 @@ import (
 )
 
 func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	git(t, dir, "commit", "--allow-empty", "-m", "fixup! Add feature")
 	for i, subject := range []string{"Active", "Feedback", "Partial", "Approved"} {
@@ -143,6 +144,7 @@ func assertStatusVerbosity(t *testing.T, dir, out string) {
 }
 
 func TestStatusWithoutReviewHistory(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
 	require.NoError(t, err)
@@ -175,6 +177,7 @@ func TestStatusWithoutReviewHistory(t *testing.T) {
 }
 
 func TestMissingChangeIDWarning(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	git(t, dir, "commit", "--allow-empty", "-m", "Missing ID")
 	git(t, dir, "commit", "--allow-empty", "-m", "fixup! Missing ID")
@@ -191,6 +194,7 @@ func TestMissingChangeIDWarning(t *testing.T) {
 }
 
 func TestMissingChangeIDWarningSkipsApprovedStacks(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	git(t, dir, "commit", "--allow-empty", "-m", "Missing ID")
 	_, terminal, err := execute(t, dir, "approve", "HEAD")
@@ -206,6 +210,7 @@ func TestMissingChangeIDWarningSkipsApprovedStacks(t *testing.T) {
 }
 
 func TestStatusDebugLogsStayOffJSON(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	out, terminal, err := execute(t, dir, "status", "--json", "--debug")
 	require.NoError(t, err)
@@ -217,6 +222,7 @@ func TestStatusDebugLogsStayOffJSON(t *testing.T) {
 }
 
 func TestStatusOutsideGitRepository(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	const message = "timber review must be used from inside a Git repository"
 	for _, args := range [][]string{{"status"}, {"status", "--json"}} {
@@ -242,6 +248,7 @@ func TestStatusOutsideGitRepository(t *testing.T) {
 }
 
 func TestStatusJSONErrors(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	for _, args := range [][]string{{"status", "extra", "--json"}, {"status", "--unknown", "--json"}} {
 		out, terminal, err := execute(t, dir, args...)

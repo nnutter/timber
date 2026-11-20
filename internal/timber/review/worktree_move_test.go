@@ -26,6 +26,7 @@ func movedReviewCheckout(t *testing.T) (Repository, string, string, string) {
 }
 
 func TestPrepareMovedReviewCheckout(t *testing.T) {
+	t.Parallel()
 	r, path, _, _ := movedReviewCheckout(t)
 	file := filepath.Join(path, "incidental")
 	require.NoError(t, os.WriteFile(file, []byte("discard"), 0o600))
@@ -37,6 +38,7 @@ func TestPrepareMovedReviewCheckout(t *testing.T) {
 }
 
 func TestPrepareMovedReviewCheckoutRejectsUnsafeState(t *testing.T) {
+	t.Parallel()
 	for _, scenario := range []string{"live old checkout", "wrong pointer", "wrong backlink", "attached checkout", "duplicate registration"} {
 		t.Run(scenario, func(t *testing.T) {
 			r, path, oldPath, registration := movedReviewCheckout(t)
