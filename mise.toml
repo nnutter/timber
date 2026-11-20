@@ -48,6 +48,19 @@ go tool vhs docs/demo/demo.tape
 description = "Measure coverage across package boundaries"
 run = "go test -coverpkg=./... -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out"
 
+[tasks.coverage-process]
+description = "Measure coverage in CLI subprocesses that can flush counters on exit"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+export GOCOVERDIR
+GOCOVERDIR="$(mktemp -d "$PWD/.coverage-process.XXXXXX")"
+trap 'rm -rf "$GOCOVERDIR"' EXIT
+go test -count=1 . ./internal/cli ./internal/cli/review
+go tool covdata textfmt -i="$GOCOVERDIR" -o=coverage-process.out
+go tool cover -func=coverage-process.out
+'''
+
 [tasks.upgrade]
 description = "Upgrade the tools to their newest releases"
 run = ["mise upgrade --local", "mise lock"]

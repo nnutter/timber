@@ -7,12 +7,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/testenv"
 )
 
 func buildGitReview(t *testing.T) string {
 	t.Helper()
 	binary := filepath.Join(t.TempDir(), "git-review")
-	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "./testdata/standalone")
+	cmd := exec.CommandContext(t.Context(), "go", testenv.BuildArgs(binary, "./testdata/standalone")...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "%s", out)
 	return binary

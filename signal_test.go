@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/testenv"
 )
 
 func TestMain(m *testing.M) {
@@ -46,7 +48,7 @@ func runFakeGit(ready string) {
 func TestTimberForwardsSignalsToGit(t *testing.T) {
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "timber")
-	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, ".")
+	build := exec.CommandContext(t.Context(), "go", testenv.BuildArgs(binary, ".")...)
 	output, err := build.CombinedOutput()
 	require.NoError(t, err, "%s", output)
 	testBinary, err := os.Executable()
