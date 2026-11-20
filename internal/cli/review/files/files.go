@@ -33,7 +33,7 @@ func (c *Command) RunE(cmd *cobra.Command, args []string) error {
 	if flag, err := cmd.Flags().GetBool("json"); err == nil {
 		asJSON = flag
 	}
-	reader, err := review.DefaultSavedReader()
+	reader, err := review.DefaultSavedReader(c.Service.Repository.Environment)
 	if err != nil {
 		return err
 	}

@@ -342,12 +342,12 @@ func sameRepositoryPath(a, b string) bool {
 }
 
 // DefaultSavedReader uses tuicr's platform store, then the other platform path.
-func DefaultSavedReader() (SavedReader, error) {
-	home, err := os.UserHomeDir()
+func DefaultSavedReader(environment []string) (SavedReader, error) {
+	home, err := savedHomeDirectory(environment)
 	if err != nil {
 		return SavedReader{}, err
 	}
-	data := strings.TrimSpace(os.Getenv("XDG_DATA_HOME"))
+	data := strings.TrimSpace(environmentValue(environment, "XDG_DATA_HOME"))
 	if data == "" {
 		data = filepath.Join(home, ".local", "share")
 	}
@@ -357,6 +357,17 @@ func DefaultSavedReader() (SavedReader, error) {
 		return SavedReader{Stores: []string{mac, linux}}, nil
 	}
 	return SavedReader{Stores: []string{linux, mac}}, nil
+}
+
+func savedHomeDirectory(environment []string) (string, error) {
+	if environment == nil {
+		return os.UserHomeDir()
+	}
+	home := environmentValue(environment, "HOME")
+	if home == "" {
+		return "", errors.New("HOME is not set")
+	}
+	return home, nil
 }
 
 type object map[string]jsontext.Value
