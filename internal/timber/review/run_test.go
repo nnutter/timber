@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,17 +14,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func fakeTuicr(t *testing.T, body string) {
+func fakeTuicr(t *testing.T, repository *Repository, body string, env ...string) {
 	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "tuicr"), []byte("#!/bin/sh\nset -eu\n"+body+"\n"), 0o700))
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	path := dir + string(os.PathListSeparator) + environmentValue(repository.Environment, "PATH")
+	environment := append(slices.Clone(repository.environment()), env...)
+	repository.Environment = append(environment, "PATH="+path)
 }
 
 func testReviewer(t *testing.T) (Reviewer, Snapshot, string) {
 	t.Helper()
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	r := testRepo(t)
+	r.Environment = append(r.Environment, "XDG_CACHE_HOME="+t.TempDir())
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	view, err := r.Snapshot(t.Context())
 	require.NoError(t, err)
@@ -37,8 +40,7 @@ func TestReviewCapturesScopeAndReadsResult(t *testing.T) {
 	view, err := reviewer.Service.Repository.Snapshot(t.Context())
 	require.NoError(t, err)
 	log := filepath.Join(t.TempDir(), "launch")
-	t.Setenv("TEST_LAUNCH_LOG", log)
-	fakeTuicr(t, `printf '%s\n' "$PWD" "$@" > "$TEST_LAUNCH_LOG"`)
+	fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$PWD" "$@" > "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 	scope := view.Stacks[0]
 	path, err := WorktreePath(t.Context(), scope.Repo)
 	require.NoError(t, err)
@@ -83,7 +85,6 @@ func TestReviewContinuesThroughEligibleStacksByDefault(t *testing.T) {
 			path, err := WorktreePath(t.Context(), r.Dir)
 			require.NoError(t, err)
 			log := filepath.Join(t.TempDir(), "launch")
-			t.Setenv("TEST_LAUNCH_LOG", log)
 			selected := view.Stacks
 			options := ReviewOptions{}
 			if tc.explicit {
@@ -105,7 +106,7 @@ func TestReviewContinuesThroughEligibleStacksByDefault(t *testing.T) {
 				}
 				wantLaunch += stack.Base + ".." + stack.Tip + "\n"
 			}
-			fakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`)
+			fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 
 			result, err := reviewer.Review(t.Context(), options)
 			require.NoError(t, err)
@@ -138,7 +139,7 @@ func TestInterruptedReviewResumesTheCapturedAttempt(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reviewer, view, store := testReviewer(t)
-			fakeTuicr(t, "exit 1")
+			fakeTuicr(t, &reviewer.Service.Repository, "exit 1")
 			_, err := reviewer.Review(t.Context(), ReviewOptions{})
 			require.ErrorContains(t, err, "tuicr interrupted")
 			path, err := WorktreePath(t.Context(), view.Stacks[0].Repo)
@@ -156,7 +157,7 @@ func TestInterruptedReviewResumesTheCapturedAttempt(t *testing.T) {
 			before, err := (Store{Path: view.Path}).Load()
 			require.NoError(t, err)
 			require.Len(t, before.Attempts, 1)
-			fakeTuicr(t, "exit 0")
+			fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 			result, err := reviewer.Review(t.Context(), ReviewOptions{})
 			require.NoError(t, err)
 			require.Equal(t, tc.wantStatus, result.Status)
@@ -173,7 +174,7 @@ func TestInterruptedReviewResumesTheCapturedAttempt(t *testing.T) {
 // recovery must resume that attempt and keep the progress it recorded.
 func TestInterruptedReviewResumesSavedProgress(t *testing.T) {
 	reviewer, view, store := testReviewer(t)
-	fakeTuicr(t, "exit 1")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 1")
 	_, err := reviewer.Review(t.Context(), ReviewOptions{})
 	require.ErrorContains(t, err, "tuicr interrupted")
 	path, err := WorktreePath(t.Context(), view.Stacks[0].Repo)
@@ -184,7 +185,7 @@ func TestInterruptedReviewResumesSavedProgress(t *testing.T) {
 	session["files"].(map[string]any)["main.go"].(map[string]any)["reviewed"] = true
 	writeJSON(t, filepath.Join(store, "sessions/0123456789abcdef.json"), session)
 
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 	before, err := (Store{Path: view.Path}).Load()
 	require.NoError(t, err)
 	result, err := reviewer.Review(t.Context(), ReviewOptions{})
@@ -206,7 +207,7 @@ func TestReviewDiscardsUntouchedExit(t *testing.T) {
 	for _, savedSession := range []bool{false, true} {
 		t.Run(fmt.Sprintf("saved=%t", savedSession), func(t *testing.T) {
 			reviewer, view, store := testReviewer(t)
-			fakeTuicr(t, "exit 0")
+			fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 			if savedSession {
 				scope := view.Stacks[0]
 				path, err := WorktreePath(t.Context(), scope.Repo)
@@ -229,7 +230,7 @@ func TestReviewDiscardsUntouchedExit(t *testing.T) {
 func TestReviewReusesDisposableCheckoutAtSelectedTip(t *testing.T) {
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "file.txt"), []byte("first version"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, ".gitignore"), []byte("artifact.txt\n"), 0o600))
 	gitTest(t, r.Dir, "add", ".")
@@ -282,10 +283,8 @@ func TestReviewHoldsActivityLockDuringLaunch(t *testing.T) {
 	reviewer, _, _ := testReviewer(t)
 	started := filepath.Join(t.TempDir(), "started")
 	released := filepath.Join(t.TempDir(), "released")
-	t.Setenv("TEST_STARTED", started)
-	t.Setenv("TEST_RELEASED", released)
-	fakeTuicr(t, `printf started > "$TEST_STARTED"
-while [ ! -f "$TEST_RELEASED" ]; do sleep 0.05; done`)
+	fakeTuicr(t, &reviewer.Service.Repository, `printf started > "$TEST_STARTED"
+while [ ! -f "$TEST_RELEASED" ]; do sleep 0.05; done`, "TEST_STARTED="+started, "TEST_RELEASED="+released)
 	finished := make(chan error, 1)
 	go func() {
 		_, err := reviewer.Review(t.Context(), ReviewOptions{})
@@ -362,8 +361,7 @@ func TestReviewDiscardsEarlierStackVersion(t *testing.T) {
 				savedEntry{"nnutter/timber@~bbbb/commits/current", path, current},
 			)
 			log := filepath.Join(t.TempDir(), "launch")
-			t.Setenv("TEST_LAUNCH_LOG", log)
-			fakeTuicr(t, `printf '%s\n' "$4" > "$TEST_LAUNCH_LOG"`)
+			fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$4" > "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 			result, err := reviewer.Review(t.Context(), ReviewOptions{})
 			require.NoError(t, err)
 			require.Equal(t, "range_complete", result.Status)

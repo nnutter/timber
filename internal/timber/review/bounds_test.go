@@ -38,8 +38,7 @@ func TestReviewSelectsWithinInclusiveBounds(t *testing.T) {
 			scope.Repo = path
 			savedFixture(t, scope, store, true)
 			log := filepath.Join(t.TempDir(), "launch")
-			t.Setenv("TEST_LAUNCH_LOG", log)
-			fakeTuicr(t, `printf '%s\n' "$@" >> "$TEST_LAUNCH_LOG"`)
+			fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$@" >> "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 			result, err := reviewer.Review(t.Context(), options)
 			require.NoError(t, err)
 			if bounds == "start" {
@@ -102,13 +101,12 @@ func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
 				return nil
 			}))
 			log := filepath.Join(t.TempDir(), "launch")
-			t.Setenv("TEST_LAUNCH_LOG", log)
-			t.Setenv("TEST_FAIL_TIP", "")
+			var failTip string
 			if outcome == "error" {
-				t.Setenv("TEST_FAIL_TIP", second.Tip)
+				failTip = second.Tip
 			}
-			fakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"
-if [ "$(git rev-parse HEAD)" = "$TEST_FAIL_TIP" ]; then exit 1; fi`)
+			fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"
+if [ "$(git rev-parse HEAD)" = "$TEST_FAIL_TIP" ]; then exit 1; fi`, "TEST_LAUNCH_LOG="+log, "TEST_FAIL_TIP="+failTip)
 			result, err := reviewer.Review(t.Context(), ReviewOptions{Start: first.Tip, End: second.Tip, Session: "fixture-session"})
 			if outcome == "error" {
 				require.ErrorContains(t, err, "tuicr interrupted")
@@ -160,8 +158,7 @@ func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
 		wantLaunch += stack.Base + ".." + stack.Tip + "\n"
 	}
 	log := filepath.Join(t.TempDir(), "launch")
-	t.Setenv("TEST_LAUNCH_LOG", log)
-	fakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`)
+	fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 	options := ReviewOptions{Start: view.Stacks[0].Tip, End: view.Stacks[2].Tip}
 	result, err := reviewer.Review(t.Context(), options)
 	require.NoError(t, err)
@@ -242,7 +239,7 @@ func TestBoundedReviewRetainsDeferredAndActiveAttempts(t *testing.T) {
 	scope := first
 	scope.Repo = path
 	savedFixture(t, scope, store, true)
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 	// The active attempt resumes without asking, and the deferred stack stays.
 	result, err = reviewer.Review(t.Context(), options)
 	require.NoError(t, err)

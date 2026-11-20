@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -224,7 +223,10 @@ func (r Reviewer) launch(ctx context.Context, path string, stack Stack, lock *os
 	if err := prepareWorktree(ctx, r.Service.Repository, path, stack); err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "tuicr", "--no-update-check", "--stdout", "-r", stack.Base+".."+stack.Tip)
+	cmd, err := r.Service.Repository.tuicr(ctx, "--no-update-check", "--stdout", "-r", stack.Base+".."+stack.Tip)
+	if err != nil {
+		return fmt.Errorf("tuicr interrupted or failed; use timber review commits to recover or replace: %w", err)
+	}
 	cmd.Dir = path
 	cmd.Stdin = r.Input
 	if wrapped, ok := r.Input.(interface{ UnwrapReader() io.Reader }); ok {

@@ -141,8 +141,7 @@ func TestFilesReviewArgMappingAndLock(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			log := filepath.Join(t.TempDir(), "launch")
-			t.Setenv("TEST_LAUNCH_LOG", log)
-			fakeTuicr(t, `printf '%s\n' "$@" > "$TEST_LAUNCH_LOG"`)
+			fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$@" > "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 			fileStore := t.TempDir()
 			fileFixture(t, repo, tc.diffSource, tc.base, fileStore, true, "sessions/0123456789abcdef.json")
 			fr := FileReviewer{Service: reviewer.Service, Reader: SavedReader{Stores: []string{fileStore}}, Input: strings.NewReader(""), Terminal: io.Discard}
@@ -161,7 +160,7 @@ func TestFilesReviewArgMappingAndLock(t *testing.T) {
 
 func TestFilesReviewCancelledWithoutSession(t *testing.T) {
 	reviewer, _, _ := testReviewer(t)
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 	store := t.TempDir()
 	fr := FileReviewer{Service: reviewer.Service, Reader: SavedReader{Stores: []string{store}}, Input: strings.NewReader(""), Terminal: io.Discard}
 	result, err := fr.Review(t.Context(), FilesOptions{})

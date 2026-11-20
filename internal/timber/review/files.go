@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -133,7 +132,10 @@ func (r FileReviewer) Review(ctx context.Context, options FilesOptions) (FilesRe
 }
 
 func (r FileReviewer) launch(ctx context.Context, args []string, lock *os.File) error {
-	cmd := exec.CommandContext(ctx, "tuicr", args...)
+	cmd, err := r.Service.Repository.tuicr(ctx, args...)
+	if err != nil {
+		return fmt.Errorf("tuicr interrupted or failed; use timber review files to retry: %w", err)
+	}
 	cmd.Dir = r.Service.Repository.Dir
 	cmd.Stdin = r.Input
 	if wrapped, ok := r.Input.(interface{ UnwrapReader() io.Reader }); ok {

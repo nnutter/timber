@@ -181,7 +181,7 @@ func TestReviewRecordsCarriedProgress(t *testing.T) {
 	reviewer.Reader = SavedReader{Stores: []string{store}}
 	carryFixture(t, reviewer, view, store)
 	gitTest(t, reviewer.Service.Repository.Dir, "commit", "--amend", "--allow-empty", "--date", "2026-01-01T00:00:00Z", "-m", "Feature reworded")
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 
 	result, err := reviewer.Review(t.Context(), ReviewOptions{})
 	require.NoError(t, err)
@@ -318,7 +318,7 @@ func TestReviewContinuesWithTheLastRecordedSession(t *testing.T) {
 	reviewer.Reader = SavedReader{Stores: []string{store}}
 	carryFixture(t, reviewer, view, store)
 	addSecondSession(t, store, view, "2026-02-02T00:00:00Z")
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 
 	result, err := reviewer.Review(t.Context(), ReviewOptions{})
 	require.NoError(t, err, "the review does not stop on a range with two sessions")
