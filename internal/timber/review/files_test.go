@@ -161,16 +161,3 @@ func TestFilesReviewArgMappingAndLock(t *testing.T) {
 		})
 	}
 }
-
-func TestFilesReviewCancelledWithoutSession(t *testing.T) {
-	t.Parallel()
-	reviewer, _, _ := testReviewer(t)
-	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
-	store := t.TempDir()
-	fr := FileReviewer{Service: reviewer.Service, Reader: SavedReader{Stores: []string{store}}, Input: strings.NewReader(""), Terminal: io.Discard}
-	result, err := fr.Review(t.Context(), FilesOptions{})
-	require.NoError(t, err)
-	require.Equal(t, "files", result.Command)
-	require.Equal(t, "cancelled", result.Status)
-	require.Nil(t, result.Review)
-}

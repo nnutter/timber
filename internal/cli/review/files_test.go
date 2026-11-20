@@ -41,6 +41,7 @@ func TestFilesCommandArgMapping(t *testing.T) {
 			require.Equal(t, 1, result.Version)
 			require.Equal(t, "files", result.Command)
 			require.Equal(t, "cancelled", result.Status)
+			require.Nil(t, result.Review)
 			launch, err := os.ReadFile(log)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantArgs+"\n", string(launch))
