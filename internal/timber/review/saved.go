@@ -2,6 +2,7 @@ package review
 
 import (
 	"cmp"
+	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -129,11 +130,11 @@ type SavedWriter struct{ Stores []string }
 // Delete removes the saved sessions that captured the stack's commits, in the
 // review checkout or in the stack's own repository. It returns how many
 // sessions it removed.
-func (w SavedWriter) Delete(scope Stack) (int, error) {
+func (w SavedWriter) Delete(ctx context.Context, scope Stack) (int, error) {
 	if err := validateCommits(scope.Commits); err != nil {
 		return 0, err
 	}
-	repos, err := sessionRepositories(scope.Repo)
+	repos, err := sessionRepositories(ctx, scope.Repo)
 	if err != nil {
 		return 0, err
 	}
@@ -151,8 +152,8 @@ func (w SavedWriter) Delete(scope Stack) (int, error) {
 // sessionRepositories lists the repository paths a commit review of repo can
 // have saved its session under. A session records the disposable review
 // checkout, but an older session can name the checkout itself.
-func sessionRepositories(repo string) ([]string, error) {
-	checkout, err := WorktreePath(repo)
+func sessionRepositories(ctx context.Context, repo string) ([]string, error) {
+	checkout, err := WorktreePath(ctx, repo)
 	if err != nil {
 		return nil, err
 	}
@@ -341,12 +342,12 @@ func sameRepositoryPath(a, b string) bool {
 }
 
 // DefaultSavedReader uses tuicr's platform store, then the other platform path.
-func DefaultSavedReader() (SavedReader, error) {
-	home, err := os.UserHomeDir()
+func DefaultSavedReader(environment []string) (SavedReader, error) {
+	home, err := savedHomeDirectory(environment)
 	if err != nil {
 		return SavedReader{}, err
 	}
-	data := strings.TrimSpace(os.Getenv("XDG_DATA_HOME"))
+	data := strings.TrimSpace(environmentValue(environment, "XDG_DATA_HOME"))
 	if data == "" {
 		data = filepath.Join(home, ".local", "share")
 	}
@@ -356,6 +357,17 @@ func DefaultSavedReader() (SavedReader, error) {
 		return SavedReader{Stores: []string{mac, linux}}, nil
 	}
 	return SavedReader{Stores: []string{linux, mac}}, nil
+}
+
+func savedHomeDirectory(environment []string) (string, error) {
+	if environment == nil {
+		return os.UserHomeDir()
+	}
+	home := environmentValue(environment, "HOME")
+	if home == "" {
+		return "", errors.New("HOME is not set")
+	}
+	return home, nil
 }
 
 type object map[string]jsontext.Value

@@ -25,17 +25,17 @@ func testRepo(t *testing.T) Repository {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
-	t.Setenv("HOME", dir)
 	gitTest(t, dir, "init", "-b", "main")
 	gitTest(t, dir, "config", "user.name", "Test")
 	gitTest(t, dir, "config", "user.email", "test@example.com")
 	gitTest(t, dir, "commit", "--allow-empty", "-m", "Base")
 	gitTest(t, dir, "checkout", "-b", "feature")
 	gitTest(t, dir, "branch", "--set-upstream-to=main")
-	return Repository{Dir: dir, Environment: os.Environ()}
+	return Repository{Dir: dir, Environment: append(os.Environ(), "HOME="+dir, "XDG_DATA_HOME=")}
 }
 
 func TestSnapshot(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	id := "I" + strings.Repeat("a", 40)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Add feature\n\nChange-Id: "+id)
@@ -76,6 +76,7 @@ func TestSnapshotGroupsNativeFixupsTargetingStackTip(t *testing.T) {
 }
 
 func TestSnapshotTreatsOrphanFeedbackAsNormalCommit(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name         string
 		subjects     []string
@@ -112,6 +113,7 @@ func TestSnapshotTreatsOrphanFeedbackAsNormalCommit(t *testing.T) {
 }
 
 func TestSnapshotRejectsUnsafeHistory(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		setup   func(*testing.T, Repository)

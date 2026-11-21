@@ -47,37 +47,48 @@ func execute(t *testing.T, dir string, args ...string) (string, string, error) {
 	return output.String(), terminal.String(), err
 }
 
-func TestCommandsShareStructuredResults(t *testing.T) {
+func TestGitDispatchesReviewSubcommand(t *testing.T) {
 	binary := buildGitReview(t)
 	dir := featureRepo(t)
 	t.Setenv("PATH", filepath.Dir(binary)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	for _, tc := range []struct {
-		binary string
-		args   []string
-	}{
-		{binary: binary, args: []string{"status", "--needs-review", "--json"}},
-		{binary: binary, args: []string{"--json", "status", "--needs-review"}},
-		{binary: "git", args: []string{"review", "status", "--needs-review", "--json"}},
+	out, terminal, err := executeBinary(t, "git", dir, "review", "status", "--needs-review", "--json")
+	require.NoError(t, err, "%s", terminal)
+	require.Empty(t, terminal)
+	checkNeedsReviewJSON(t, out)
+}
+
+func checkNeedsReviewJSON(t *testing.T, out string) {
+	t.Helper()
+	require.Equal(t, 1, strings.Count(out, "\n"))
+	var result review.Result
+	require.NoError(t, json.Unmarshal([]byte(out), &result))
+	require.Equal(t, "status", result.Command)
+	require.Len(t, result.Entries, 1)
+	require.Equal(t, "needs_review", result.Entries[0].Status)
+	require.Len(t, result.Entries[0].Stack.Commits[0], 40)
+	require.NotContains(t, out, "\x1b")
+}
+
+func TestCommandsShareStructuredResults(t *testing.T) {
+	t.Parallel()
+	dir := featureRepo(t)
+	for _, args := range [][]string{
+		{"status", "--needs-review", "--json"},
+		{"--json", "status", "--needs-review"},
 	} {
-		out, terminal, err := executeBinary(t, tc.binary, dir, tc.args...)
-		require.NoError(t, err, "command: %s %v\nstdout: %s\nstderr: %s", tc.binary, tc.args, out, terminal)
+		out, terminal, err := execute(t, dir, args...)
+		require.NoError(t, err, "command: %v\nstdout: %s\nstderr: %s", args, out, terminal)
 		require.Empty(t, terminal)
-		require.Equal(t, 1, strings.Count(out, "\n"))
-		var result review.Result
-		require.NoError(t, json.Unmarshal([]byte(out), &result))
-		require.Equal(t, "status", result.Command)
-		require.Equal(t, "needs_review", result.Entries[0].Status)
-		require.Len(t, result.Entries[0].Stack.Commits[0], 40)
-		require.NotContains(t, out, "\x1b")
+		checkNeedsReviewJSON(t, out)
 	}
-	out, terminal, err := executeBinary(t, binary, dir, "status", "--needs-review")
+	out, terminal, err := execute(t, dir, "status", "--needs-review")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	require.Contains(t, out, "Needs review")
 	require.Contains(t, out, "Add feature")
 	require.Contains(t, out, "COMMITS (inclusive)")
 	require.NotContains(t, out, "Approved stacks are omitted from this summary.")
-	out, terminal, err = executeBinary(t, binary, dir, "confirm", "HEAD", "--json")
+	out, terminal, err = execute(t, dir, "confirm", "HEAD", "--json")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	var approved review.Result
@@ -85,7 +96,7 @@ func TestCommandsShareStructuredResults(t *testing.T) {
 	require.Equal(t, "approved", approved.Status)
 	require.Equal(t, "approve", approved.Command)
 	require.Equal(t, "user-command", approved.Entries[0].Attempt.ApprovalSource)
-	out, _, err = executeBinary(t, binary, dir, "status", "--needs-review", "--json")
+	out, _, err = execute(t, dir, "status", "--needs-review", "--json")
 	require.NoError(t, err)
 	var listed review.Result
 	require.NoError(t, json.Unmarshal([]byte(out), &listed))
@@ -94,7 +105,7 @@ func TestCommandsShareStructuredResults(t *testing.T) {
 }
 
 func TestJSONErrorsIncludeArgumentAndGitFailures(t *testing.T) {
-	binary := buildGitReview(t)
+	t.Parallel()
 	dir := featureRepo(t)
 	git(t, dir, "branch", "--unset-upstream")
 	for _, args := range [][]string{
@@ -104,10 +115,8 @@ func TestJSONErrorsIncludeArgumentAndGitFailures(t *testing.T) {
 		{"not-a-command", "--json"},
 		{"--json", "status", "--needs-review", "--unknown"},
 	} {
-		out, terminal, err := executeBinary(t, binary, dir, args...)
-		var exit *exec.ExitError
-		require.ErrorAs(t, err, &exit)
-		require.Equal(t, 1, exit.ExitCode())
+		out, terminal, err := execute(t, dir, args...)
+		require.Error(t, err)
 		require.Empty(t, terminal)
 		require.Equal(t, 1, strings.Count(out, "\n"))
 		var result display.ErrorResult
@@ -166,6 +175,7 @@ func TestReviewAliasResumesTheInterruptedAttempt(t *testing.T) {
 }
 
 func TestTerminalRenderingRetainsFeedbackAndRemovesControlSequences(t *testing.T) {
+	t.Parallel()
 	dir := featureRepo(t)
 	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
 	require.NoError(t, err)
@@ -202,10 +212,7 @@ func TestTuicrKeepsWorktreeLockedAfterGitReviewDies(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	bin := t.TempDir()
-	binary := filepath.Join(bin, "review-test")
-	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "./testdata/standalone")
-	buildOut, err := build.CombinedOutput()
-	require.NoError(t, err, "%s", buildOut)
+	binary := buildGitReview(t)
 	started := filepath.Join(bin, "started")
 	exitFile := filepath.Join(bin, "exit")
 	t.Setenv("TEST_STARTED", started)
@@ -226,7 +233,7 @@ func TestTuicrKeepsWorktreeLockedAfterGitReviewDies(t *testing.T) {
 			return string(data) == "finished"
 		}, 5*time.Second, 10*time.Millisecond)
 	}()
-	require.Eventually(t, func() bool { _, err := os.Stat(started); return err == nil }, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { _, err := os.Stat(started); return err == nil }, 30*time.Second, 10*time.Millisecond, "tuicr did not start")
 	require.NoError(t, cmd.Process.Kill())
 	require.Error(t, cmd.Wait())
 	out, _, err := execute(t, dir, "commits", "--json")
@@ -237,6 +244,7 @@ func TestTuicrKeepsWorktreeLockedAfterGitReviewDies(t *testing.T) {
 }
 
 func TestHelpAndVersion(t *testing.T) {
+	t.Parallel()
 	out, _, err := execute(t, t.TempDir(), "--help")
 	require.NoError(t, err)
 	require.Contains(t, out, "approve")

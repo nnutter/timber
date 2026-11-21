@@ -105,6 +105,48 @@ func TestRenderShowsHowMuchOfEachWindowHasPassed(t *testing.T) {
 	assert.Equal(t, 40, ansi.StringWidth(elapsed[1]))
 }
 
+func TestRenderUsesTheSamePaceColorForUsageAndElapsed(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	week := 7 * 24 * time.Hour
+	cases := []struct {
+		name    string
+		percent float64
+		color   string
+	}{
+		{"10 points below", 40, "\x1b[32m"},
+		{"exactly on pace", 50, "\x1b[32m"},
+		{"just above pace", 50.1, "\x1b[34m"},
+		{"10 points above", 60, "\x1b[34m"},
+		{"just over 10 points below", 39.9, "\x1b[33m"},
+		{"just over 10 points above", 60.1, "\x1b[33m"},
+		{"20 points below", 30, "\x1b[33m"},
+		{"20 points above", 70, "\x1b[33m"},
+		{"just over 20 points below", 29.9, "\x1b[31m"},
+		{"just over 20 points above", 70.1, "\x1b[31m"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			limit := Limit{Label: "Week", Percent: tc.percent, Level: LevelCritical, Window: week, ResetsAt: now.Add(week / 2)}
+			view := Render(Snapshot{Reports: []Report{plan("opencode-go", "OpenCode Go", limit)}}, now, 40)
+			gauge := lineContaining(view, "█")
+			elapsed := lineContaining(view, "━")
+			assert.Contains(t, gauge, tc.color+"█")
+			assert.Contains(t, elapsed, tc.color+"━")
+			assert.Contains(t, gauge, "\x1b[90m░")
+			assert.Contains(t, elapsed, "\x1b[90m─")
+		})
+	}
+}
+
+func TestRenderUsesLimitStatusWhenThereIsNoClock(t *testing.T) {
+	t.Parallel()
+	limit := Limit{Label: "Credits", Percent: 12, Level: LevelWarning}
+	view := Render(Snapshot{Reports: []Report{plan("example", "Example", limit)}}, time.Time{}, 40)
+	assert.Contains(t, lineContaining(view, "█"), "\x1b[33m█")
+	assert.NotContains(t, view, "┛")
+}
+
 func linesContaining(view, mark string) []string {
 	var found []string
 	for line := range strings.SplitSeq(view, "\n") {

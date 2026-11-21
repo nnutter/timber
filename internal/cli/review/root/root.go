@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
-	"syscall"
 
 	charmlog "charm.land/log/v2"
 
@@ -24,6 +22,7 @@ import (
 	"github.com/nnutter/timber/internal/cli/review/reset"
 	"github.com/nnutter/timber/internal/cli/review/status"
 	"github.com/nnutter/timber/internal/display"
+	"github.com/nnutter/timber/internal/process"
 	coreconfig "github.com/nnutter/timber/internal/timber/config"
 	"github.com/nnutter/timber/internal/timber/review"
 )
@@ -96,7 +95,9 @@ func Execute(ctx context.Context, args []string, dir string, input io.Reader, ou
 	root.SetIn(input)
 	root.SetOut(output)
 	root.SetErr(terminal)
-	err := fang.Execute(ctx, root, fang.WithVersion(version), fang.WithoutManpage(), fang.WithNotifySignal(os.Interrupt, syscall.SIGTERM), fang.WithErrorHandler(func(w io.Writer, styles fang.Styles, err error) {
+	ctx, stop := process.InterruptContext(ctx)
+	defer stop()
+	err := fang.Execute(ctx, root, fang.WithVersion(version), fang.WithoutManpage(), fang.WithErrorHandler(func(w io.Writer, styles fang.Styles, err error) {
 		if c.JSON {
 			failed, _, _ := root.Find(args)
 			if failed == nil {

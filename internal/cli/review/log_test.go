@@ -96,7 +96,8 @@ func TestLogDifft(t *testing.T) {
 	tools := t.TempDir()
 	difft := filepath.Join(tools, "difft")
 	require.NoError(t, os.WriteFile(difft, []byte("#!/bin/sh\nprintf 'External diff: %s\\n' \"$1\"\ncat \"$5\"\n"), 0o700))
-	t.Setenv("PATH", tools+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// Git prepends its exec path after launch, even when a wrapper rewrites PATH.
+	t.Setenv("GIT_EXEC_PATH", tools)
 
 	out, terminal, err := execute(t, dir, "log", "-p")
 	require.NoError(t, err)
@@ -129,11 +130,11 @@ func TestLogHunkPager(t *testing.T) {
 	capture := filepath.Join(tools, "pager-output")
 	require.NoError(t, os.WriteFile(filepath.Join(tools, "hunk"), []byte("#!/bin/sh\n[ \"$1\" = pager ] || exit 1\ncat > \"$HUNK_OUTPUT\"\n"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(tools, "difft"), []byte("#!/bin/sh\nprintf 'External diff: %s\\n' \"$1\"\ncat \"$5\"\n"), 0o700))
-	t.Setenv("PATH", tools+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("GIT_EXEC_PATH", tools)
 	t.Setenv("HUNK_OUTPUT", capture)
 	t.Setenv("TERM", "xterm")
 
-	out, terminal, err := executeBinary(t, binary, dir, "log", "--hunk")
+	out, terminal, err := execute(t, dir, "log", "--hunk")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	require.Contains(t, out, "+example content\n")
@@ -158,6 +159,8 @@ func TestLogHunkPager(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, binary, append([]string{"log"}, tc.flags...)...)
+			// A pager can keep stderr open after cancellation kills Timber.
+			cmd.WaitDelay = time.Second
 			cmd.Dir = dir
 			cmd.Stdout = slave
 			var stderr bytes.Buffer

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -16,13 +15,14 @@ var (
 	percentStyle  = lipgloss.NewStyle().Bold(true)
 	mutedStyle    = lipgloss.NewStyle().Faint(true)
 	quietStyle    = lipgloss.NewStyle().Faint(true)
-	criticalStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	criticalStyle = lipgloss.NewStyle().Foreground(ansi.Red)
 	ruleStyle     = lipgloss.NewStyle().Faint(true)
+	trackStyle    = lipgloss.NewStyle().Foreground(ansi.BrightBlack)
 )
 
 const (
-	lagPoints = 5
-	lagFar    = 15
+	paceOKPoints      = 10
+	paceWarningPoints = 20
 	// minWidth is the narrowest report that still fits a name and a percent.
 	minWidth = 24
 	// maxWidth keeps the name, the reset, and the percent on one line.
@@ -35,12 +35,6 @@ const (
 	elapsedEmpty = '─'
 	// elapsedTip sits on the last spent cell and turns up toward the usage bar.
 	elapsedTip = '┛'
-
-	trackColor    = "#3A3A3A"
-	elapsedOnPace = "#E4E4E4"
-	okBar         = "#5FBF6A"
-	warningBar    = "#FFD75F"
-	criticalBar   = "#FF5F5F"
 )
 
 // Render draws the plans in the order to use them.
@@ -103,14 +97,20 @@ func renderLimit(report Report, limit Limit, now time.Time, width int) string {
 	label := limitLabel(report, limit)
 	percentPlain := fmt.Sprintf("%d%%", int(math.Round(limit.Percent)))
 	middle := limitMiddle(limit, now, width-ansi.StringWidth(label)-ansi.StringWidth(percentPlain))
+	elapsed, hasClock := shareOf(limit, now)
+	color := levelColor(limit.Level)
+	if hasClock {
+		color = paceColor(limit.Percent - elapsed)
+	}
+	fill := lipgloss.NewStyle().Foreground(color)
 
 	var out strings.Builder
 	out.WriteString(placeWindowLine(label, middle, percentPlain, width))
 	out.WriteString("\n")
-	out.WriteString(renderGauge(limit, width))
-	if share, points, ok := Lag(limit, now); ok {
+	out.WriteString(renderGauge(limit.Percent, width, fill))
+	if hasClock {
 		out.WriteString("\n")
-		out.WriteString(renderPace(share, points, width))
+		out.WriteString(renderPace(elapsed, width, fill))
 	}
 	if middle == "" {
 		if meta := renderMeta(limit, now); meta != "" {
@@ -220,74 +220,49 @@ func windowClock(limit Limit, now time.Time) string {
 	return text + "  " + clock
 }
 
-func renderGauge(limit Limit, width int) string {
-	return meter(width, limit.Percent, usageFull, usageEmpty, usageColor(limit.Level))
+func renderGauge(percent float64, width int, fill lipgloss.Style) string {
+	filled := filledCells(width, percent)
+	used := fill.Render(strings.Repeat(string(usageFull), filled))
+	remaining := trackStyle.Render(strings.Repeat(string(usageEmpty), width-filled))
+	return used + remaining
 }
 
 // renderPace draws how far the window has run, on the same width as the usage bar.
-// The mark for time still ahead is lighter, so a half-spent month does not look full.
 // An arrow at the tip of the time already spent points up at the usage.
-func renderPace(share int, points float64, width int) string {
-	return paceBar(width, paceFilled(width, share), paceColor(points))
-}
-
-func paceFilled(width, share int) int {
-	filled := int(math.Round(float64(width) * shownPortion(float64(share))))
-	return min(max(filled, 0), width)
-}
-
-func paceBar(width, filled int, fill string) string {
-	if width < 1 {
-		return ""
-	}
-	filled = min(max(filled, 0), width)
-	if filled == 0 {
-		filled = 1
-	}
-	spent := paceInk(fill).Render(strings.Repeat(string(elapsedFull), filled-1) + string(elapsedTip))
-	ahead := paceInk(trackColor).Render(strings.Repeat(string(elapsedEmpty), width-filled))
+func renderPace(elapsed float64, width int, fill lipgloss.Style) string {
+	filled := max(1, filledCells(width, elapsed))
+	spent := fill.Render(strings.Repeat(string(elapsedFull), filled-1) + string(elapsedTip))
+	ahead := trackStyle.Render(strings.Repeat(string(elapsedEmpty), width-filled))
 	return spent + ahead
 }
 
-func paceInk(color string) lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+func filledCells(width int, percent float64) int {
+	portion := min(max(percent, 0), 100) / 100
+	return min(max(int(math.Round(float64(width)*portion)), 0), width)
 }
 
-func meter(width int, percent float64, full, empty rune, fill string) string {
-	bar := progress.New(
-		progress.WithWidth(width),
-		progress.WithoutPercentage(),
-		progress.WithFillCharacters(full, empty),
-		progress.WithSolidFill(fill),
-	)
-	bar.EmptyColor = trackColor
-	return bar.ViewAs(shownPortion(percent))
-}
-
-func shownPortion(percent float64) float64 {
-	return min(max(percent, 0), 100) / 100
-}
-
-func usageColor(level Level) string {
+func levelColor(level Level) ansi.BasicColor {
 	switch level {
 	case LevelCritical:
-		return criticalBar
+		return ansi.Red
 	case LevelWarning:
-		return warningBar
+		return ansi.Yellow
 	default:
-		return okBar
+		return ansi.Green
 	}
 }
 
-func paceColor(points float64) string {
-	gap := int(math.Round(points))
+func paceColor(pointsAhead float64) ansi.BasicColor {
+	gap := math.Abs(pointsAhead)
 	switch {
-	case gap >= lagFar:
-		return criticalBar
-	case gap >= lagPoints:
-		return warningBar
+	case gap > paceWarningPoints:
+		return ansi.Red
+	case gap > paceOKPoints:
+		return ansi.Yellow
+	case pointsAhead > 0:
+		return ansi.Blue
 	default:
-		return elapsedOnPace
+		return ansi.Green
 	}
 }
 

@@ -89,6 +89,7 @@ func testRuntimeForHome(home, directory string) timber.Runtime {
 			"XDG_DATA_HOME="+dataHome,
 			"XDG_CONFIG_HOME="+configHome,
 			"TIMBER_WORKTREE_ROOT="+worktreeRoot,
+			"GOCOVERDIR="+os.Getenv("GOCOVERDIR"),
 			// Fixtures can live inside this checkout. Do not discover its
 			// repository when the command runs outside a fixture worktree.
 			"GIT_CEILING_DIRECTORIES="+filepath.Dir(home),

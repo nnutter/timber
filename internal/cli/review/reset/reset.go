@@ -26,7 +26,7 @@ func (c *Command) RunE(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		selector = args[0]
 	}
-	reader, err := review.DefaultSavedReader()
+	reader, err := review.DefaultSavedReader(c.Service.Repository.Environment)
 	if err != nil {
 		return err
 	}

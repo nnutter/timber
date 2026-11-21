@@ -29,6 +29,7 @@ func fileFixture(t *testing.T, repo, diffSource, base string, store string, revi
 }
 
 func TestReadFilePristineAndWorkingTree(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	repo, err := r.git(t.Context(), "rev-parse", "--show-toplevel")
@@ -59,6 +60,7 @@ func TestReadFilePristineAndWorkingTree(t *testing.T) {
 }
 
 func TestReadFileOutcomes(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	repo, err := r.git(t.Context(), "rev-parse", "--show-toplevel")
@@ -91,6 +93,7 @@ func TestReadFileOutcomes(t *testing.T) {
 }
 
 func TestReadFileChoosesTheLastRecordedSession(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	repo, err := r.git(t.Context(), "rev-parse", "--show-toplevel")
@@ -120,6 +123,7 @@ func TestReadFileChoosesTheLastRecordedSession(t *testing.T) {
 }
 
 func TestFilesReviewArgMappingAndLock(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	require.NoError(t, os.WriteFile(filepath.Join(r.Dir, "file.txt"), []byte("File to review\n"), 0o600))
@@ -141,8 +145,7 @@ func TestFilesReviewArgMappingAndLock(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			log := filepath.Join(t.TempDir(), "launch")
-			t.Setenv("TEST_LAUNCH_LOG", log)
-			fakeTuicr(t, `printf '%s\n' "$@" > "$TEST_LAUNCH_LOG"`)
+			fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$@" > "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 			fileStore := t.TempDir()
 			fileFixture(t, repo, tc.diffSource, tc.base, fileStore, true, "sessions/0123456789abcdef.json")
 			fr := FileReviewer{Service: reviewer.Service, Reader: SavedReader{Stores: []string{fileStore}}, Input: strings.NewReader(""), Terminal: io.Discard}
@@ -157,16 +160,4 @@ func TestFilesReviewArgMappingAndLock(t *testing.T) {
 			require.Contains(t, string(launch), tc.wantArgs)
 		})
 	}
-}
-
-func TestFilesReviewCancelledWithoutSession(t *testing.T) {
-	reviewer, _, _ := testReviewer(t)
-	fakeTuicr(t, "exit 0")
-	store := t.TempDir()
-	fr := FileReviewer{Service: reviewer.Service, Reader: SavedReader{Stores: []string{store}}, Input: strings.NewReader(""), Terminal: io.Discard}
-	result, err := fr.Review(t.Context(), FilesOptions{})
-	require.NoError(t, err)
-	require.Equal(t, "files", result.Command)
-	require.Equal(t, "cancelled", result.Status)
-	require.Nil(t, result.Review)
 }

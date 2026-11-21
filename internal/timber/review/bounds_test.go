@@ -9,8 +9,10 @@ import (
 )
 
 func TestReviewSelectsWithinInclusiveBounds(t *testing.T) {
+	t.Parallel()
 	for _, bounds := range []string{"start", "end", "both"} {
 		t.Run(bounds, func(t *testing.T) {
+			t.Parallel()
 			reviewer, _, store := testReviewer(t)
 			r := reviewer.Service.Repository
 			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Second")
@@ -32,14 +34,13 @@ func TestReviewSelectsWithinInclusiveBounds(t *testing.T) {
 					return nil
 				}))
 			}
-			path, err := WorktreePath(r.Dir)
+			path, err := WorktreePath(t.Context(), r.Dir)
 			require.NoError(t, err)
 			scope := view.Stacks[1]
 			scope.Repo = path
 			savedFixture(t, scope, store, true)
 			log := filepath.Join(t.TempDir(), "launch")
-			t.Setenv("TEST_LAUNCH_LOG", log)
-			fakeTuicr(t, `printf '%s\n' "$@" >> "$TEST_LAUNCH_LOG"`)
+			fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$@" >> "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 			result, err := reviewer.Review(t.Context(), options)
 			require.NoError(t, err)
 			if bounds == "start" {
@@ -67,8 +68,10 @@ func TestReviewSelectsWithinInclusiveBounds(t *testing.T) {
 }
 
 func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
+	t.Parallel()
 	for _, outcome := range []string{"approved", "feedback", "incomplete", "cancelled", "error"} {
 		t.Run(outcome, func(t *testing.T) {
+			t.Parallel()
 			reviewer, _, firstStore := testReviewer(t)
 			r := reviewer.Service.Repository
 			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Second")
@@ -77,7 +80,7 @@ func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
 			gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Fourth")
 			view, err := r.Snapshot(t.Context())
 			require.NoError(t, err)
-			path, err := WorktreePath(r.Dir)
+			path, err := WorktreePath(t.Context(), r.Dir)
 			require.NoError(t, err)
 			first, second := view.Stacks[1], view.Stacks[2]
 			first.Repo, second.Repo = path, path
@@ -102,13 +105,12 @@ func TestBoundedReviewContinuesUntilApprovalOrUserInput(t *testing.T) {
 				return nil
 			}))
 			log := filepath.Join(t.TempDir(), "launch")
-			t.Setenv("TEST_LAUNCH_LOG", log)
-			t.Setenv("TEST_FAIL_TIP", "")
+			var failTip string
 			if outcome == "error" {
-				t.Setenv("TEST_FAIL_TIP", second.Tip)
+				failTip = second.Tip
 			}
-			fakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"
-if [ "$(git rev-parse HEAD)" = "$TEST_FAIL_TIP" ]; then exit 1; fi`)
+			fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"
+if [ "$(git rev-parse HEAD)" = "$TEST_FAIL_TIP" ]; then exit 1; fi`, "TEST_LAUNCH_LOG="+log, "TEST_FAIL_TIP="+failTip)
 			result, err := reviewer.Review(t.Context(), ReviewOptions{Start: first.Tip, End: second.Tip, Session: "fixture-session"})
 			if outcome == "error" {
 				require.ErrorContains(t, err, "tuicr interrupted")
@@ -137,6 +139,7 @@ if [ "$(git rev-parse HEAD)" = "$TEST_FAIL_TIP" ]; then exit 1; fi`)
 }
 
 func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	gitTest(t, r.Dir, "commit", "--allow-empty", "--fixup=HEAD")
@@ -145,7 +148,7 @@ func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Outside range")
 	view, err := r.Snapshot(t.Context())
 	require.NoError(t, err)
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	wantLaunch := ""
 	for i, stack := range view.Stacks[:3] {
@@ -160,8 +163,7 @@ func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
 		wantLaunch += stack.Base + ".." + stack.Tip + "\n"
 	}
 	log := filepath.Join(t.TempDir(), "launch")
-	t.Setenv("TEST_LAUNCH_LOG", log)
-	fakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`)
+	fakeTuicr(t, &reviewer.Service.Repository, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`, "TEST_LAUNCH_LOG="+log)
 	options := ReviewOptions{Start: view.Stacks[0].Tip, End: view.Stacks[2].Tip}
 	result, err := reviewer.Review(t.Context(), options)
 	require.NoError(t, err)
@@ -192,6 +194,7 @@ func TestBoundedReviewRetainsFeedbackAndContinuesToLaterStacks(t *testing.T) {
 }
 
 func TestReviewRejectsInvalidBoundsWithoutStateChanges(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Second")
@@ -215,6 +218,7 @@ func TestReviewRejectsInvalidBoundsWithoutStateChanges(t *testing.T) {
 }
 
 func TestBoundedReviewRetainsDeferredAndActiveAttempts(t *testing.T) {
+	t.Parallel()
 	reviewer, view, store := testReviewer(t)
 	r := reviewer.Service.Repository
 	first := view.Stacks[0]
@@ -237,12 +241,12 @@ func TestBoundedReviewRetainsDeferredAndActiveAttempts(t *testing.T) {
 		state.Attempts = append(state.Attempts, active)
 		return nil
 	}))
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	scope := first
 	scope.Repo = path
 	savedFixture(t, scope, store, true)
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 	// The active attempt resumes without asking, and the deferred stack stays.
 	result, err = reviewer.Review(t.Context(), options)
 	require.NoError(t, err)

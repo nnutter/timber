@@ -11,6 +11,7 @@ import (
 // Snapshot owns the persisted fingerprint contract. These cases guard against
 // omitting binary data, whitespace, paths, or modes from content identity.
 func TestSnapshotPatchIdentity(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name          string
 		before, after []byte
@@ -69,6 +70,7 @@ func TestSnapshotPatchIdentity(t *testing.T) {
 }
 
 func TestEmptyStacksHaveNoPatchIdentity(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Empty")
 	view, err := r.Snapshot(t.Context())

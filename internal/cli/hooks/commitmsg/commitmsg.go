@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/nnutter/timber/internal/process"
 )
 
 // New builds the commit-msg subcommand. Successful hooks produce no output.
@@ -65,7 +67,7 @@ func (h hook) config(args ...string) (string, error) {
 }
 
 func (h hook) git(input []byte, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(h.ctx, "git", args...)
+	cmd := process.Command(h.ctx, "git", args...)
 	cmd.Dir = h.dir
 	cmd.Stdin = bytes.NewReader(input)
 	var stderr bytes.Buffer

@@ -38,6 +38,7 @@ func savedFixture(t *testing.T, stack Stack, store string, reviewed bool) map[st
 }
 
 func TestSavedReviewOutcomes(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		mutate func(map[string]any)
@@ -93,6 +94,7 @@ func TestSavedReviewOutcomes(t *testing.T) {
 }
 
 func TestSavedReviewRejectsCorruption(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		mutate  func(map[string]any)
@@ -124,6 +126,7 @@ func TestSavedReviewRejectsCorruption(t *testing.T) {
 }
 
 func TestSavedReviewScopeAndDiscovery(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	view, err := r.Snapshot(t.Context())
@@ -194,11 +197,12 @@ func writeSavedIndex(t *testing.T, store string, entries ...savedEntry) {
 }
 
 func TestSavedWriterDeletesCapturedSession(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	first, err := r.Snapshot(t.Context())
 	require.NoError(t, err)
-	checkout, err := WorktreePath(first.Stacks[0].Repo)
+	checkout, err := WorktreePath(t.Context(), first.Stacks[0].Repo)
 	require.NoError(t, err)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "fixup! Feature")
 	current, err := r.Snapshot(t.Context())
@@ -219,7 +223,7 @@ func TestSavedWriterDeletesCapturedSession(t *testing.T) {
 		savedEntry{"nnutter/other@~cccc/commits/other", elsewhere.Repo, other},
 	)
 	// Only the session that captured the earlier commits is removed.
-	deleted, err := writer.Delete(target)
+	deleted, err := writer.Delete(t.Context(), target)
 	require.NoError(t, err)
 	require.Equal(t, 1, deleted)
 	require.NoFileExists(t, filepath.Join(store, old))
@@ -230,17 +234,18 @@ func TestSavedWriterDeletesCapturedSession(t *testing.T) {
 	require.NotContains(t, entries, "nnutter/timber@~aaaa/commits/first")
 	require.Contains(t, entries, "nnutter/timber@~bbbb/commits/current")
 	require.Contains(t, entries, "nnutter/other@~cccc/commits/other")
-	deleted, err = writer.Delete(target)
+	deleted, err = writer.Delete(t.Context(), target)
 	require.NoError(t, err)
 	require.Zero(t, deleted)
 }
 
 func TestSavedWriterToleratesMissingStore(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	view, err := r.Snapshot(t.Context())
 	require.NoError(t, err)
-	deleted, err := (SavedWriter{Stores: []string{t.TempDir()}}).Delete(view.Stacks[0])
+	deleted, err := (SavedWriter{Stores: []string{t.TempDir()}}).Delete(t.Context(), view.Stacks[0])
 	require.NoError(t, err)
 	require.Zero(t, deleted)
 }

@@ -51,8 +51,8 @@ func validateAutoEvaluator(evaluator autoreview.Evaluator, options *AutoOptions)
 	return nil
 }
 
-func autoLock(s Service, options AutoOptions) (*os.File, error) {
-	path, err := WorktreePath(s.Repository.Dir)
+func autoLock(ctx context.Context, s Service, options AutoOptions) (*os.File, error) {
+	path, err := WorktreePath(ctx, s.Repository.Dir)
 	if err != nil {
 		return nil, err
 	}

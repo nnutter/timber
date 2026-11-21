@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/testenv"
 )
 
 func TestGenerateZshGeneratesWrapperCompletionAndAutoloadHelper(t *testing.T) {
@@ -156,7 +158,7 @@ func buildTestTimberBinary(t *testing.T) string {
 	require.NoError(t, err)
 	envKeys := []string{"GOMODCACHE", "GOCACHE", "GOPROXY", "GOTOOLCHAIN"}
 
-	build := shellTestCommand(t, "go", "build", "-o", filepath.Join(binDir, "timber"), ".")
+	build := shellTestCommand(t, "go", testenv.BuildArgs(filepath.Join(binDir, "timber"), ".")...)
 	build.Dir = repoRoot
 	// testCommand isolates HOME, which would empty the module and build
 	// caches; keep the real Go toolchain directories so the build stays

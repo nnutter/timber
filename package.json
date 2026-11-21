@@ -6,8 +6,7 @@
   "description": "Pi integration for timber review",
   "keywords": ["pi-package"],
   "pi": {
-    "extensions": ["./pi/extensions/timber-review/index.ts"],
-    "skills": ["./skills/*"]
+    "extensions": ["./pi/extensions/timber-review/index.ts"]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

@@ -20,7 +20,19 @@ jobs:
       - name: Install mise
         uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
-          version: 2026.10.25
+          version: 2026.11.11
+          install_args: go
+      - name: Find the Go build cache
+        id: go-cache
+        run: echo "dir=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+      - name: Cache the Go build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.go-cache.outputs.dir }}
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-build-${{ runner.os }}-
+      - name: Install the tools
+        run: mise install
       - name: Run check
         run: mise run check
   test:
@@ -39,12 +51,13 @@ jobs:
       - name: Install mise
         uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
-          version: 2026.10.25
+          version: 2026.11.11
           install_args: go
       - name: Find the Go build cache
         id: go-cache
         run: echo "dir=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
       - name: Cache the Go build cache
+        id: restore-go-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.go-cache.outputs.dir }}
@@ -54,5 +67,11 @@ jobs:
       # install them here to give that time a line of its own.
       - name: Install the tools
         run: mise install
+      - name: Download Go modules
+        run: go mod download
+      # Some test packages build non-race binaries even though CI tests with -race.
+      - name: Warm the Go build cache for subprocess tests
+        if: steps.restore-go-cache.outputs.cache-hit != 'true'
+        run: go build ./...
       - name: Run tests
         run: mise run ci-test

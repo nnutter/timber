@@ -19,6 +19,8 @@ import (
 	"unicode/utf8"
 
 	"charm.land/log/v2"
+
+	"github.com/nnutter/timber/internal/process"
 )
 
 // Stack identifies an original commit and its adjacent feedback commits.
@@ -184,7 +186,7 @@ func (r Repository) WarmCache(ctx context.Context, ref string) error {
 func (r Repository) autoGit(ctx context.Context, limit int, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := process.Command(ctx, "git", args...)
 	cmd.Dir = r.Dir
 	cmd.Env = append(slices.Clone(r.environment()), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0", "GIT_NO_REPLACE_OBJECTS=1")
 	out := autoOutput{limit: limit}
@@ -252,7 +254,7 @@ func (r Repository) gitInput(ctx context.Context, input string, args ...string) 
 	defer func() { r.logger().Debug("Git command completed", "args", args, "elapsed", time.Since(started)) }()
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := process.Command(ctx, "git", args...)
 	cmd.Dir = r.Dir
 	cmd.Stdin = strings.NewReader(input)
 	// Keep Git diagnostics stable so repository discovery errors can be identified.
@@ -294,7 +296,7 @@ func (r Repository) patchHash(ctx context.Context, base, tip string) (string, er
 	// and hunk line numbers so an unchanged patch can survive relocation.
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", "patch-id", "--verbatim")
+	cmd := process.Command(ctx, "git", "patch-id", "--verbatim")
 	cmd.Dir = r.Dir
 	cmd.Env = append(slices.Clone(r.environment()), "LC_ALL=C")
 	cmd.Stdin = strings.NewReader(patch)
@@ -374,6 +376,40 @@ func (r Repository) stackView(ctx context.Context) (Snapshot, string, error) {
 		return view, repo, err
 	}
 	return view, repo, nil
+}
+
+// tuicr runs with the same environment as the repository's Git commands.
+func (r Repository) tuicr(ctx context.Context, args ...string) (*exec.Cmd, error) {
+	name := "tuicr"
+	if r.Environment != nil {
+		var err error
+		name, err = lookPathInEnvironment(name, r.Environment)
+		if err != nil {
+			return nil, err
+		}
+	}
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = r.Environment
+	return cmd, nil
+}
+
+func lookPathInEnvironment(name string, environment []string) (string, error) {
+	for dir := range strings.SplitSeq(environmentValue(environment, "PATH"), string(os.PathListSeparator)) {
+		if dir == "" {
+			dir = "."
+		}
+		// Joining can drop a leading "./"; keep a separator so LookPath
+		// checks this candidate rather than searching the process PATH.
+		path, err := exec.LookPath(dir + string(os.PathSeparator) + name)
+		if err != nil {
+			continue
+		}
+		if !filepath.IsAbs(path) {
+			return "", &exec.Error{Name: path, Err: exec.ErrDot}
+		}
+		return path, nil
+	}
+	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
 }
 
 func stacks(repo, base string, history []historyCommit) ([]Stack, error) {

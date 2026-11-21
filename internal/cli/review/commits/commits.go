@@ -38,7 +38,7 @@ func (c *Command) runReview(ctx context.Context, options review.ReviewOptions, c
 	if flag, err := cmd.Flags().GetBool("json"); err == nil {
 		asJSON = flag
 	}
-	reader, err := review.DefaultSavedReader()
+	reader, err := review.DefaultSavedReader(c.Service.Repository.Environment)
 	if err != nil {
 		return err
 	}

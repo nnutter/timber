@@ -16,7 +16,7 @@ func TestFunctionalRuntimeDefaultsDirectoriesUnderHome(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("TIMBER_WORKTREE_ROOT", "")
 
-	runtime, err := RuntimeFromProcess()
+	runtime, err := RuntimeFromProcess(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(home, ".local", "share"), runtime.DataHome)

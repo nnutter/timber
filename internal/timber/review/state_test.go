@@ -9,6 +9,7 @@ import (
 )
 
 func TestApprovalAndSupersession(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	id := "I" + strings.Repeat("c", 40)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "One\n\nChange-Id: "+id)
@@ -47,6 +48,7 @@ func TestApprovalAndSupersession(t *testing.T) {
 }
 
 func TestApprovalBlocksCurrentFeedbackAndActiveAttempts(t *testing.T) {
+	t.Parallel()
 	for _, status := range []string{"feedback", "reviewing"} {
 		t.Run(status, func(t *testing.T) {
 			r := testRepo(t)
@@ -68,6 +70,7 @@ func TestApprovalBlocksCurrentFeedbackAndActiveAttempts(t *testing.T) {
 }
 
 func TestApprovalWithPendingAttemptsOutsideRange(t *testing.T) {
+	t.Parallel()
 	for _, status := range []string{"feedback", "reviewing"} {
 		t.Run(status, func(t *testing.T) {
 			r := testRepo(t)
@@ -105,6 +108,7 @@ func TestApprovalWithPendingAttemptsOutsideRange(t *testing.T) {
 }
 
 func TestStateLockAndCorruption(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "One")
 	view, err := r.Snapshot(t.Context())

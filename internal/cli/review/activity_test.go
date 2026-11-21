@@ -13,13 +13,12 @@ import (
 )
 
 func TestReviewRunningReportsLiveLockNotPersistedAttempt(t *testing.T) {
-	binary := buildGitReview(t)
 	dir := featureRepo(t)
-	path, err := review.WorktreePath(dir)
+	path, err := review.WorktreePath(t.Context(), dir)
 	require.NoError(t, err)
 	check := func(cwd string, running bool) {
 		t.Helper()
-		out, terminal, err := executeBinary(t, binary, cwd, "status", "--is-reviewing", "--json")
+		out, terminal, err := execute(t, cwd, "status", "--is-reviewing", "--json")
 		require.NoError(t, err)
 		require.Empty(t, terminal)
 		want := `{"version":1,"command":"status","is_reviewing":false}`
@@ -82,13 +81,14 @@ while [ ! -f "$TEST_RELEASED" ]; do sleep 0.05; done`)
 	check(other, false)
 	// A detached checkout without rebase metadata has no branch to check.
 	git(t, dir, "checkout", "--detach")
-	out, terminal, err := executeBinary(t, binary, dir, "status", "--is-reviewing", "--json")
+	out, terminal, err := execute(t, dir, "status", "--is-reviewing", "--json")
 	require.Error(t, err)
 	require.Empty(t, terminal)
 	require.Contains(t, out, `"status":"error"`)
 }
 
 func TestReviewRunningOutsideRepository(t *testing.T) {
+	t.Parallel()
 	out, terminal, err := execute(t, t.TempDir(), "status", "--is-reviewing", "--json")
 	require.Error(t, err)
 	require.Empty(t, terminal)
@@ -96,13 +96,13 @@ func TestReviewRunningOutsideRepository(t *testing.T) {
 }
 
 func TestStatusIsReviewingTerminalAndConflicts(t *testing.T) {
-	binary := buildGitReview(t)
+	t.Parallel()
 	dir := featureRepo(t)
-	out, terminal, err := executeBinary(t, binary, dir, "status", "--is-reviewing")
+	out, terminal, err := execute(t, dir, "status", "--is-reviewing")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	require.Contains(t, out, "Is reviewing: false")
-	out, terminal, err = executeBinary(t, binary, dir, "status", "--is-reviewing", "--json")
+	out, terminal, err = execute(t, dir, "status", "--is-reviewing", "--json")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	require.Contains(t, out, `"is_reviewing"`)
@@ -110,7 +110,7 @@ func TestStatusIsReviewingTerminalAndConflicts(t *testing.T) {
 		{"status", "--is-reviewing", "--needs-review", "--json"},
 		{"status", "--is-reviewing", "--verbose", "--json"},
 	} {
-		out, terminal, err := executeBinary(t, binary, dir, args...)
+		out, terminal, err := execute(t, dir, args...)
 		require.Error(t, err)
 		require.Empty(t, terminal)
 		require.Contains(t, out, `"status":"error"`)

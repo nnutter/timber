@@ -2,4 +2,5 @@
 /timber
 coverage.html
 coverage.out
+coverage-process.out
 tmp/

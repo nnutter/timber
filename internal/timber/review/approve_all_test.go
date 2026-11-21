@@ -7,6 +7,7 @@ import (
 )
 
 func TestApproveAllApprovesEveryStack(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	for _, subject := range []string{"First", "Second", "Third"} {
 		gitTest(t, r.Dir, "commit", "--allow-empty", "-m", subject)
@@ -25,6 +26,7 @@ func TestApproveAllApprovesEveryStack(t *testing.T) {
 }
 
 func TestApproveAllBlockedByFeedbackOnAnyStack(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	for _, subject := range []string{"First", "Second", "Third"} {
 		gitTest(t, r.Dir, "commit", "--allow-empty", "-m", subject)

@@ -18,7 +18,7 @@ func TestFunctionalRuntimeCapturesDirectoryOverrides(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(custom, "config"))
 	t.Setenv("TIMBER_WORKTREE_ROOT", filepath.Join(custom, "worktrees"))
 
-	runtime, err := RuntimeFromProcess()
+	runtime, err := RuntimeFromProcess(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, home, runtime.HomeDirectory)

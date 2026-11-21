@@ -12,20 +12,21 @@ import (
 func movedReviewCheckout(t *testing.T) (Repository, string, string, string) {
 	t.Helper()
 	r := testRepo(t)
-	oldPath, err := WorktreePath(r.Dir)
+	oldPath, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	gitTest(t, r.Dir, "worktree", "add", "--detach", oldPath, "HEAD")
 	oldGitDir := gitTest(t, oldPath, "rev-parse", "--absolute-git-dir")
 	newDir := filepath.Join(t.TempDir(), "moved")
 	require.NoError(t, os.Rename(r.Dir, newDir))
 	r.Dir = newDir
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	registration := filepath.Join(newDir, ".git", "worktrees", filepath.Base(oldGitDir))
 	return r, path, oldPath, registration
 }
 
 func TestPrepareMovedReviewCheckout(t *testing.T) {
+	t.Parallel()
 	r, path, _, _ := movedReviewCheckout(t)
 	file := filepath.Join(path, "incidental")
 	require.NoError(t, os.WriteFile(file, []byte("discard"), 0o600))
@@ -37,6 +38,7 @@ func TestPrepareMovedReviewCheckout(t *testing.T) {
 }
 
 func TestPrepareMovedReviewCheckoutRejectsUnsafeState(t *testing.T) {
+	t.Parallel()
 	for _, scenario := range []string{"live old checkout", "wrong pointer", "wrong backlink", "attached checkout", "duplicate registration"} {
 		t.Run(scenario, func(t *testing.T) {
 			r, path, oldPath, registration := movedReviewCheckout(t)

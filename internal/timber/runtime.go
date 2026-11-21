@@ -22,6 +22,7 @@ import (
 	"github.com/zalando/go-keyring"
 	"gopkg.in/yaml.v3"
 
+	"github.com/nnutter/timber/internal/process"
 	coreconfig "github.com/nnutter/timber/internal/timber/config"
 	repomodel "github.com/nnutter/timber/internal/timber/repo"
 	"github.com/nnutter/timber/internal/timber/review"
@@ -38,6 +39,9 @@ const (
 // timber command. A Runtime is captured once at the CLI boundary and should
 // be treated as immutable for the lifetime of a command.
 type Runtime struct {
+	// processContext covers Git calls from helpers without a command context.
+	processContext context.Context
+
 	CurrentDirectory string
 
 	HomeDirectory      string
@@ -1019,7 +1023,7 @@ func (x Runtime) command(ctx context.Context, name string, args ...string) *exec
 		name = x.MiseExecutable
 	}
 
-	command := exec.CommandContext(ctx, name, args...)
+	command := process.Command(ctx, name, args...)
 	if x.Environment != nil {
 		command.Env = slices.Clone(x.Environment)
 	}
@@ -2493,7 +2497,7 @@ func (x Runtime) xdgDataHome() string {
 }
 
 // RuntimeFromProcess captures the process state needed by a timber command.
-func RuntimeFromProcess() (Runtime, error) {
+func RuntimeFromProcess(ctx context.Context) (Runtime, error) {
 	currentDirectory, err := os.Getwd()
 	if err != nil {
 		return Runtime{}, fmt.Errorf("get current directory: %w", err)
@@ -2505,6 +2509,7 @@ func RuntimeFromProcess() (Runtime, error) {
 	}
 
 	return Runtime{
+		processContext:     ctx,
 		CurrentDirectory:   currentDirectory,
 		HomeDirectory:      homeDirectory,
 		DataHome:           cmp.Or(os.Getenv("XDG_DATA_HOME"), filepath.Join(homeDirectory, ".local", "share")),

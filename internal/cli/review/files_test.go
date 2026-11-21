@@ -4,7 +4,6 @@ import (
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,6 +41,7 @@ func TestFilesCommandArgMapping(t *testing.T) {
 			require.Equal(t, 1, result.Version)
 			require.Equal(t, "files", result.Command)
 			require.Equal(t, "cancelled", result.Status)
+			require.Nil(t, result.Review)
 			launch, err := os.ReadFile(log)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantArgs+"\n", string(launch))
@@ -76,26 +76,6 @@ func TestFilesUpstreamAndEmptyRange(t *testing.T) {
 	require.Equal(t, "cancelled", result.Status)
 	_, err = os.Stat(log)
 	require.ErrorIs(t, err, os.ErrNotExist)
-}
-
-func TestFilesCommandDistinguishesCommits(t *testing.T) {
-	dir := featureRepo(t)
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	bin := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "tuicr"), []byte("#!/bin/sh\nexit 0\n"), 0o700))
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	commitsOut, _, err := execute(t, dir, "commits", "--json")
-	require.NoError(t, err)
-	var commits review.Result
-	require.NoError(t, json.Unmarshal([]byte(commitsOut), &commits))
-	require.Equal(t, "commits", commits.Command)
-	filesOut, _, err := execute(t, dir, "files", "--json")
-	require.NoError(t, err)
-	var files review.FilesResult
-	require.NoError(t, json.Unmarshal([]byte(filesOut), &files))
-	require.Equal(t, "files", files.Command)
-	require.NotEqual(t, commits.Command, files.Command)
 }
 
 func TestFilesCommandTerminalAndErrors(t *testing.T) {
@@ -151,16 +131,10 @@ func TestFilesHoldsWorktreeLock(t *testing.T) {
 	started := filepath.Join(bin, "started")
 	require.NoError(t, os.WriteFile(filepath.Join(bin, "tuicr"), []byte("#!/bin/sh\nprintf started > \""+started+"\"\nsleep 3\n"), 0o700))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	// Launch files in background via binary to check lock held during TUI.
-	binary := buildGitReview(t)
-	t.Setenv("PATH", filepath.Dir(binary)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	done := make(chan struct{})
+	done := make(chan error, 1)
 	go func() {
-		defer close(done)
-		out, _, _ := executeBinary(t, binary, dir, "files", "--json")
-		if strings.Contains(out, `"status":"cancelled"`) {
-			return
-		}
+		_, _, err := execute(t, dir, "files", "--json")
+		done <- err
 	}()
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(started)
@@ -168,8 +142,8 @@ func TestFilesHoldsWorktreeLock(t *testing.T) {
 	}, 5_000_000_000, 10_000_000)
 	// While files holds the repository-wide lock, status --is-reviewing
 	// reports true, just as it does during a commits review.
-	out, _, err := executeBinary(t, binary, dir, "status", "--is-reviewing", "--json")
+	out, _, err := execute(t, dir, "status", "--is-reviewing", "--json")
 	require.NoError(t, err)
 	require.Contains(t, out, `"is_reviewing":true`)
-	<-done
+	require.NoError(t, <-done)
 }

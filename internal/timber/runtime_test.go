@@ -14,7 +14,7 @@ import (
 func TestRuntimeFromProcessCapturesProcessState(t *testing.T) {
 	t.Parallel()
 
-	runtime, err := RuntimeFromProcess()
+	runtime, err := RuntimeFromProcess(t.Context())
 	require.NoError(t, err)
 
 	currentDirectory, err := os.Getwd()

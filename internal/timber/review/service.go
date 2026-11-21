@@ -117,7 +117,7 @@ func (s Service) Auto(ctx context.Context, evaluator autoreview.Evaluator, optio
 	}
 	ctx, cancel := context.WithTimeout(ctx, options.Timeout)
 	defer cancel()
-	lock, err := autoLock(s, options)
+	lock, err := autoLock(ctx, s, options)
 	if err != nil {
 		return result, err
 	}
@@ -141,7 +141,7 @@ func (s Service) Feedback(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	reader, err := DefaultSavedReader()
+	reader, err := DefaultSavedReader(s.Repository.Environment)
 	if err != nil {
 		return Result{}, err
 	}
@@ -172,7 +172,7 @@ func (s Service) Reset(ctx context.Context, reader SavedReader, selector string)
 	if err != nil {
 		return Result{}, err
 	}
-	path, err := WorktreePath(s.Repository.Dir)
+	path, err := WorktreePath(ctx, s.Repository.Dir)
 	if err != nil {
 		return Result{}, err
 	}
@@ -196,7 +196,7 @@ func (s Service) Reset(ctx context.Context, reader SavedReader, selector string)
 	}
 	writer := SavedWriter(reader)
 	for _, stack := range selected {
-		if _, err := writer.Delete(stack); err != nil {
+		if _, err := writer.Delete(ctx, stack); err != nil {
 			return Result{}, err
 		}
 	}
@@ -213,7 +213,7 @@ func (s Service) Reset(ctx context.Context, reader SavedReader, selector string)
 // ReviewRunning reports whether the current or rebasing branch owns the live review lock.
 // It does not create the lock file or infer activity from persisted attempts.
 func (s Service) ReviewRunning(ctx context.Context) (bool, error) {
-	path, err := WorktreePath(s.Repository.Dir)
+	path, err := WorktreePath(ctx, s.Repository.Dir)
 	if err != nil {
 		return false, err
 	}

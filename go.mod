@@ -39,7 +39,6 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/glamour v1.0.0 // indirect
-	github.com/charmbracelet/harmonica v0.2.0 // indirect
 	github.com/charmbracelet/keygen v0.5.4 // indirect
 	github.com/charmbracelet/log v0.4.1 // indirect
 	github.com/charmbracelet/ssh v0.0.0-20250128164007-98fd5ae11894 // indirect

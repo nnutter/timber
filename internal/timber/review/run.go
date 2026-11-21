@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -38,7 +37,7 @@ type Reviewer struct {
 
 // Review continues automatic reviews after completed attempts, retaining feedback.
 func (r Reviewer) Review(ctx context.Context, options ReviewOptions) (result Result, err error) {
-	path, err := WorktreePath(r.Service.Repository.Dir)
+	path, err := WorktreePath(ctx, r.Service.Repository.Dir)
 	if err != nil {
 		return result, err
 	}
@@ -194,7 +193,7 @@ func (r Reviewer) discardUnusable(ctx context.Context) {
 	}
 	writer := SavedWriter{Stores: r.Reader.Stores}
 	for _, stack := range sessions {
-		if _, err := writer.Delete(stack); err != nil {
+		if _, err := writer.Delete(ctx, stack); err != nil {
 			r.warnCleanup(err)
 			return
 		}
@@ -224,7 +223,10 @@ func (r Reviewer) launch(ctx context.Context, path string, stack Stack, lock *os
 	if err := prepareWorktree(ctx, r.Service.Repository, path, stack); err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "tuicr", "--no-update-check", "--stdout", "-r", stack.Base+".."+stack.Tip)
+	cmd, err := r.Service.Repository.tuicr(ctx, "--no-update-check", "--stdout", "-r", stack.Base+".."+stack.Tip)
+	if err != nil {
+		return fmt.Errorf("tuicr interrupted or failed; use timber review commits to recover or replace: %w", err)
+	}
 	cmd.Dir = path
 	cmd.Stdin = r.Input
 	if wrapped, ok := r.Input.(interface{ UnwrapReader() io.Reader }); ok {
@@ -279,8 +281,8 @@ func (r Reviewer) plan(ctx context.Context, options ReviewOptions, visited map[s
 	return plan, nil
 }
 
-func (r Reviewer) recover(plan reviewPlan, attempt Attempt, selector string) (Result, error) {
-	saved, err := readAttempt(r.Reader, attempt, selector)
+func (r Reviewer) recover(ctx context.Context, plan reviewPlan, attempt Attempt, selector string) (Result, error) {
+	saved, err := readAttempt(ctx, r.Reader, attempt, selector)
 	if err != nil {
 		return Result{}, err
 	}
@@ -317,7 +319,7 @@ func (r Reviewer) recover(plan reviewPlan, attempt Attempt, selector string) (Re
 func (r Reviewer) resume(ctx context.Context, path string, plan reviewPlan, session string, lock *os.File) (Result, error) {
 	// Tuicr resumes the saved session for the same checkout and range.
 	// Validate selection before launch rather than opening an ambiguous review.
-	if _, err := readAttempt(r.Reader, *plan.prior, session); err != nil {
+	if _, err := readAttempt(ctx, r.Reader, *plan.prior, session); err != nil {
 		return Result{}, err
 	}
 	attempt, err := resumeAttempt(plan.view, *plan.prior)
@@ -383,7 +385,7 @@ func (r Reviewer) runAttempt(ctx context.Context, path string, plan reviewPlan, 
 	if err := r.launch(ctx, path, attempt.Stack, lock); err != nil {
 		return Result{}, errors.Join(err, recordFailure(plan.view.Path, attempt.ID, err))
 	}
-	result, err := r.recover(plan, attempt, session)
+	result, err := r.recover(ctx, plan, attempt, session)
 	if err != nil {
 		return result, errors.Join(err, recordFailure(plan.view.Path, attempt.ID, err))
 	}
@@ -405,8 +407,8 @@ func (r Reviewer) warnCleanup(cause error) {
 
 // readAttempt reads the saved review that captured an attempt. A session lives
 // in the review checkout, but an older one can name the repository itself.
-func readAttempt(reader SavedReader, attempt Attempt, selector string) (*SavedReview, error) {
-	path, err := WorktreePath(attempt.Stack.Repo)
+func readAttempt(ctx context.Context, reader SavedReader, attempt Attempt, selector string) (*SavedReview, error) {
+	path, err := WorktreePath(ctx, attempt.Stack.Repo)
 	if err != nil {
 		return nil, err
 	}

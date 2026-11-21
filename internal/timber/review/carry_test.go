@@ -17,7 +17,7 @@ import (
 func carryFixture(t *testing.T, reviewer Reviewer, view Snapshot, store string) {
 	t.Helper()
 	scope := view.Stacks[0]
-	path, err := WorktreePath(scope.Repo)
+	path, err := WorktreePath(t.Context(), scope.Repo)
 	require.NoError(t, err)
 	require.NoError(t, prepareWorktree(t.Context(), reviewer.Service.Repository, path, scope))
 	scope.Repo = path
@@ -87,6 +87,7 @@ func carryRepository(t *testing.T) (Reviewer, Snapshot) {
 }
 
 func TestCarrySavedReviewKeepsMarksAcrossRewrite(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name         string
 		message      string
@@ -116,7 +117,7 @@ func TestCarrySavedReviewKeepsMarksAcrossRewrite(t *testing.T) {
 			carrySavedReviews(t.Context(), reviewer.Service.Repository, reviewer.Reader)
 
 			scope := carried.Stacks[0]
-			checkout, err := WorktreePath(scope.Repo)
+			checkout, err := WorktreePath(t.Context(), scope.Repo)
 			require.NoError(t, err)
 			scope.Repo = checkout
 			saved, err := (SavedReader{Stores: []string{store}}).Read(scope, "")
@@ -154,6 +155,7 @@ func TestCarrySavedReviewKeepsMarksAcrossRewrite(t *testing.T) {
 }
 
 func TestCarrySavedReviewLeavesAMatchingRangeAlone(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
@@ -176,12 +178,13 @@ func TestCarrySavedReviewLeavesAMatchingRangeAlone(t *testing.T) {
 // A review that a rewrite moved records the carried progress, so the result and
 // the session that tuicr shows describe the same work.
 func TestReviewRecordsCarriedProgress(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
 	carryFixture(t, reviewer, view, store)
 	gitTest(t, reviewer.Service.Repository.Dir, "commit", "--amend", "--allow-empty", "--date", "2026-01-01T00:00:00Z", "-m", "Feature reworded")
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 
 	result, err := reviewer.Review(t.Context(), ReviewOptions{})
 	require.NoError(t, err)
@@ -198,6 +201,7 @@ func TestReviewRecordsCarriedProgress(t *testing.T) {
 // the path that the reader reports differs from the path that names the store.
 // The move must still find the index entry.
 func TestCarrySavedReviewThroughAliasedStore(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	alias := filepath.Join(t.TempDir(), "alias")
@@ -220,6 +224,7 @@ func TestCarrySavedReviewThroughAliasedStore(t *testing.T) {
 // the session stores. A carried session must store them the way that tuicr
 // stores them, or tuicr names the session under another name.
 func TestCarrySavedReviewStoresTheRangeTheWayTuicrStoresIt(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
@@ -231,7 +236,7 @@ func TestCarrySavedReviewStoresTheRangeTheWayTuicrStoresIt(t *testing.T) {
 	carrySavedReviews(t.Context(), reviewer.Service.Repository, reviewer.Reader)
 
 	scope := carried.Stacks[0]
-	checkout, err := WorktreePath(scope.Repo)
+	checkout, err := WorktreePath(t.Context(), scope.Repo)
 	require.NoError(t, err)
 	scope.Repo = checkout
 	saved, err := (SavedReader{Stores: []string{store}}).Read(scope, "")
@@ -251,6 +256,7 @@ func TestCarrySavedReviewStoresTheRangeTheWayTuicrStoresIt(t *testing.T) {
 // A range of more than one commit carries, because tuicr stores the range
 // from the newest commit to the oldest.
 func TestCarrySavedReviewCarriesARangeOfSeveralCommits(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	dir := reviewer.Service.Repository.Dir
 	gitTest(t, dir, "reset", "--hard", "main")
@@ -275,7 +281,7 @@ func TestCarrySavedReviewCarriesARangeOfSeveralCommits(t *testing.T) {
 	carrySavedReviews(t.Context(), reviewer.Service.Repository, reviewer.Reader)
 
 	scope := carried.Stacks[0]
-	checkout, err := WorktreePath(scope.Repo)
+	checkout, err := WorktreePath(t.Context(), scope.Repo)
 	require.NoError(t, err)
 	scope.Repo = checkout
 	saved, err := (SavedReader{Stores: []string{store}}).Read(scope, "")
@@ -292,6 +298,7 @@ func TestCarrySavedReviewCarriesARangeOfSeveralCommits(t *testing.T) {
 // keep the name that tuicr gives a session, because tuicr finds a session by
 // that name and writes a second session for a range that it cannot find.
 func TestReviewContinuesAfterASquashedCommit(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
@@ -313,12 +320,13 @@ func TestReviewContinuesAfterASquashedCommit(t *testing.T) {
 // session that tuicr wrote. The review continues with the session that the
 // index recorded last, because that is the session that tuicr reopens.
 func TestReviewContinuesWithTheLastRecordedSession(t *testing.T) {
+	t.Parallel()
 	reviewer, view := carryRepository(t)
 	store := t.TempDir()
 	reviewer.Reader = SavedReader{Stores: []string{store}}
 	carryFixture(t, reviewer, view, store)
 	addSecondSession(t, store, view, "2026-02-02T00:00:00Z")
-	fakeTuicr(t, "exit 0")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
 
 	result, err := reviewer.Review(t.Context(), ReviewOptions{})
 	require.NoError(t, err, "the review does not stop on a range with two sessions")
@@ -335,7 +343,7 @@ func TestReviewContinuesWithTheLastRecordedSession(t *testing.T) {
 func addSecondSession(t *testing.T, store string, view Snapshot, updatedAt string) {
 	t.Helper()
 	scope := view.Stacks[0]
-	checkout, err := WorktreePath(scope.Repo)
+	checkout, err := WorktreePath(t.Context(), scope.Repo)
 	require.NoError(t, err)
 	session := map[string]any{
 		"version": "1.3", "id": "second-session", "repo_path": checkout,

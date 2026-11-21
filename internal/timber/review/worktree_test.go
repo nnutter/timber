@@ -9,15 +9,16 @@ import (
 )
 
 func TestReviewCheckoutIsSharedAcrossFeatureWorktrees(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	gitTest(t, r.Dir, "commit", "--allow-empty", "-m", "Feature")
 	other := filepath.Join(t.TempDir(), "other")
 	gitTest(t, r.Dir, "worktree", "add", "-b", "other", other, "HEAD")
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	common := gitTest(t, r.Dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	require.Equal(t, filepath.Join(common, "timber-review", "worktree"), path)
-	otherPath, err := WorktreePath(other)
+	otherPath, err := WorktreePath(t.Context(), other)
 	require.NoError(t, err)
 	require.Equal(t, path, otherPath)
 	lock, err := lockWorktree(path)
@@ -28,8 +29,9 @@ func TestReviewCheckoutIsSharedAcrossFeatureWorktrees(t *testing.T) {
 }
 
 func TestReviewCheckoutRejectsUnownedDirectory(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
-	path, err := WorktreePath(reviewer.Service.Repository.Dir)
+	path, err := WorktreePath(t.Context(), reviewer.Service.Repository.Dir)
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(path, 0o700))
 	file := filepath.Join(path, "keep.txt")
@@ -42,9 +44,10 @@ func TestReviewCheckoutRejectsUnownedDirectory(t *testing.T) {
 }
 
 func TestReviewCheckoutRejectsReplacedGitRegistration(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	gitTest(t, r.Dir, "worktree", "add", "--detach", path, "HEAD")
 	common := gitTest(t, r.Dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
@@ -57,9 +60,10 @@ func TestReviewCheckoutRejectsReplacedGitRegistration(t *testing.T) {
 }
 
 func TestReviewCheckoutRejectsAttachedBranch(t *testing.T) {
+	t.Parallel()
 	reviewer, _, _ := testReviewer(t)
 	r := reviewer.Service.Repository
-	path, err := WorktreePath(r.Dir)
+	path, err := WorktreePath(t.Context(), r.Dir)
 	require.NoError(t, err)
 	gitTest(t, r.Dir, "worktree", "add", "-b", "not-review", path, "HEAD")
 	file := filepath.Join(path, "keep.txt")
