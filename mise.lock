@@ -50,44 +50,44 @@ url_api = "https://api.github.com/repos/betterleaks/betterleaks/releases/assets/
 provenance = "cosign"
 
 [[tools."github:nnutter/constable"]]
-version = "0.9.2"
+version = "0.9.5"
 backend = "github:nnutter/constable"
 specifiers = ["latest"]
 
 [tools."github:nnutter/constable"."platforms.linux-arm64"]
-checksum = "sha256:b0b45ff60f78f1c9d70958a99c572dad2bc7896d88c8110d43b0ed3307da289d"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.2/constable_v0.9.2_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/760360939"
+checksum = "sha256:41d7f41c35f2f2dd45666c8d7cda986ddccb9aa84ed36b836a4975df66755000"
+url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/778353518"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.linux-arm64-musl"]
-checksum = "sha256:b0b45ff60f78f1c9d70958a99c572dad2bc7896d88c8110d43b0ed3307da289d"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.2/constable_v0.9.2_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/760360939"
+checksum = "sha256:41d7f41c35f2f2dd45666c8d7cda986ddccb9aa84ed36b836a4975df66755000"
+url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/778353518"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.linux-x64"]
-checksum = "sha256:f55f9643c099f8f08eca42a494242ff137896e43d795c387d0f159bae0989339"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.2/constable_v0.9.2_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/760360942"
+checksum = "sha256:c67522bfa29e0dd5a791c340699719deb2515153b2e4f7b93f7c8fd469cb81a1"
+url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/778353521"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.linux-x64-musl"]
-checksum = "sha256:f55f9643c099f8f08eca42a494242ff137896e43d795c387d0f159bae0989339"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.2/constable_v0.9.2_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/760360942"
+checksum = "sha256:c67522bfa29e0dd5a791c340699719deb2515153b2e4f7b93f7c8fd469cb81a1"
+url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/778353521"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.macos-arm64"]
-checksum = "sha256:2157234e654d9504d0da577b1564a045e38de01d55919d691a6e74e520d03db7"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.2/constable_v0.9.2_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/760360938"
+checksum = "sha256:0ad670bc74fb365677a39470eb1bacd8587849d9704a5796a72375db95c90dca"
+url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/778353516"
 provenance = "github-attestations"
 
 [tools."github:nnutter/constable"."platforms.macos-x64"]
-checksum = "sha256:6a8adaf71be707139ce975fbb7bb88e8bb72e94d12bda2a5d18411463705b332"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.2/constable_v0.9.2_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/760360947"
+checksum = "sha256:858a1e95c6ad782425a797bb511a1322ca60ddeee266e492270eedc2afe351a4"
+url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_darwin_amd64.tar.gz"
+url_api = "https://api.github.com/repos/nnutter/constable/releases/assets/778353512"
 provenance = "github-attestations"
 
 [[tools."github:nnutter/mdlint"]]
@@ -374,45 +374,45 @@ specifiers = ["latest"]
 uv = { path = ".mise/locks/pipx-agentskills-tools/0.9.0", digest = "sha256:49b45405d7acd3fe5570bf3f0a9bfcb9177a19b4bf504348f1be8a4c4abae6fc" }
 
 [[tools.pkl]]
-version = "0.33.0"
+version = "0.33.1"
 backend = "aqua:apple/pkl"
 specifiers = ["latest"]
 
 [tools.pkl."platforms.linux-arm64"]
-checksum = "sha256:edcea361402ecab0f3a93f86b1a896c41d00a9241f4962f70278254b08fbd26d"
+checksum = "sha256:4a752096dab13d7432e1f0a4f1219833df95e1e36ce0b8d424b0edb2cd5436f9"
 checksum_source = "mise-versions"
-url = "https://github.com/apple/pkl/releases/download/0.33.0/pkl-linux-aarch64"
-url_api = "https://api.github.com/repos/apple/pkl/releases/assets/714756970"
+url = "https://github.com/apple/pkl/releases/download/0.33.1/pkl-linux-aarch64"
+url_api = "https://api.github.com/repos/apple/pkl/releases/assets/764390162"
 
 [tools.pkl."platforms.linux-arm64-musl"]
-checksum = "sha256:edcea361402ecab0f3a93f86b1a896c41d00a9241f4962f70278254b08fbd26d"
+checksum = "sha256:4a752096dab13d7432e1f0a4f1219833df95e1e36ce0b8d424b0edb2cd5436f9"
 checksum_source = "mise-versions"
-url = "https://github.com/apple/pkl/releases/download/0.33.0/pkl-linux-aarch64"
-url_api = "https://api.github.com/repos/apple/pkl/releases/assets/714756970"
+url = "https://github.com/apple/pkl/releases/download/0.33.1/pkl-linux-aarch64"
+url_api = "https://api.github.com/repos/apple/pkl/releases/assets/764390162"
 
 [tools.pkl."platforms.linux-x64"]
-checksum = "sha256:b9a6ddea6b382b7d4db4cf78e77aa3858e0c8a7e02939d2ba298574b5d1fcc69"
+checksum = "sha256:acbca9bb4f31139d09e295d03c9fb25f77edf5a74af4e772b56b32dc6dc17c44"
 checksum_source = "mise-versions"
-url = "https://github.com/apple/pkl/releases/download/0.33.0/pkl-linux-amd64"
-url_api = "https://api.github.com/repos/apple/pkl/releases/assets/714756975"
+url = "https://github.com/apple/pkl/releases/download/0.33.1/pkl-linux-amd64"
+url_api = "https://api.github.com/repos/apple/pkl/releases/assets/764390166"
 
 [tools.pkl."platforms.linux-x64-musl"]
-checksum = "sha256:b9a6ddea6b382b7d4db4cf78e77aa3858e0c8a7e02939d2ba298574b5d1fcc69"
+checksum = "sha256:acbca9bb4f31139d09e295d03c9fb25f77edf5a74af4e772b56b32dc6dc17c44"
 checksum_source = "mise-versions"
-url = "https://github.com/apple/pkl/releases/download/0.33.0/pkl-linux-amd64"
-url_api = "https://api.github.com/repos/apple/pkl/releases/assets/714756975"
+url = "https://github.com/apple/pkl/releases/download/0.33.1/pkl-linux-amd64"
+url_api = "https://api.github.com/repos/apple/pkl/releases/assets/764390166"
 
 [tools.pkl."platforms.macos-arm64"]
-checksum = "sha256:e39c157df0f00a35d34b46270a768784edcaf509aafbf743849b27b4c83ef83b"
+checksum = "sha256:6f93ddf6524a5771bd4b6ebde11010c6dfee8e3a8906ffebaa8f52f8a0ba16b7"
 checksum_source = "mise-versions"
-url = "https://github.com/apple/pkl/releases/download/0.33.0/pkl-macos-aarch64"
-url_api = "https://api.github.com/repos/apple/pkl/releases/assets/714757040"
+url = "https://github.com/apple/pkl/releases/download/0.33.1/pkl-macos-aarch64"
+url_api = "https://api.github.com/repos/apple/pkl/releases/assets/764390310"
 
 [tools.pkl."platforms.windows-x64"]
-checksum = "sha256:9875af0d17d3535ed0e3903f3ae71fc8007268949328f73c2d12942fca11840c"
+checksum = "sha256:b1da686befc4ce4d92fe81bd2892e7457a505328313380010c4791c7f68d7432"
 checksum_source = "mise-versions"
-url = "https://github.com/apple/pkl/releases/download/0.33.0/pkl-windows-amd64.exe"
-url_api = "https://api.github.com/repos/apple/pkl/releases/assets/714757051"
+url = "https://github.com/apple/pkl/releases/download/0.33.1/pkl-windows-amd64.exe"
+url_api = "https://api.github.com/repos/apple/pkl/releases/assets/764390372"
 
 [[tools.python]]
 version = "3.14.10"
