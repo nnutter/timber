@@ -21,7 +21,7 @@ For detailed checklist editing, use the separate `timber-todo` skill.
 ## Prerequisites and configuration
 
 - `timber` and Git must be on `PATH`.
-  Install Timber with `go install github.com/nnutter/timber@latest` (requires a compatible Go toolchain; see the repository's `go.mod`).
+  Install Timber with `go install github.com/nnutter/timber@latest` (requires a compatible Go toolchain; see the repository's `go.mod`), or from a signed release with `packslip install github.com/nnutter/timber` (mise: `mise use -g packslip:github.com/nnutter/timber`).
   Verify with `timber --help`.
 - Remote registration and worktree creation need access to the origin; creation fetches origin even when reusing an existing local branch.
   Use the user's existing Git authentication.

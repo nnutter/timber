@@ -84,6 +84,21 @@ Install using Go,
 go install github.com/nnutter/timber@latest
 ```
 
+Install the latest signed release with packslip,
+
+```bash
+packslip install github.com/nnutter/timber
+```
+
+or let mise manage it:
+
+```bash
+mise use -g packslip:github.com/nnutter/timber
+```
+
+The first signed release establishes the packslip signer.
+`packslip pin` prints the fingerprint from a downloaded bundle; pass it with `--pin` to fix the signer before the first install.
+
 `timber` requires Git on `PATH`.
 
 Install the Pi review extension and `timber-review` skill:
