@@ -97,8 +97,8 @@ func TestAliasCompletionYieldsToCommandNamePrefixes(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
 
-	// 'r' is the alias for review, but 'review', 'repo', and 'remove' share
-	// the prefix, so completion lists the names instead of expanding.
+	// 'r' prefixes 'review', 'repo', and 'remove',
+	// so completion lists the names instead of expanding.
 	stdout := runCompleteWithRuntime(t, testRepository.runtime, "r")
 	assert.NotContains(t, stdout, "review\n")
 	assert.Contains(t, stdout, "repo\t")

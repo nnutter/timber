@@ -398,7 +398,7 @@ The following aliases are available for the commands below:
 | `prune` | `clean` |
 | `remove` | `rm` |
 | `repo` | `rp` |
-| `review` | `r` |
+| `review` | `rv` |
 | `todo` | `td` |
 
 The nested command groups have these aliases as well:
