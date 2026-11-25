@@ -18,6 +18,7 @@ require (
 	github.com/google/go-github/v91 v91.0.0
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/nnutter/commitstack v0.0.2
+	github.com/nnutter/gittest v0.0.3
 	github.com/openai/openai-go/v3 v3.82.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2

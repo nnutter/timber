@@ -16,6 +16,11 @@ import (
 func TestCommitMsgMatchesGerritHook(t *testing.T) {
 	reference, err := filepath.Abs("testdata/commit-msg")
 	require.NoError(t, err)
+	xdg := t.TempDir()
+	configDir := filepath.Join(xdg, "git")
+	require.NoError(t, os.Mkdir(configDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "config"), []byte("[commit]\n\tgpgSign = true\n[gpg]\n\tprogram = ./missing-test-signer\n"), 0o600))
+	t.Setenv("XDG_CONFIG_HOME", xdg)
 	t.Setenv("GIT_COMMITTER_DATE", "2001-02-03T04:05:06 +0000")
 	id := "I" + strings.Repeat("a", 40)
 	for _, tc := range []struct {
@@ -47,7 +52,7 @@ func TestCommitMsgMatchesGerritHook(t *testing.T) {
 			git(t, dir, "config", "user.name", "Test")
 			git(t, dir, "config", "user.email", "test@example.com")
 			if tc.head {
-				git(t, dir, "commit", "--allow-empty", "-m", "Base")
+				gitTestEnv(t, dir, "GIT_COMMITTER_DATE=2001-02-03T04:05:06 +0000", "commit", "--allow-empty", "-m", "Base")
 			}
 			if tc.config != nil {
 				git(t, dir, append([]string{"config"}, tc.config...)...)

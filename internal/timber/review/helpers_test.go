@@ -1,20 +1,26 @@
 package review
 
 import (
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/nnutter/timber/internal/testenv"
 )
 
 func gitTest(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "git", args...)
-	cmd.Dir = dir
-	cmd.Env = os.Environ()
+	return gitTestEnv(t, dir, "", args...)
+}
+
+func gitTestEnv(t *testing.T, dir, override string, args ...string) string {
+	t.Helper()
+	cmd := testenv.GitCommand(t, dir, args...)
+	if override != "" {
+		cmd.Env = append(cmd.Env, override)
+	}
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "%s", out)
 	return strings.TrimSpace(string(out))
@@ -30,5 +36,5 @@ func testRepo(t *testing.T) Repository {
 	gitTest(t, dir, "commit", "--allow-empty", "-m", "Base")
 	gitTest(t, dir, "checkout", "-b", "feature")
 	gitTest(t, dir, "branch", "--set-upstream-to=main")
-	return Repository{Dir: dir, Environment: append(os.Environ(), "HOME="+dir, "XDG_DATA_HOME=")}
+	return Repository{Dir: dir, Environment: append(testenv.GitEnvironment(), "HOME="+dir, "XDG_DATA_HOME=")}
 }

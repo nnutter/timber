@@ -2,6 +2,7 @@ package timber
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/nnutter/gittest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -329,6 +331,13 @@ var getTestRepositoryFixture = sync.OnceValue(func() testRepositoryFixtureResult
 })
 
 func TestMain(m *testing.M) {
+	// Repository resolves Git through the process PATH. Fix that once, before any
+	// tests start; fixture commands and child environments are isolated separately.
+	for _, entry := range gittest.WithEnviron() {
+		if value, ok := strings.CutPrefix(entry, "PATH="); ok {
+			_ = os.Setenv("PATH", value)
+		}
+	}
 	status := m.Run()
 	if testRepositoryFixtureRoot != "" {
 		_ = os.RemoveAll(testRepositoryFixtureRoot)
@@ -522,8 +531,10 @@ func runGitCommand(t *testing.T, cwd string, args ...string) string {
 }
 
 func runGitCommandResult(cwd string, args ...string) (string, error) {
-	command := exec.Command("git", args...)
-	command.Dir = cwd
+	command, err := gittest.CommandContext(context.Background(), cwd, args...)
+	if err != nil {
+		return "", err
+	}
 	command.Env = append(gitTestEnv(),
 		"HOME="+cwd,
 		"GIT_AUTHOR_NAME=Test User",
@@ -540,8 +551,14 @@ func runGitCommandResult(cwd string, args ...string) (string, error) {
 // configuration, shell startup hooks, and Timber/Herdr state must not leak
 // into fixtures. Callers supply a temporary HOME and any deliberate overrides.
 func gitTestEnv() []string {
+	path := os.Getenv("PATH")
+	for _, entry := range gittest.WithEnviron() {
+		if value, ok := strings.CutPrefix(entry, "PATH="); ok {
+			path = value
+		}
+	}
 	return []string{
-		"PATH=" + os.Getenv("PATH"),
+		"PATH=" + path,
 		"TMPDIR=" + os.TempDir(),
 		"LANG=C",
 		"LC_ALL=C",

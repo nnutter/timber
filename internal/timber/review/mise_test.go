@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nnutter/gittest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -120,7 +121,7 @@ func testMirrorMiseTrust(t *testing.T, test mirrorMiseTrustCase) {
 	if test.withoutMise {
 		t.Setenv("PATH", t.TempDir())
 	}
-	repository := Repository{Dir: source, Environment: os.Environ()}
+	repository := Repository{Dir: source, Environment: gittest.WithEnviron()}
 	assertMirrorMiseTrust(t, test, mirrorMiseTrust(t.Context(), repository, path), source, path, logPath)
 }
 
@@ -146,7 +147,7 @@ func TestMirrorMiseTrustSkipsReviewWithoutConfig(t *testing.T) {
 	logPath, _ := fakeMise(t)
 	source, path := resolvedTempDir(t), resolvedTempDir(t)
 	writeMiseConfig(t, source)
-	require.NoError(t, mirrorMiseTrust(t.Context(), Repository{Dir: source, Environment: os.Environ()}, path))
+	require.NoError(t, mirrorMiseTrust(t.Context(), Repository{Dir: source, Environment: gittest.WithEnviron()}, path))
 	require.NoFileExists(t, logPath)
 }
 
