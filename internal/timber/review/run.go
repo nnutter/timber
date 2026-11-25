@@ -9,7 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
+
+	"github.com/nnutter/commitstack"
 )
 
 // ReviewOptions selects a current stack and an explicit recovery choice.
@@ -56,7 +57,7 @@ func (r Reviewer) Review(ctx context.Context, options ReviewOptions) (result Res
 	if _, err := lock.WriteString(branch); err != nil {
 		return result, err
 	}
-	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository, lock)
+	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository)
 	defer stopMaintenance()
 	carrySavedReviews(ctx, r.Service.Repository, r.Reader)
 	r.discardUnusable(ctx)
@@ -123,37 +124,7 @@ func (r Reviewer) boundedPlan(ctx context.Context, options ReviewOptions, visite
 
 // bounds includes the complete stacks containing either endpoint.
 func (r Reviewer) bounds(ctx context.Context, view Snapshot, first, last string) ([]Stack, error) {
-	start, end := 0, len(view.Stacks)-1
-	for _, endpoint := range []struct {
-		ref   string
-		index *int
-	}{{first, &start}, {last, &end}} {
-		if endpoint.ref == "" {
-			continue
-		}
-		sha, err := r.Service.Repository.Resolve(ctx, endpoint.ref)
-		if err != nil {
-			return nil, err
-		}
-		found := false
-		for i, stack := range view.Stacks {
-			if slices.Contains(stack.Commits, sha) {
-				*endpoint.index = i
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, fmt.Errorf("review boundary %s is outside the feature-branch review range", endpoint.ref)
-		}
-	}
-	if len(view.Stacks) == 0 {
-		return view.Stacks, nil
-	}
-	if end < start {
-		return nil, fmt.Errorf("review boundaries must be in oldest-first order")
-	}
-	return view.Stacks[start : end+1], nil
+	return r.Service.Repository.commitStack().Bounds(ctx, commitstack.Snapshot(view), first, last)
 }
 
 // discardUnusable removes the reviews of stack versions that a current review
@@ -204,7 +175,7 @@ func (r Reviewer) execute(ctx context.Context, plan reviewPlan, options ReviewOp
 	if plan.stack == nil {
 		return result, fmt.Errorf("no stack selected")
 	}
-	if plan.prior != nil && sameStack(plan.prior.Stack, *plan.stack) {
+	if plan.prior != nil && commitstack.SameStack(plan.prior.Stack, *plan.stack) {
 		return r.resume(ctx, path, plan, options.Session, lock)
 	}
 	replacement, err := replacementStack(plan)
@@ -574,12 +545,12 @@ func replacementStack(plan reviewPlan) (Stack, error) {
 		return Stack{}, fmt.Errorf("no stack selected")
 	}
 	for _, stack := range plan.view.Stacks {
-		if sameStack(stack, *plan.stack) {
+		if commitstack.SameStack(stack, *plan.stack) {
 			return stack, nil
 		}
 	}
 	for _, stack := range plan.view.Stacks {
-		if sharesLineage(stack, *plan.stack) {
+		if commitstack.SharesLineage(stack, *plan.stack) {
 			return stack, nil
 		}
 	}
@@ -600,30 +571,5 @@ func rangeApproved(stacks []Stack, state State) bool {
 }
 
 func selectStack(ctx context.Context, repo Repository, view Snapshot, selector string) (Stack, error) {
-	if first, last, ok := strings.Cut(selector, ".."); ok {
-		start, err := repo.Resolve(ctx, first)
-		if err != nil {
-			return Stack{}, err
-		}
-		end, err := repo.Resolve(ctx, last)
-		if err != nil {
-			return Stack{}, err
-		}
-		for _, stack := range view.Stacks {
-			if stack.Key == start+".."+end {
-				return stack, nil
-			}
-		}
-		return Stack{}, fmt.Errorf("stack endpoints must select one complete current stack")
-	}
-	sha, err := repo.Resolve(ctx, selector)
-	if err != nil {
-		return Stack{}, err
-	}
-	for _, stack := range view.Stacks {
-		if slices.Contains(stack.Commits, sha) {
-			return stack, nil
-		}
-	}
-	return Stack{}, fmt.Errorf("commit is outside the feature-branch review range")
+	return repo.commitStack().SelectStack(ctx, commitstack.Snapshot(view), selector)
 }

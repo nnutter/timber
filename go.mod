@@ -1,6 +1,6 @@
 module github.com/nnutter/timber
 
-go 1.27.3
+go 1.27.4
 
 require (
 	charm.land/fang/v2 v2.0.1
@@ -15,9 +15,9 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/creack/pty v1.1.24
-	github.com/go-git/go-git/v6 v6.0.0-beta.1
 	github.com/google/go-github/v91 v91.0.0
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
+	github.com/nnutter/commitstack v0.0.2
 	github.com/openai/openai-go/v3 v3.82.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
@@ -66,6 +66,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-git/gcfg/v2 v2.0.2 // indirect
 	github.com/go-git/go-billy/v6 v6.0.0-beta.1 // indirect
+	github.com/go-git/go-git/v6 v6.0.0-beta.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.1 // indirect
 	github.com/go-rod/rod v0.116.2 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect

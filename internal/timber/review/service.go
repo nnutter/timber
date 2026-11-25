@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nnutter/commitstack"
+
 	"github.com/nnutter/timber/internal/timber/review/autoreview"
 )
 
@@ -373,33 +375,11 @@ func (s Service) resetStacks(ctx context.Context, view Snapshot, selector string
 }
 
 func (s Service) selectRange(ctx context.Context, view Snapshot, first, last string) ([]Stack, error) {
-	startSHA, err := s.Repository.Resolve(ctx, first)
+	stacks, err := s.Repository.commitStack().SelectRange(ctx, commitstack.Snapshot(view), first, last)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("select stacks to approve: %w", err)
 	}
-	endSHA := startSHA
-	if last != "" {
-		endSHA, err = s.Repository.Resolve(ctx, last)
-		if err != nil {
-			return nil, err
-		}
-	}
-	start, end := -1, -1
-	for i, stack := range view.Stacks {
-		if stack.Commits[0] == startSHA {
-			start = i
-		}
-		if stack.Tip == endSHA {
-			end = i
-		}
-	}
-	if start < 0 {
-		return nil, fmt.Errorf("approval must start at an original commit in the feature range")
-	}
-	if end < start {
-		return nil, fmt.Errorf("approval requires complete stacks in oldest-first order; include all attached fixups")
-	}
-	return view.Stacks[start : end+1], nil
+	return stacks, nil
 }
 
 func (s Service) snapshotState(ctx context.Context) (Snapshot, State, error) {
@@ -527,7 +507,7 @@ func resultFromEntries(command string, view Snapshot, state State, entries []Ent
 // resetsAttempt reports whether an attempt describes a stack that reset clears.
 func resetsAttempt(attempt Attempt, selected []Stack) bool {
 	for _, stack := range selected {
-		if sameStack(attempt.Stack, stack) || attempt.matches(stack) || sharesLineage(attempt.Stack, stack) {
+		if commitstack.SameStack(attempt.Stack, stack) || attempt.matches(stack) || commitstack.SharesLineage(attempt.Stack, stack) {
 			return true
 		}
 	}

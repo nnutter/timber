@@ -91,7 +91,7 @@ func (r FileReviewer) Review(ctx context.Context, options FilesOptions) (FilesRe
 		_ = lock.Close()
 	}()
 
-	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository, lock)
+	stopMaintenance := startCacheMaintenance(ctx, r.Service.Repository)
 	defer stopMaintenance()
 	if reviewBranchFiles(options) {
 		return r.reviewBranchDiff(ctx, repo, options.Session, lock)
@@ -190,7 +190,7 @@ func (r FileReviewer) readReview(path, diffSource, selector string) (*SavedRevie
 func (r FileReviewer) reviewBranchDiff(ctx context.Context, repo, selector string, lock *os.File) (FilesResult, error) {
 	result := FilesResult{Version: 1, Command: "files", Repo: repo}
 	repository := r.Service.Repository
-	view, _, err := repository.branchView(ctx)
+	view, _, err := repository.commitStack().BranchView(ctx)
 	if err != nil {
 		return result, err
 	}

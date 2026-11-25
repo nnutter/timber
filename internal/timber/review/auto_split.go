@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	commitstack "github.com/nnutter/commitstack"
+
 	"github.com/nnutter/timber/internal/timber/review/autoreview"
 )
 
@@ -148,7 +150,7 @@ func recordOneAuto(ctx context.Context, s Service, evaluator autoreview.Evaluato
 }
 
 func finishAutoEvaluation(ctx context.Context, s Service, evaluator autoreview.Evaluator, stack Stack, entry AutoEntry, subject string, messages []string, report func()) (AutoEntry, error) {
-	diff, err := s.Repository.autoGit(ctx, autoreview.MaxInputBytes, slices.Concat(diffOptions, []string{stack.Base, stack.Tip, "--"})...)
+	diff, err := s.Repository.autoGit(ctx, autoreview.MaxInputBytes, slices.Concat(commitstack.DiffOptions, []string{stack.Base, stack.Tip, "--"})...)
 	if err != nil {
 		return entry, err
 	}

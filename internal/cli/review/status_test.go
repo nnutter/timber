@@ -43,6 +43,13 @@ func TestStatusCountsCurrentCommitsInStateOrder(t *testing.T) {
 		out, terminal, err := execute(t, dir, args...)
 		require.NoError(t, err)
 		require.Empty(t, terminal)
+		var wire struct {
+			View map[string]jsontext.Value `json:"view"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &wire))
+		require.NotContains(t, wire.View, "repo")
+		require.Contains(t, wire.View, "statePath")
+
 		var result review.Result
 		require.NoError(t, json.Unmarshal([]byte(out), &result))
 		require.Equal(t, 1, result.Version)
