@@ -146,20 +146,15 @@ func TestValueExpandsLikePi(t *testing.T) {
 	}
 }
 
-// writeSecurityStub installs an executable stub as the security binary and
-// restores the real path when the test ends. The stub prints each argument
-// as <arg> so tests can see exactly how values split.
-func writeSecurityStub(t *testing.T, script string) {
+func writeSecurityStub(t *testing.T, script string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "security")
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o700))
-	previous := securityBinary
-	securityBinary = path
-	t.Cleanup(func() { securityBinary = previous })
+	return path
 }
 
 func TestValueRunsOnlySecurity(t *testing.T) {
-	writeSecurityStub(t, "#!/bin/sh\nprintf '<%s>' \"$@\"")
+	security := writeSecurityStub(t, "#!/bin/sh\nprintf '<%s>' \"$@\"")
 	for _, tc := range []struct {
 		name  string
 		value string
@@ -171,7 +166,7 @@ func TestValueRunsOnlySecurity(t *testing.T) {
 		{"shell stays literal", "!security '$(touch /tmp/timber-pwned)'", "<$(touch /tmp/timber-pwned)>"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			value, err := Value(tc.value)
+			value, err := resolveValue(tc.value, security)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, value)
 		})
@@ -201,12 +196,13 @@ func TestValueRejectsUnusableSources(t *testing.T) {
 }
 
 func TestValueReportsSecurityFailures(t *testing.T) {
-	writeSecurityStub(t, "#!/bin/sh\necho keychain-error >&2\nexit 1")
-	_, err := Value("!security find-generic-password -s missing -w")
+	const value = "!security find-generic-password -s missing -w"
+	security := writeSecurityStub(t, "#!/bin/sh\necho keychain-error >&2\nexit 1")
+	_, err := resolveValue(value, security)
 	require.ErrorContains(t, err, "exit status 1")
 	require.ErrorContains(t, err, "keychain-error")
-	writeSecurityStub(t, "#!/bin/sh\ntrue")
-	_, err = Value("!security find-generic-password -s missing -w")
+	security = writeSecurityStub(t, "#!/bin/sh\ntrue")
+	_, err = resolveValue(value, security)
 	require.ErrorContains(t, err, "returned no value")
 }
 
