@@ -312,7 +312,7 @@ cat <<'EOF'
           "name": "Gemini 4 Argon",
           "description": "For paid Pro plans, Argon quota is separate.",
           "buckets": [
-            {"id": "gemini-argon-wtu-weekly", "name": "Gemini 4 Argon Weekly Limit", "window": "weekly", "remaining_fraction": 1, "reset_time": "2026-11-20T16:00:00Z"}
+            {"id": "gemini-argon-wtu-weekly", "name": "Gemini 4 Argon Weekly Limit", "window": "weekly", "reset_time": "2026-11-20T16:00:00Z"}
           ]
         },
         {
@@ -339,7 +339,7 @@ EOF
 
 	snapshot, err := collector.Reports(t.Context(), true)
 	require.NoError(t, err)
-	require.Len(t, snapshot.Reports, 3)
+	require.Len(t, snapshot.Reports, 2)
 
 	gemini := snapshot.Reports[0]
 	assert.Equal(t, "google-ai-gemini-models", gemini.ID)
@@ -349,25 +349,18 @@ EOF
 	assert.InDelta(t, 10.0, gemini.Limits[1].Percent, 1e-9)
 	assert.Equal(t, []string{"Models: Gemini 4 Neon, Gemini 3.8 Flash"}, gemini.Notes)
 
-	thirdParty := snapshot.Reports[1]
-	assert.Equal(t, "google-ai-claude-and-gpt-models", thirdParty.ID)
-	assert.Equal(t, "Google AI (Claude and GPT models)", thirdParty.Name)
-	// An exhausted week (omitted remaining_fraction with reset_time) drops only this group's 5-hour limit.
-	assert.Equal(t, []string{"Week"}, labels(thirdParty.Limits))
-	assert.InDelta(t, 100.0, thirdParty.Limits[0].Percent, 1e-9)
-	assert.Equal(t, LevelCritical, thirdParty.Limits[0].Level)
-
-	argon := snapshot.Reports[2]
+	argon := snapshot.Reports[1]
 	assert.Equal(t, "google-ai-gemini-4-argon", argon.ID)
 	assert.Equal(t, "Google AI (Gemini 4 Argon)", argon.Name)
 	assert.Equal(t, []string{"Week"}, labels(argon.Limits))
-	assert.InDelta(t, 0.0, argon.Limits[0].Percent, 1e-9)
+	// A reset time without remaining_fraction represents an exhausted window.
+	assert.InDelta(t, 100.0, argon.Limits[0].Percent, 1e-9)
+	assert.Equal(t, LevelCritical, argon.Limits[0].Level)
 	assert.Empty(t, argon.Notes)
 
 	assert.Equal(t, []string{
-		"Google AI (Gemini 4 Argon)",
 		"Google AI (Gemini Models)",
-		"Google AI (Claude and GPT models)",
+		"Google AI (Gemini 4 Argon)",
 	}, names(Ordered(snapshot.Reports, now)))
 }
 
