@@ -459,6 +459,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `move` | Move a worktree checkout to a new path (`name[@repo] <path>`) |
 | `pr create` | Open a GitHub pull request for a pushed worktree branch (`--title`, `--body`, `--base`, `--draft`) |
+| `status` | Show Git, review, and pull request status alongside worktree and repository TODO progress |
 | `check` | Validate commit messages in a Git revision range (`@{upstream}..HEAD` by default) |
 | `bump` | Create and push the next semantic version tag (`--major`/`--minor`/`--patch`, `--pattern`, `--no-push`, `--release`, `--no-open`) |
 | `hooks commit-msg` | Add a Gerrit-compatible `Change-Id` to a commit message (`timber review commit-msg` stays as a hidden alias) |

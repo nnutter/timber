@@ -26,8 +26,13 @@ func ReportTable(stdout io.Writer, worktrees []timber.ListWorktreeView, pullRequ
 		headers = append(headers, "Location")
 	}
 	statusFormatter := newListStatusFormatter(worktrees)
+	rows := groupListTableRows(worktrees, statusFormatter, pullRequests, todo, review, location)
+	return reportTable(stdout, headers, rows)
+}
+
+func reportTable(stdout io.Writer, headers []string, rows [][]string) error {
 	tableView := display.NewOutputTable(headers...).BorderRow(true)
-	tableView.Rows(groupListTableRows(worktrees, statusFormatter, pullRequests, todo, review, location)...)
+	tableView.Rows(rows...)
 
 	_, err := fmt.Fprintln(stdout, dottedListRowRules(tableView.String()))
 	return err
@@ -52,15 +57,7 @@ func dottedListRowRules(tableOutput string) string {
 func groupListTableRows(worktrees []timber.ListWorktreeView, statusFormatter listStatusFormatter, showPullRequests, showTodo, showReview, showLocation bool) [][]string {
 	rows := make([][]string, 0, (len(worktrees)+1)/2)
 	for index, worktree := range worktrees {
-		status := statusFormatter.format(worktree)
-		if worktree.StatusError {
-			status = "error"
-		}
-		row := []string{
-			worktree.Name,
-			worktree.Repo,
-			status,
-		}
+		row := []string{worktree.Name, worktree.Repo, statusFormatter.format(worktree)}
 		if showTodo {
 			row = append(row, worktree.Todo)
 		}

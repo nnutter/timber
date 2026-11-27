@@ -99,6 +99,7 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 			},
 			Complete: cliComplete.RepoQualifiers(runtime),
 		}),
+		clilist.NewStatus(runtime.WorktreeStatus),
 		climove.New(climove.Dependencies{
 			Move:          runtime.MoveWorktree,
 			Complete:      cliComplete.MoveArgs(runtime),

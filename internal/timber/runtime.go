@@ -913,6 +913,31 @@ func (x Runtime) SaveConfig(settings coreconfig.Settings) error {
 	return writeConfig(x.configPath(), settings)
 }
 
+// WorktreeStatus gathers the current worktree's list fields and its repository's TODO progress.
+func (runtime Runtime) WorktreeStatus(ctx context.Context, input io.Reader) (WorktreeStatusView, error) {
+	selection := repoSelection{runtime: runtime}
+	repo, repository, worktree, err := selection.resolveQualifiedWorktree(input, "")
+	if err != nil {
+		return WorktreeStatusView{}, err
+	}
+	enrich := listWorktreeEnricher(runtime, listSortWorktree, ListOptions{Todo: true})
+	worktree, err = enrich(repository, worktree)
+	if err != nil {
+		return WorktreeStatusView{}, err
+	}
+	worktrees := []managedWorktree{worktree}
+	runtime.enrichListedWorktreesWithReviews(ctx, worktrees, true, false)
+	if err := runtime.enrichListedWorktreesWithPullRequests(ctx, worktrees); err != nil {
+		return WorktreeStatusView{}, err
+	}
+	// Like the list commands, show zero progress if the TODO file cannot be read.
+	repoTodo, _ := todo.ReadRepoProgress(repo.BarePath)
+	return WorktreeStatusView{
+		Worktree: runtime.worktreesToListTable(worktrees, false)[0],
+		RepoTodo: repoTodo.String(),
+	}, nil
+}
+
 func (x Runtime) absolutePath(path string) (string, error) {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path), nil
