@@ -47,6 +47,12 @@ func KeyNames() []string {
 // Get returns the values stored for name. A boolean setting always reports one
 // value; a list setting reports none when it is empty.
 func Get(settings Settings, name string) ([]string, error) {
+	if alias, ok := strings.CutPrefix(name, "alias."); ok {
+		if value, exists := settings.Aliases[alias]; exists {
+			return []string{value}, nil
+		}
+		return nil, nil
+	}
 	key, err := LookupKey(name)
 	if err != nil {
 		return nil, err
@@ -58,6 +64,9 @@ func Get(settings Settings, name string) ([]string, error) {
 // setting takes the values that replace it. Setting a prompted setting also
 // records the answer, so its setup prompt stops asking.
 func Set(settings *Settings, name string, values []string) error {
+	if alias, ok := strings.CutPrefix(name, "alias."); ok {
+		return setAlias(settings, alias, values)
+	}
 	key, err := LookupKey(name)
 	if err != nil {
 		return err
@@ -78,6 +87,13 @@ func Append(settings *Settings, name string, values []string) error {
 // Remove resets name to its default, or removes matching values from a list
 // setting. Boolean settings take no values because they always hold one.
 func Remove(settings *Settings, name string, values []string) error {
+	if alias, ok := strings.CutPrefix(name, "alias."); ok {
+		if len(values) != 0 {
+			return fmt.Errorf("remove %s takes no value", name)
+		}
+		delete(settings.Aliases, alias)
+		return nil
+	}
 	key, err := LookupKey(name)
 	if err != nil {
 		return err

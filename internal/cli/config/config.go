@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
@@ -22,9 +23,20 @@ func New(store Store) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "config",
 		Short: "Show or change Timber settings",
-		Args:  cobra.NoArgs,
-		RunE: func(command *cobra.Command, _ []string) error {
-			return command.Help()
+		Args:  cobra.MaximumNArgs(2),
+		RunE: func(command *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return command.Help()
+			}
+			if !strings.HasPrefix(args[0], "alias.") {
+				return fmt.Errorf("unknown config command %q", args[0])
+			}
+			if len(args) == 1 {
+				return printSetting(command, store, args[0])
+			}
+			return changeSettings(store, func(settings *coreconfig.Settings) error {
+				return coreconfig.Set(settings, args[0], args[1:])
+			})
 		},
 	}
 	command.AddCommand(
@@ -59,20 +71,7 @@ func getCommand(store Store) *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: complete.ConfigArgs(store, complete.ConfigValueNone),
 		RunE: func(command *cobra.Command, args []string) error {
-			settings, err := store.ReadConfig()
-			if err != nil {
-				return err
-			}
-			values, err := coreconfig.Get(settings, args[0])
-			if err != nil {
-				return err
-			}
-			for _, value := range values {
-				if _, err := fmt.Fprintln(command.OutOrStdout(), value); err != nil {
-					return err
-				}
-			}
-			return nil
+			return printSetting(command, store, args[0])
 		},
 	}
 }
@@ -118,6 +117,23 @@ func removeCommand(store Store) *cobra.Command {
 			})
 		},
 	}
+}
+
+func printSetting(command *cobra.Command, store Store, name string) error {
+	settings, err := store.ReadConfig()
+	if err != nil {
+		return err
+	}
+	values, err := coreconfig.Get(settings, name)
+	if err != nil {
+		return err
+	}
+	for _, value := range values {
+		if _, err := fmt.Fprintln(command.OutOrStdout(), value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // changeSettings loads the settings, applies change, and saves the result.

@@ -369,6 +369,17 @@ func (x *zshCommandOptions) writeFunctionFile(target string, root *cobra.Command
 
 ` + x.name + `() {
     case "$1" in
+    ''|-*|` + knownCommandCasePattern(root) + `) ;;
+    *)
+        local expansion
+        expansion=$(command timber __expand-alias "$1") || return $?
+        if [[ -n "$expansion" ]]; then
+            shift
+            set -- "${(@f)expansion}" "$@"
+        fi
+        ;;
+    esac
+    case "$1" in
     ` + commandCasePattern(root, "create") + `)
         shift
         local no_cd=0 herdr=0 no_herdr=0 skip_next=0
@@ -624,6 +635,15 @@ func commandNames(root *cobra.Command, name string, subcommands ...string) []str
 
 func commandCasePattern(root *cobra.Command, name string, subcommands ...string) string {
 	return strings.Join(commandNames(root, name, subcommands...), "|")
+}
+
+func knownCommandCasePattern(root *cobra.Command) string {
+	names := []string{"help"}
+	for _, command := range root.Commands() {
+		names = append(names, command.Name())
+		names = append(names, command.Aliases...)
+	}
+	return strings.Join(names, "|")
 }
 
 func switchCompletionChecks(root *cobra.Command) string {

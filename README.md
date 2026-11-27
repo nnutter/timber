@@ -408,6 +408,21 @@ The nested command groups have these aliases as well:
 Zsh completion expands an alias to the command it stands for: `t ls<tab>` becomes `t list` with a trailing space.
 The expansion waits while a command name shares the typed prefix, so `t r<tab>` still lists `review`, `repo`, and `remove`.
 
+### Custom command aliases
+
+Define a command alias in your Timber config:
+
+```bash
+timber config alias.rs 'review status'
+timber rs --json
+t rs --json
+timber config remove alias.rs
+```
+
+Timber splits the alias value on whitespace and appends the arguments you pass at invocation.
+Built-in command names take precedence over configured aliases.
+Regenerate the zsh wrapper with `timber generate zsh --force` so aliases for commands such as `switch` can change the shell's current directory.
+
 ### Repository selection
 
 Worktree commands take an optional `<worktree>@<repo>` qualifier on the name argument.
