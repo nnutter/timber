@@ -43,6 +43,20 @@ func TestReviewRecreatesMissingCheckout(t *testing.T) {
 	require.Equal(t, "cancelled", result.Status)
 }
 
+func TestReviewUsesCheckoutWithRelativeLinks(t *testing.T) {
+	t.Parallel()
+	reviewer, _, _ := testReviewer(t)
+	r := reviewer.Service.Repository
+	path, err := WorktreePath(t.Context(), r.Dir)
+	require.NoError(t, err)
+	gitTest(t, r.Dir, "worktree", "add", "--relative-paths", "--detach", path, "HEAD")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
+
+	result, err := reviewer.Review(t.Context(), ReviewOptions{Stack: "HEAD"})
+	require.NoError(t, err)
+	require.Equal(t, "cancelled", result.Status)
+}
+
 func TestReviewCheckoutRejectsUnownedDirectory(t *testing.T) {
 	t.Parallel()
 	reviewer, _, _ := testReviewer(t)

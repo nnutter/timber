@@ -295,7 +295,11 @@ func validateReviewRegistration(ctx context.Context, checkout Repository, path s
 	if err != nil {
 		return fmt.Errorf("invalid review worktree registration: %w", err)
 	}
-	if filepath.Clean(strings.TrimSpace(string(backlink))) != filepath.Join(path, ".git") {
+	target := strings.TrimSpace(string(backlink))
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(gitDir, target)
+	}
+	if filepath.Clean(target) != filepath.Join(path, ".git") {
 		return fmt.Errorf("review worktree registration points to another checkout: %s", path)
 	}
 	return nil
