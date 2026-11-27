@@ -371,7 +371,7 @@ The generated function:
 t repo add nnutter/timber
 t create feature/login@timber   # then cd into it
 t create feature/custom@timber ../checkout # custom location, then cd
-t create @timber                # random name, then cd into it
+t create @timber                # use the repository name if available, then cd into it
 t switch feature/login@timber
 t switch feature/login          # unique name across repositories
 t switch -c feature/new@timber  # create then cd
@@ -423,7 +423,7 @@ Worktree commands take an optional `<worktree>@<repo>` qualifier on the name arg
 
 - `feature/login@timber` selects that worktree in the `timber` repository
 - `feature/login` is enough when the name exists in exactly one registered repository
-- `@timber` selects the repository with no worktree name (`create` generates a random name; `list` and `prune` pin that repository)
+- `@timber` selects the repository with no worktree name (`create` uses the repository name if available and picks a random name otherwise; `list` and `prune` pin that repository)
 
 `list` and `prune` use every registered repository unless `@<repo>` pins one.
 

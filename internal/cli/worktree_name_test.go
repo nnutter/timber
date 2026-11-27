@@ -9,20 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateGeneratesRandomNameWhenOmitted(t *testing.T) {
-	t.Parallel()
-	testRepository := newTestRepository(t)
-
-	result := testRepository.runTimber(t, "create", at(testRepoName, ""))
-	require.NoError(t, result.err, result.stderr)
-
-	worktreePath := strings.TrimSpace(result.stdout)
-	name := filepath.Base(filepath.Dir(worktreePath))
-	assert.Regexp(t, `^[a-z]+-[a-z]+$`, name)
-	testRepository.assertPathPresent(t, testRepository.worktreePath(name))
-}
-
-func TestCreateGeneratesDistinctNamesWhenOmittedTwice(t *testing.T) {
+func TestCreateUsesRepositoryNameBeforeFallingBackToRandomName(t *testing.T) {
 	t.Parallel()
 	testRepository := newTestRepository(t)
 
@@ -31,5 +18,9 @@ func TestCreateGeneratesDistinctNamesWhenOmittedTwice(t *testing.T) {
 	second := testRepository.runTimber(t, "create", at(testRepoName, ""))
 	require.NoError(t, second.err, second.stderr)
 
-	assert.NotEqual(t, strings.TrimSpace(first.stdout), strings.TrimSpace(second.stdout))
+	assert.Equal(t, testRepository.worktreePath(testRepoName), strings.TrimSpace(first.stdout))
+	randomPath := strings.TrimSpace(second.stdout)
+	name := filepath.Base(filepath.Dir(randomPath))
+	assert.Regexp(t, `^[a-z]+-[a-z]+$`, name)
+	testRepository.assertPathPresent(t, randomPath)
 }

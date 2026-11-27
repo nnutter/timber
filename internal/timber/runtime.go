@@ -2225,11 +2225,30 @@ func (runtime Runtime) resolveBumpTarget(input io.Reader, raw string) (bumpTarge
 	return bumpTarget{directory: worktree.Path, branch: worktree.branchName(), ref: "HEAD"}, nil
 }
 
-func (x Runtime) resolveCreateWorktreeName(repoName string, name string) (string, error) {
+func (x Runtime) resolveCreateWorktreeName(repository *Repository, repoName string, name string) (string, error) {
 	if name != "" {
 		return name, nil
 	}
-	return x.unusedWorktreeName(repoName)
+	if repoName == "" {
+		return x.unusedWorktreeName(repoName)
+	}
+	if err := ValidateWorktreeName(repoName); err != nil {
+		return x.unusedWorktreeName(repoName)
+	}
+	taken, err := x.worktreeDirectoryExists(repoName, repoName)
+	if err != nil {
+		return "", err
+	}
+	if !taken {
+		taken, err = repository.branchExists(repoName)
+		if err != nil {
+			return "", err
+		}
+	}
+	if taken {
+		return x.unusedWorktreeName(repoName)
+	}
+	return repoName, nil
 }
 
 func (x Runtime) runGh(ctx context.Context, directory string, args ...string) ([]byte, error) {
