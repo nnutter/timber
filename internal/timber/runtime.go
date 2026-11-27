@@ -681,11 +681,17 @@ func (runtime Runtime) RemoveRepo(repoName string) error {
 
 // RemoveWorktree resolves a worktree selector and removes it. It returns the
 // data the CLI reports and avoids Timber command types in its signature.
-func (runtime Runtime) RemoveWorktree(input io.Reader, raw string, force bool) (string, string, string, bool, error) {
+func (runtime Runtime) RemoveWorktree(input io.Reader, raw string, force bool, warn func(string) error) (string, string, string, bool, error) {
 	selection := repoSelection{runtime: runtime}
 	_, repository, worktree, err := selection.resolveQualifiedWorktree(input, raw)
 	if err != nil {
 		return "", "", "", false, err
+	}
+	progress := runtime.todoProgressForWorktree(worktree, true, false)
+	if open := progress.Total - progress.Done; open > 0 {
+		if err := warn(fmt.Sprintf("worktree %q has %d unresolved TODO item(s)", worktree.Name, open)); err != nil {
+			return "", "", "", false, err
+		}
 	}
 	result, err := runtime.removeResolvedWorktree(repository, worktree, force)
 	if err != nil {
