@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	clibump "github.com/nnutter/timber/internal/cli/bump"
+	clicheck "github.com/nnutter/timber/internal/cli/check"
 	cliComplete "github.com/nnutter/timber/internal/cli/complete"
 	cliconfig "github.com/nnutter/timber/internal/cli/config"
 	clicreate "github.com/nnutter/timber/internal/cli/create"
@@ -81,6 +82,7 @@ func Commands(runtime timber.Runtime) []*cobra.Command {
 			},
 			Complete: cliComplete.QualifiedWorktreeNames(runtime),
 		}),
+		clicheck.New(runtime.CurrentDirectory),
 		cliconfig.New(runtime),
 		clicreate.New(clicreate.Dependencies{
 			Create:     create,
