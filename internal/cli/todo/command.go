@@ -41,7 +41,7 @@ type todoCommandOptions struct {
 	installSkill bool
 	force        bool
 	jsonOutput   bool
-	repo         bool
+	worktree     bool
 }
 
 func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) error {
@@ -117,18 +117,18 @@ func New(deps Dependencies) *cobra.Command {
 	command := &cobra.Command{
 		Use:               "todo [name[@repo]]",
 		Aliases:           []string{"td"},
-		Short:             "Open the worktree or repository TODO list",
+		Short:             "Open the repository or worktree TODO list",
 		Args:              cobra.MaximumNArgs(1),
 		RunE:              options.Execute,
 		ValidArgsFunction: deps.Complete,
 	}
-	command.Flags().BoolVar(&options.repo, "repo", false, "Use the repository TODO list instead of the worktree list")
+	command.Flags().BoolVar(&options.worktree, "worktree", false, "Use the worktree TODO list instead of the repository list")
 	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO list path instead of opening it")
 	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
 	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
 	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO items as JSON instead of opening the file")
 	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
-	command.MarkFlagsMutuallyExclusive("repo", "install-skill")
+	command.MarkFlagsMutuallyExclusive("worktree", "install-skill")
 	return command
 }
 
@@ -193,9 +193,9 @@ func installTodoOnly(x *todoCommandOptions, command *cobra.Command, args []strin
 }
 
 func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string) (string, error) {
-	resolveGitDir := x.deps.ResolveGitDir
-	if x.repo {
-		resolveGitDir = x.deps.ResolveRepoGitDir
+	resolveGitDir := x.deps.ResolveRepoGitDir
+	if x.worktree {
+		resolveGitDir = x.deps.ResolveGitDir
 	}
 	gitDir, err := resolveGitDir(command.InOrStdin(), args)
 	if err != nil {

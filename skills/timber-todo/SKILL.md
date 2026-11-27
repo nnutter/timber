@@ -16,16 +16,17 @@ Repository TODO items do not affect status counts for linked worktrees.
 Run from inside the worktree:
 
 ```bash
-timber todo --path                # current worktree
-timber todo feature/login --path  # another worktree in any repo
-timber todo feature/login@timber --path
-timber todo --repo --path                 # current worktree's repository
-timber todo feature/login@timber --repo --path
+timber todo --path                           # current worktree's repository
+timber todo feature/login@timber --path       # selected worktree's repository
+timber todo --worktree --path                 # current worktree
+timber todo feature/login --worktree --path   # another worktree
+timber todo feature/login@timber --worktree --path
 ```
 
 This prints the absolute path of the selected TODO file.
 A missing or empty file is initialized with a pull request stack template.
-With `--repo`, the existing positional worktree selector identifies the repository; it is not a repository selector.
+The positional selector identifies a worktree in either scope.
+Without `--worktree`, Timber uses the selected worktree's repository.
 Do not guess the path; always resolve it with `--path` first.
 
 ## Edit items as Markdown checkboxes

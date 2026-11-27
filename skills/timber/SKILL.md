@@ -82,11 +82,11 @@ timber list @owner/repo --json
 timber list @owner/repo --pr --json
 
 # Resolve per-worktree notes without opening an editor.
-timber todo feature/login@owner/repo --path
-timber todo feature/login@owner/repo --json
+timber todo feature/login@owner/repo --worktree --path
+timber todo feature/login@owner/repo --worktree --json
 # Resolve the repository-wide list using a worktree selector.
-timber todo feature/login@owner/repo --repo --path
-timber todo --repo --json
+timber todo feature/login@owner/repo --path
+timber todo --json
 
 # Open a GitHub pull request for a pushed branch (title is required).
 timber pr create feature/login@owner/repo --title "Add login" --body "Adds login."
@@ -166,10 +166,10 @@ timber move feature/login@owner/repo ../login
 - The zsh wrapper `t` supplies shell integration and `cd` behavior.
   Do not assume `timber switch` changes the agent runner's working directory, and avoid `tui` or interactive pickers in unattended sessions.
 - `todo --path` and `todo --json` create a missing TODO file inside the Git directory.
-  Without `--repo`, the file is `TODO.md` in the worktree's Git directory; with `--repo`, it is `TODO.md` in the common Git directory.
+  By default the file is `TODO.md` in the common Git directory; with `--worktree`, it is `TODO.md` in the worktree's Git directory.
   In a main checkout, both scopes use the same file.
   The positional selector still selects a worktree and thereby identifies its repository.
-  Repository TODO items do not affect worktree status counts.
+  Repository TODO items do not affect status counts for linked worktrees.
   Resolve the path instead of writing a checkout-root TODO.md.
   Notes are local Git state, not committed source; preserve worktree notes before removal.
 - `bump` changes shared repository state: it creates a tag, and pushes it to `origin` unless `--no-push` is set.

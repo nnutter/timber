@@ -51,7 +51,7 @@ func TestTodoOpensWorktreeSpecificFile(t *testing.T) {
 	editor := installFakeEditor(t, logPath)
 	runtime := withTestEnvironment(testRepository.runtime, "EDITOR="+editor)
 
-	result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo")
+	result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--worktree")
 	require.NoError(t, result.err, result.stderr)
 
 	contents, err := os.ReadFile(expectedTodoPath)
@@ -83,9 +83,9 @@ func TestTodoUsesSeparateFilesPerWorktree(t *testing.T) {
 	logPath := filepath.Join(resolvedTempDir(t), "editor.log")
 	editor := installFakeEditor(t, logPath)
 
-	result := runTimberFromWithRuntime(t, withTestEnvironment(testRepository.runtime, "EDITOR="+editor), pathA, "todo")
+	result := runTimberFromWithRuntime(t, withTestEnvironment(testRepository.runtime, "EDITOR="+editor), pathA, "todo", "--worktree")
 	require.NoError(t, result.err, result.stderr)
-	result = runTimberFromWithRuntime(t, withTestEnvironment(testRepository.runtime, "EDITOR="+editor), pathB, "todo")
+	result = runTimberFromWithRuntime(t, withTestEnvironment(testRepository.runtime, "EDITOR="+editor), pathB, "todo", "--worktree")
 	require.NoError(t, result.err, result.stderr)
 
 	testRepository.assertPathPresent(t, todoA)
@@ -106,7 +106,7 @@ func TestTodoPassesEditorArgs(t *testing.T) {
 	editor := installFakeEditor(t, logPath)
 	runtime := withTestEnvironment(testRepository.runtime, "EDITOR="+editor+" --wait")
 
-	result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo")
+	result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--worktree")
 	require.NoError(t, result.err, result.stderr)
 
 	logContents, err := os.ReadFile(logPath)
@@ -133,7 +133,7 @@ func TestTodoPathPrintsPathWithoutEditor(t *testing.T) {
 			writeTodoFile(t, expectedTodoPath, "")
 		}
 
-		result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--path")
+		result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--worktree", "--path")
 		require.NoError(t, result.err, result.stderr)
 		assert.Equal(t, expectedTodoPath, strings.TrimSpace(result.stdout))
 		contents, err := os.ReadFile(expectedTodoPath)
@@ -207,7 +207,7 @@ func TestTodoPathWithWorktreeName(t *testing.T) {
 	expectedTodoPath := todoPathForWorktree(t, testRepository.worktreePath("feature/todo-b"))
 	runtime := withTestEnvironment(testRepository.runtime, "EDITOR=false")
 
-	result := runTimberFromWithRuntime(t, runtime, testRepository.worktreePath("feature/todo-a"), "todo", "--path", "feature/todo-b")
+	result := runTimberFromWithRuntime(t, runtime, testRepository.worktreePath("feature/todo-a"), "todo", "--worktree", "--path", "feature/todo-b")
 	require.NoError(t, result.err, result.stderr)
 	assert.Equal(t, expectedTodoPath, strings.TrimSpace(result.stdout))
 }
@@ -221,7 +221,7 @@ func TestTodoQualifiedNameFromOutsideWorktree(t *testing.T) {
 
 	expectedTodoPath := todoPathForWorktree(t, testRepository.worktreePath(branchName))
 
-	pathResult := testRepository.runTimber(t, "todo", at(testRepoName, branchName), "--path")
+	pathResult := testRepository.runTimber(t, "todo", at(testRepoName, branchName), "--worktree", "--path")
 	require.NoError(t, pathResult.err, pathResult.stderr)
 	assert.Equal(t, expectedTodoPath, strings.TrimSpace(pathResult.stdout))
 
@@ -229,7 +229,7 @@ func TestTodoQualifiedNameFromOutsideWorktree(t *testing.T) {
 	editor := installFakeEditor(t, logPath)
 	runtime := withTestEnvironment(testRepository.runtime, "EDITOR="+editor)
 
-	result := runTimberFromWithRuntime(t, runtime, testRepository.home, "todo", at(testRepoName, branchName))
+	result := runTimberFromWithRuntime(t, runtime, testRepository.home, "todo", "--worktree", at(testRepoName, branchName))
 	require.NoError(t, result.err, result.stderr)
 
 	logContents, err := os.ReadFile(logPath)
