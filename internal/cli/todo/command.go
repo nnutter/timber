@@ -2,6 +2,7 @@ package todo
 
 import (
 	"context"
+	_ "embed"
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
@@ -15,6 +16,9 @@ import (
 
 	tododata "github.com/nnutter/timber/internal/timber/todo"
 )
+
+//go:embed template.md
+var todoTemplate string
 
 // fallbackEditors is tried in order when EDITOR is unset.
 var fallbackEditors = []string{"nvim", "nano", "vim", "vi"}
@@ -201,14 +205,34 @@ func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string
 	if err := migrateRepoTodo(filepath.Join(gitDir, "TODO.repo.md"), todoPath); err != nil {
 		return "", fmt.Errorf("migrate repository TODO file: %w", err)
 	}
-	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
-	if err != nil {
-		return "", fmt.Errorf("create TODO file: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return "", fmt.Errorf("create TODO file: %w", err)
+	if err := initializeTodoFile(todoPath); err != nil {
+		return "", fmt.Errorf("initialize TODO file: %w", err)
 	}
 	return todoPath, nil
+}
+
+func initializeTodoFile(path string) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	info, err := file.Stat()
+	closeErr := file.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if info.Size() != 0 {
+		return nil
+	}
+	file, err = os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString(todoTemplate)
+	return errors.Join(err, file.Close())
 }
 
 // migrateRepoTodo preserves notes from both scopes when the main worktree

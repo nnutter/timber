@@ -128,10 +128,19 @@ func TestTodoPathPrintsPathWithoutEditor(t *testing.T) {
 	// EDITOR=false would fail if the editor were launched.
 	runtime := withTestEnvironment(testRepository.runtime, "EDITOR=false")
 
-	result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--path")
-	require.NoError(t, result.err, result.stderr)
-	assert.Equal(t, expectedTodoPath, strings.TrimSpace(result.stdout))
-	testRepository.assertPathPresent(t, expectedTodoPath)
+	for _, existingEmpty := range []bool{false, true} {
+		if existingEmpty {
+			writeTodoFile(t, expectedTodoPath, "")
+		}
+
+		result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--path")
+		require.NoError(t, result.err, result.stderr)
+		assert.Equal(t, expectedTodoPath, strings.TrimSpace(result.stdout))
+		contents, err := os.ReadFile(expectedTodoPath)
+		require.NoError(t, err)
+		assert.Contains(t, string(contents), "pull request stack")
+		assert.Contains(t, string(contents), "- [ ]")
+	}
 }
 
 func TestTodoInstallSkillWritesEmbeddedContent(t *testing.T) {
