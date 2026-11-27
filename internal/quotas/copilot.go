@@ -31,9 +31,6 @@ func fetchCopilot(ctx context.Context, source Source, client *http.Client) (Repo
 	}
 
 	limits, notes := copilotQuotas(answer)
-	if len(limits) == 0 && noNotes(notes) {
-		notes = append(notes, "GitHub did not report any limited quota data for this account.")
-	}
 	return Report{Name: copilotName, Limits: limits, Notes: notes}, nil
 }
 
@@ -50,7 +47,9 @@ func copilotQuotas(answer map[string]any) ([]Limit, []string) {
 		if !ok {
 			continue
 		}
-		notes = copilotUnlimited(notes, field.key, snapshot)
+		if asBool(snapshot["unlimited"]) {
+			continue
+		}
 		if limit, ok := copilotLimit(field.key, field.label, snapshot, answer); ok {
 			limits = append(limits, limit)
 		}
@@ -59,20 +58,7 @@ func copilotQuotas(answer map[string]any) ([]Limit, []string) {
 	return limits, notes
 }
 
-func copilotUnlimited(notes []string, key string, snapshot map[string]any) []string {
-	if !asBool(snapshot["unlimited"]) {
-		return notes
-	}
-	if key != "premium_interactions" {
-		return notes
-	}
-	return append(notes, "Premium requests are unlimited.")
-}
-
 func copilotLimit(key, label string, snapshot, answer map[string]any) (Limit, bool) {
-	if asBool(snapshot["unlimited"]) {
-		return Limit{}, false
-	}
 	if _, ok := asNumber(snapshot["percent_remaining"]); !ok {
 		return Limit{}, false
 	}
@@ -116,5 +102,3 @@ func copilotReset(snapshot, answer map[string]any) time.Time {
 	}
 	return resetAt(answer["quota_reset_date"])
 }
-
-func noNotes(notes []string) bool { return len(notes) == 0 }

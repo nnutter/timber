@@ -64,6 +64,17 @@ func TestCopilotTurnsRemainingIntoUsedAndSkipsAZeroReset(t *testing.T) {
 	assert.Equal(t, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), report.Limits[0].ResetsAt)
 }
 
+func TestCopilotOmitsUnlimitedPremiumRequests(t *testing.T) {
+	t.Parallel()
+	client := stubClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"quota_snapshots":{"premium_interactions":{"unlimited":true,"overage_permitted":true}}}`))
+	})
+	report, err := fetchCopilot(t.Context(), envSource(map[string]string{"GITHUB_TOKEN": "gh-test"}), client)
+	require.NoError(t, err)
+	assert.Empty(t, report.Limits)
+	assert.Empty(t, report.Notes)
+}
+
 func TestOmitOpenCodeRollingKeepsOtherFiveHourWindows(t *testing.T) {
 	t.Parallel()
 	snapshot := Snapshot{Reports: []Report{
@@ -234,7 +245,7 @@ func TestMiniMaxPutsTextFirstAndSkipsAnEmptyWeek(t *testing.T) {
 	require.Len(t, report.Limits, 1)
 	assert.Equal(t, "5 hours", report.Limits[0].Label)
 	assert.InDelta(t, 80.0, report.Limits[0].Percent, 1e-9)
-	assert.Contains(t, report.Notes, "Text has no weekly limit.")
+	assert.NotContains(t, report.Notes, "Text has no weekly limit.")
 }
 
 func TestCodexReadsThePlanFromItsCLI(t *testing.T) {
