@@ -25,6 +25,18 @@ func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 	assert.NotContains(t, result.stdout, filepath.Join("~", "worktrees", "local", ".git"))
 }
 
+func TestRepoListShowsCompletedTODOsIncludingLegacyNotes(t *testing.T) {
+	t.Parallel()
+	repository := newTestRepository(t)
+	writeTodoFile(t, filepath.Join(repository.barePath, "TODO.md"), "- [ ] Open\n- [x] Done\n")
+	writeTodoFile(t, filepath.Join(repository.barePath, "TODO.repo.md"), "- [x] Legacy done\n")
+
+	result := repository.runTimber(t, "repo", "list")
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stdout, "Todo")
+	assert.Contains(t, result.stdout, "2/3")
+}
+
 func TestRepoListSortOrder(t *testing.T) {
 	t.Parallel()
 	runtime := testRuntime(t)

@@ -41,9 +41,9 @@ func New(query func(bool) ([]repo.Repo, error)) *cobra.Command {
 				}
 				return nil
 			}
-			tableView := display.NewOutputTable("Name", "Origin Alias", "Origin")
+			tableView := display.NewOutputTable("Name", "Origin Alias", "Origin", "Todo")
 			for _, repo := range repos {
-				tableView.Row(repo.Name, repo.Alias, repo.Origin)
+				tableView.Row(repo.Name, repo.Alias, repo.Origin, repo.Todo.String())
 			}
 			_, err = fmt.Fprintln(command.OutOrStdout(), tableView.String())
 			return err

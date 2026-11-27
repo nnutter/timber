@@ -447,6 +447,9 @@ func (x Runtime) ListRepos(details bool) ([]repomodel.Repo, error) {
 		if details {
 			item.Origin = repo.originURL(x)
 			item.Alias = repo.alias(x, item.Origin)
+			if progress, err := todo.ReadRepoProgress(repo.BarePath); err == nil {
+				item.Todo = progress
+			}
 		}
 		result = append(result, item)
 	}

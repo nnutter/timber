@@ -202,7 +202,7 @@ func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string
 		return "", err
 	}
 	todoPath := tododata.Path(gitDir)
-	if err := migrateRepoTodo(filepath.Join(gitDir, "TODO.repo.md"), todoPath); err != nil {
+	if err := migrateRepoTodo(tododata.LegacyRepoPath(gitDir), todoPath); err != nil {
 		return "", fmt.Errorf("migrate repository TODO file: %w", err)
 	}
 	if err := initializeTodoFile(todoPath); err != nil {
