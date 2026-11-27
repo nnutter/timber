@@ -67,16 +67,22 @@ func renderPlan(report Report, now time.Time, width int) string {
 		out.WriteString("\n")
 		out.WriteString(renderBalance(*report.Balance))
 	}
+	showNotes := len(report.Limits) == 0
 	for index, limit := range report.Limits {
+		if limit.Percent < exhaustedPercent {
+			showNotes = true
+		}
 		if index > 0 {
 			out.WriteString("\n")
 		}
 		out.WriteString("\n")
 		out.WriteString(renderLimit(report, limit, now, width))
 	}
-	for _, note := range report.Notes {
-		out.WriteString("\n")
-		out.WriteString(mutedStyle.Render(note))
+	if showNotes {
+		for _, note := range report.Notes {
+			out.WriteString("\n")
+			out.WriteString(mutedStyle.Render(note))
+		}
 	}
 	return out.String()
 }
@@ -94,6 +100,12 @@ func renderHead(report Report, width int) string {
 }
 
 func renderLimit(report Report, limit Limit, now time.Time, width int) string {
+	if limit.Percent >= exhaustedPercent {
+		if reset := ResetClock(limit.ResetsAt, now); reset != "" {
+			return limit.Label + " " + quietStyle.Render("Resets "+reset)
+		}
+		return limit.Label + " " + quietStyle.Render("Reset time unavailable")
+	}
 	label := limitLabel(report, limit)
 	percentPlain := fmt.Sprintf("%d%%", int(math.Round(limit.Percent)))
 	middle := limitMiddle(limit, now, width-ansi.StringWidth(label)-ansi.StringWidth(percentPlain))

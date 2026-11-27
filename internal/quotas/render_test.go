@@ -23,6 +23,21 @@ func TestRenderKeepsThePercentNextToThePlan(t *testing.T) {
 	assert.Equal(t, 60, ansi.StringWidth(strings.Split(view, "\n")[0]))
 }
 
+func TestRenderShowsOnlyTheResetForExhaustedQuota(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	reset := now.Add(8 * 24 * time.Hour)
+	report := plan("example", "Example", Limit{
+		Label: "Month", Percent: 100, Binding: true, Window: 30 * 24 * time.Hour, ResetsAt: reset,
+	})
+	report.Notes = []string{"A note about this plan."}
+	view := ansi.Strip(Render(Snapshot{Reports: []Report{report}}, now, 60))
+
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 2)
+	assert.Equal(t, "Month Resets "+reset.Local().Format("Jan 2, 3:04 PM"), lines[1])
+}
+
 func TestRenderCentersTheResetOnTheWindowLine(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
