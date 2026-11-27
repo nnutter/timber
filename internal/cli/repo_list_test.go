@@ -20,7 +20,7 @@ func TestRepoListShowsEmptyOriginWhenRemoteIsMissing(t *testing.T) {
 
 	result := runTimberCommandWithRuntime(t, runtime, "repo", "list")
 	require.NoError(t, result.err, result.stderr)
-	assert.Contains(t, result.stdout, "Origin")
+	assert.Contains(t, result.stdout, "Origin Alias")
 	assert.Contains(t, result.stdout, "local")
 	assert.NotContains(t, result.stdout, filepath.Join("~", "worktrees", "local", ".git"))
 }
