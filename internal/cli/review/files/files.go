@@ -50,9 +50,8 @@ func (c *Command) RunE(cmd *cobra.Command, args []string) error {
 func New(svc review.Service, in io.Reader, out, term io.Writer) *cobra.Command {
 	c := &Command{Service: svc, Input: in, Output: out, Terminal: term}
 	cmd := &cobra.Command{
-		Use:     "files [<path>]",
-		Aliases: []string{"f"},
-		Short:   "Review branch changes or annotate files with tuicr",
+		Use:   "files [<path>]",
+		Short: "Review branch changes or annotate files with tuicr",
 		Long: `Without a path or scope flag, review the committed branch diff from the
 merge-base with upstream to HEAD. This requires a configured Git upstream.
 With --all, annotate every tracked file. With a path, annotate that file or

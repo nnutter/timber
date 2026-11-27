@@ -25,7 +25,6 @@ func New(deps Dependencies) *cobra.Command {
 	var herdr, noHerdr bool
 	command := &cobra.Command{
 		Use:               "switch [name[@repo]]",
-		Aliases:           []string{"sw"},
 		Short:             "Resolve a managed worktree path",
 		Args:              cobra.ExactArgs(1),
 		RunE:              run(deps, &create, &noCd, &upstream, &herdr, &noHerdr),

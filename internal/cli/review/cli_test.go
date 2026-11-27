@@ -158,7 +158,7 @@ func TestReviewBoundsReachAutomaticSelection(t *testing.T) {
 	require.Equal(t, view.Stacks[1].Base+".."+view.Stacks[1].Tip+"\n", string(launch))
 }
 
-func TestReviewAliasResumesTheInterruptedAttempt(t *testing.T) {
+func TestReviewResumesTheInterruptedAttempt(t *testing.T) {
 	dir := featureRepo(t)
 	view, err := (review.Repository{Dir: dir}).Snapshot(t.Context())
 	require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestReviewAliasResumesTheInterruptedAttempt(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "launch")
 	t.Setenv("TEST_LAUNCH_LOG", log)
 	installFakeTuicr(t, `printf '%s\n' "$4" >> "$TEST_LAUNCH_LOG"`)
-	out, terminal, err := execute(t, dir, "challenge", "--json")
+	out, terminal, err := execute(t, dir, "commits", "--json")
 	require.NoError(t, err)
 	require.Empty(t, terminal)
 	var result review.Result

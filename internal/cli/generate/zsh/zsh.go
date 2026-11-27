@@ -202,7 +202,7 @@ _%[1]s()
 
     # A short alias expands to the command it stands for: timber returns the
     # canonical command name when the typed word is an alias (for example
-    # 'rp' for 'repo'). zsh drops a match that does not start with the typed
+    # 'ls' for 'list'). zsh drops a match that does not start with the typed
     # word, so hold those matches back and add them unconditionally below.
     local -a expansions prefixed
     local completion
@@ -226,7 +226,7 @@ _%[1]s()
     esac
 
     # The 'switch' subcommand is hidden from 'timber --help' (the wrapper
-    # handles 'switch|sw' itself so it can cd), which also hides it from
+    # handles 'switch' itself so it can cd), which also hides it from
     # 'timber __complete', so offer it alongside Cobra's completions when
     # completing the subcommand name.
     if (( CURRENT == 2 )); then

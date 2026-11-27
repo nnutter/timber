@@ -55,7 +55,7 @@ func New(svc review.Service, out io.Writer) *cobra.Command {
 	c := &Command{Service: svc, Output: out}
 	cmd := &cobra.Command{
 		Use:     "approve [<start_commit>] [<end_commit>]",
-		Aliases: []string{"a", "confirm"},
+		Aliases: []string{"confirm"},
 		Short:   "Record explicit user approval of complete stacks",
 		Long:    "Record user approval without launching tuicr. Endpoints are inclusive and\nmust include complete stacks, including all attached feedback commits.\nUse --all to approve every stack in the feature range.",
 		Args:    cobra.RangeArgs(0, 2),

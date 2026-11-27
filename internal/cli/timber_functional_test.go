@@ -15,11 +15,12 @@ func TestCommandAliases(t *testing.T) {
 		{"ls"},
 		{"clean"},
 		{"rm"},
-		{"rv"},
-		{"sw"},
 		{"repo", "ls"},
 		{"repo", "rm"},
 		{"repo", "mv"},
+		{"review", "approve", "--help"},
+		{"review", "confirm"},
+		{"review", "clear"},
 	} {
 		args = append(args, "--help")
 		result := runTimberCommand(t, args...)
