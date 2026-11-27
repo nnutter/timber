@@ -5,10 +5,11 @@ description: Track Timber worktree and repository TODO lists. Use when managing 
 
 # Timber TODO
 
-Each Timber worktree has its own `TODO.md` in its Git directory.
-Each repository also has a shared `TODO.repo.md` in its common Git directory.
+Each Timber worktree has a `TODO.md` in its Git directory.
+Each repository has a shared `TODO.md` in its common Git directory.
+In a main checkout, the two scopes use the same file.
 These notes do not pollute the checkout.
-Repository TODO items do not affect worktree status counts.
+Repository TODO items do not affect status counts for linked worktrees.
 
 ## Locate the TODO file
 

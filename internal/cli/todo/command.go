@@ -3,6 +3,7 @@ package todo
 import (
 	"context"
 	json "encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -197,8 +198,8 @@ func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string
 		return "", err
 	}
 	todoPath := tododata.Path(gitDir)
-	if x.repo {
-		todoPath = filepath.Join(gitDir, "TODO.repo.md")
+	if err := migrateRepoTodo(filepath.Join(gitDir, "TODO.repo.md"), todoPath); err != nil {
+		return "", fmt.Errorf("migrate repository TODO file: %w", err)
 	}
 	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
 	if err != nil {
@@ -208,6 +209,39 @@ func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string
 		return "", fmt.Errorf("create TODO file: %w", err)
 	}
 	return todoPath, nil
+}
+
+// migrateRepoTodo preserves notes from both scopes when the main worktree
+// already has its own TODO.md.
+func migrateRepoTodo(legacy, path string) error {
+	contents, err := os.ReadFile(legacy)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return os.Rename(legacy, path)
+	}
+	if err != nil {
+		return err
+	}
+	if len(contents) != 0 {
+		if info.Size() != 0 {
+			contents = append([]byte("\n\n"), contents...)
+		}
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(contents)
+		if err := errors.Join(err, file.Close()); err != nil {
+			return err
+		}
+	}
+	return os.Remove(legacy)
 }
 
 func reportTodoCommand(x *todoCommandOptions, command *cobra.Command, todoPath string) (bool, error) {

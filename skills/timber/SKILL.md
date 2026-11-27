@@ -166,7 +166,8 @@ timber move feature/login@owner/repo ../login
 - The zsh wrapper `t` supplies shell integration and `cd` behavior.
   Do not assume `timber switch` changes the agent runner's working directory, and avoid `tui` or interactive pickers in unattended sessions.
 - `todo --path` and `todo --json` create a missing TODO file inside the Git directory.
-  Without `--repo`, the file is the worktree's `TODO.md`; with `--repo`, it is `TODO.repo.md` in the common Git directory.
+  Without `--repo`, the file is `TODO.md` in the worktree's Git directory; with `--repo`, it is `TODO.md` in the common Git directory.
+  In a main checkout, both scopes use the same file.
   The positional selector still selects a worktree and thereby identifies its repository.
   Repository TODO items do not affect worktree status counts.
   Resolve the path instead of writing a checkout-root TODO.md.

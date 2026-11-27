@@ -20,12 +20,18 @@ func TestTodoRepoSharedAcrossWorktrees(t *testing.T) {
 	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, b)).err)
 	pathA, pathB := repository.worktreePath(a), repository.worktreePath(b)
 	commonDir := strings.TrimSpace(runGitCommand(t, pathA, "rev-parse", "--path-format=absolute", "--git-common-dir"))
-	repoTodo := filepath.Join(commonDir, "TODO.repo.md")
+	repoTodo := filepath.Join(commonDir, "TODO.md")
+	legacy := filepath.Join(commonDir, "TODO.repo.md")
+	const notes = "- [ ] shared task\n- [x] shared done\n"
+	writeTodoFile(t, legacy, notes)
 
 	result := repository.runTimberFrom(t, pathA, "todo", "--repo", "--path")
 	require.NoError(t, result.err, result.stderr)
 	require.Equal(t, repoTodo, strings.TrimSpace(result.stdout))
-	writeTodoFile(t, repoTodo, "- [ ] shared task\n- [x] shared done\n")
+	assert.NoFileExists(t, legacy)
+	contents, err := os.ReadFile(repoTodo)
+	require.NoError(t, err)
+	assert.Equal(t, notes, string(contents))
 	writeTodoFile(t, todoPathForWorktree(t, pathA), "- [ ] local task\n")
 	writeTodoFile(t, todoPathForWorktree(t, pathB), "- [x] local done\n- [ ] local pending\n")
 
@@ -62,28 +68,27 @@ func TestTodoRepoSharedAcrossWorktrees(t *testing.T) {
 	assert.Equal(t, [2]int{1, 2}, counts[b])
 }
 
-func TestTodoRepoDoesNotCollideWithMainWorktree(t *testing.T) {
+func TestTodoRepoSharesFileWithMainWorktree(t *testing.T) {
 	t.Parallel()
 
 	repository := newTestRepository(t)
 	main := resolvedTempDir(t)
 	runGitCommand(t, main, "init")
 	gitDir := strings.TrimSpace(runGitCommand(t, main, "rev-parse", "--absolute-git-dir"))
-	localTodo := filepath.Join(gitDir, "TODO.md")
-	repoTodo := filepath.Join(gitDir, "TODO.repo.md")
-	writeTodoFile(t, localTodo, "- [ ] main worktree task\n")
+	path := filepath.Join(gitDir, "TODO.md")
+	legacy := filepath.Join(gitDir, "TODO.repo.md")
+	writeTodoFile(t, path, "- [ ] main worktree task")
+	writeTodoFile(t, legacy, "- [x] repository task\n")
 
 	result := repository.runTimberFrom(t, main, "todo", "--repo", "--path")
 	require.NoError(t, result.err, result.stderr)
-	require.Equal(t, repoTodo, strings.TrimSpace(result.stdout))
-	writeTodoFile(t, repoTodo, "- [x] repository task\n")
-	contents, err := os.ReadFile(localTodo)
-	require.NoError(t, err)
-	assert.Equal(t, "- [ ] main worktree task\n", string(contents))
+	assert.Equal(t, path, strings.TrimSpace(result.stdout))
+	assert.NoFileExists(t, legacy)
 	result = repository.runTimberFrom(t, main, "todo", "--json")
 	require.NoError(t, result.err, result.stderr)
 	var output todoJSONOutput
 	require.NoError(t, json.Unmarshal([]byte(result.stdout), &output))
-	require.Len(t, output.Todos, 1)
+	require.Len(t, output.Todos, 2)
 	assert.Equal(t, "main worktree task", output.Todos[0].Title)
+	assert.Equal(t, "repository task", output.Todos[1].Title)
 }
