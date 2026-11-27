@@ -72,9 +72,18 @@ func lockWorktree(path string) (*os.File, error) {
 // prepareWorktree discards incidental file edits only in the owned review checkout.
 // The caller must hold its worktree lock throughout preparation and review.
 func prepareWorktree(ctx context.Context, source Repository, path string, stack Stack) error {
-	tracked, _, err := registeredReviewWorktree(ctx, source, path)
+	tracked, prunable, err := registeredReviewWorktree(ctx, source, path)
 	if err != nil {
 		return err
+	}
+	if prunable {
+		if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
+			// Remove only the missing review checkout's registration, not other stale worktrees.
+			if _, err := source.git(ctx, "worktree", "remove", path); err != nil {
+				return err
+			}
+			tracked = false
+		}
 	}
 	if !tracked {
 		if err := ensureReviewCheckout(ctx, source, path, stack); err != nil {
