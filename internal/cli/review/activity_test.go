@@ -2,13 +2,13 @@ package cli
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/nnutter/timber/internal/testenv"
 	"github.com/nnutter/timber/internal/timber/review"
 )
 
@@ -41,8 +41,7 @@ func TestReviewRunningReportsLiveLockNotPersistedAttempt(t *testing.T) {
 	git(t, dir, "worktree", "add", "-b", "other", other, "HEAD")
 	pause := func(cwd string) {
 		t.Helper()
-		cmd := exec.Command("git", "rebase", "--force-rebase", "--exec", "false", "HEAD~1")
-		cmd.Dir = cwd
+		cmd := testenv.GitCommand(t, cwd, "rebase", "--force-rebase", "--exec", "false", "HEAD~1")
 		output, err := cmd.CombinedOutput()
 		require.Error(t, err, string(output))
 		require.Empty(t, git(t, cwd, "branch", "--show-current"))

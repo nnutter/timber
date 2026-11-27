@@ -28,6 +28,35 @@ func TestReviewCheckoutIsSharedAcrossFeatureWorktrees(t *testing.T) {
 	require.ErrorContains(t, err, "worktree is in use")
 }
 
+func TestReviewRecreatesMissingCheckout(t *testing.T) {
+	t.Parallel()
+	reviewer, view, _ := testReviewer(t)
+	r := reviewer.Service.Repository
+	path, err := WorktreePath(t.Context(), r.Dir)
+	require.NoError(t, err)
+	gitTest(t, r.Dir, "worktree", "add", "--detach", path, view.Stacks[0].Base)
+	require.NoError(t, os.RemoveAll(path))
+
+	fakeTuicr(t, &reviewer.Service.Repository, `test "$(git rev-parse HEAD)" = "$TEST_REVIEW_TIP"`, "TEST_REVIEW_TIP="+view.Stacks[0].Tip)
+	result, err := reviewer.Review(t.Context(), ReviewOptions{Stack: "HEAD"})
+	require.NoError(t, err)
+	require.Equal(t, "cancelled", result.Status)
+}
+
+func TestReviewUsesCheckoutWithRelativeLinks(t *testing.T) {
+	t.Parallel()
+	reviewer, _, _ := testReviewer(t)
+	r := reviewer.Service.Repository
+	path, err := WorktreePath(t.Context(), r.Dir)
+	require.NoError(t, err)
+	gitTest(t, r.Dir, "worktree", "add", "--relative-paths", "--detach", path, "HEAD")
+	fakeTuicr(t, &reviewer.Service.Repository, "exit 0")
+
+	result, err := reviewer.Review(t.Context(), ReviewOptions{Stack: "HEAD"})
+	require.NoError(t, err)
+	require.Equal(t, "cancelled", result.Status)
+}
+
 func TestReviewCheckoutRejectsUnownedDirectory(t *testing.T) {
 	t.Parallel()
 	reviewer, _, _ := testReviewer(t)

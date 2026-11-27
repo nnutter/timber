@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nnutter/gittest"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
@@ -217,8 +218,7 @@ func runGitCommand(t *testing.T, directory string, args ...string) string {
 
 func gitCommand(t *testing.T, directory string, args ...string) *exec.Cmd {
 	t.Helper()
-	command := exec.CommandContext(t.Context(), "git", args...)
-	command.Dir = directory
+	command := gittest.Command(t, directory, args...)
 	command.Env = append(gitTestEnv(),
 		"HOME="+directory,
 		"GIT_AUTHOR_NAME=Test User",
@@ -232,8 +232,14 @@ func gitCommand(t *testing.T, directory string, args ...string) *exec.Cmd {
 // Do not inherit Git overrides, user configuration, shell startup hooks, or
 // Timber/Herdr state from the process that runs the suite.
 func gitTestEnv() []string {
+	path := os.Getenv("PATH")
+	for _, entry := range gittest.WithEnviron() {
+		if value, ok := strings.CutPrefix(entry, "PATH="); ok {
+			path = value
+		}
+	}
 	return []string{
-		"PATH=" + os.Getenv("PATH"),
+		"PATH=" + path,
 		"TMPDIR=" + os.TempDir(),
 		"LANG=C",
 		"LC_ALL=C",

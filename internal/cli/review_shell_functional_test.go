@@ -43,7 +43,7 @@ func TestGeneratedZshReviewAndCompletion(t *testing.T) {
 		err := command.Run()
 		return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 	}
-	for _, args := range [][]string{{"review", "status", "--json"}, {"review", "--json", "status"}} {
+	for _, args := range [][]string{{"review", "status", "--json"}, {"review", "--json", "status"}, {"rv", "status", "--json"}} {
 		result := run(`source "$1/t"; shift; t "$@"`, args...)
 		require.NoError(t, result.err, result.stderr)
 		assert.NotContains(t, result.stderr, "ERROR")

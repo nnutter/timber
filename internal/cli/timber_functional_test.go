@@ -15,6 +15,7 @@ func TestCommandAliases(t *testing.T) {
 		{"ls"},
 		{"clean"},
 		{"rm"},
+		{"rv"},
 		{"sw"},
 		{"repo", "ls"},
 		{"repo", "rm"},

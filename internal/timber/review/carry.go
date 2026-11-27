@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"uuid"
+
+	"github.com/nnutter/commitstack"
 )
 
 // commitMessagePrefix names the pseudo-file that tuicr adds for the commit
@@ -90,7 +92,7 @@ func carrySavedSession(ctx context.Context, repository Repository, reader SavedR
 	if err != nil {
 		return err
 	}
-	return moveCarriedSession(source, to, target, sameMessage(from.Stack, to))
+	return moveCarriedSession(source, to, target, commitstack.SameMessage(from.Stack, to))
 }
 
 // carrySource reads the session that captured an attempt, or nil when the
@@ -151,10 +153,10 @@ func carryablePrior(state State, stack Stack) *Attempt {
 			// A model result is an assessment, not a session to reopen.
 			continue
 		}
-		if sameStack(attempt.Stack, stack) {
+		if commitstack.SameStack(attempt.Stack, stack) {
 			continue
 		}
-		if samePatch(attempt.Stack, stack) {
+		if commitstack.SamePatch(attempt.Stack, stack) {
 			return attempt
 		}
 	}

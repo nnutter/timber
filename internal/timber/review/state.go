@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
 	"uuid"
+
+	"github.com/nnutter/commitstack"
 
 	"github.com/nnutter/timber/internal/timber/review/autoreview"
 )
@@ -45,10 +46,10 @@ func (a Attempt) matches(stack Stack) bool {
 		// read, so unlike a user approval it must not transfer to a rewritten
 		// commit that happens to keep the same patch.
 		if a.Status == "approved" {
-			return sameStack(a.Stack, stack) && sameMessage(a.Stack, stack)
+			return commitstack.SameStack(a.Stack, stack) && commitstack.SameMessage(a.Stack, stack)
 		}
 	}
-	if sameStack(a.Stack, stack) {
+	if commitstack.SameStack(a.Stack, stack) {
 		return true
 	}
 	switch a.Status {
@@ -56,7 +57,7 @@ func (a Attempt) matches(stack Stack) bool {
 		// A recorded result is evidence about the content the reviewer read, so
 		// a new message asks again just as a new patch does. A model result
 		// resets exactly like a user result.
-		return samePatch(a.Stack, stack) && sameMessage(a.Stack, stack)
+		return commitstack.SamePatch(a.Stack, stack) && commitstack.SameMessage(a.Stack, stack)
 	default:
 		return false
 	}
@@ -69,7 +70,7 @@ func (a Attempt) resets(stack Stack) bool {
 	if a.Replacement == nil {
 		return false
 	}
-	return sameStack(*a.Replacement, stack) || samePatch(*a.Replacement, stack) && sameMessage(*a.Replacement, stack)
+	return commitstack.SameStack(*a.Replacement, stack) || commitstack.SamePatch(*a.Replacement, stack) && commitstack.SameMessage(*a.Replacement, stack)
 }
 
 func (a Attempt) validate() error {
@@ -86,11 +87,11 @@ func (a Attempt) validate() error {
 		return err
 	}
 	if a.Replacement != nil {
-		if err := a.Replacement.validate(); err != nil {
+		if err := a.Replacement.Validate(); err != nil {
 			return err
 		}
 	}
-	return a.Stack.validate()
+	return a.Stack.Validate()
 }
 
 // AutomaticReview records the evidence and provenance of a model review.
@@ -193,7 +194,7 @@ func (s State) latest(stack Stack) *Attempt {
 		}
 		if attempt.matches(stack) {
 			result = attempt
-		} else if samePatch(attempt.Stack, stack) {
+		} else if commitstack.SamePatch(attempt.Stack, stack) {
 			// A newer unfinished attempt must not expose an older approval.
 			result = nil
 		}
@@ -207,7 +208,7 @@ func (s State) previous(stack Stack) *Attempt {
 		if attempt.matches(stack) {
 			continue
 		}
-		if sharesLineage(attempt.Stack, stack) {
+		if commitstack.SharesLineage(attempt.Stack, stack) {
 			return attempt
 		}
 	}
@@ -315,23 +316,6 @@ func removeIfPresent(path string) error {
 	return err
 }
 
-func samePatch(a, b Stack) bool {
-	if a.Repo != b.Repo {
-		return false
-	}
-	if a.PatchHash == "" {
-		return false
-	}
-	return isSame(a.PatchHash, b.PatchHash)
-}
-
-// sameMessage reports whether both stacks carry the same reviewed message. An
-// attempt that predates message fingerprints cannot show that its message is
-// unchanged, so it asks for a new review.
-func sameMessage(a, b Stack) bool {
-	return a.MessageHash != "" && isSame(a.MessageHash, b.MessageHash)
-}
-
 // unfinished reports whether an attempt recorded no outcome. Only these
 // attempts ask the user to recover or replace them.
 func unfinished(attempt Attempt) bool {
@@ -360,7 +344,7 @@ func supersededAttempt(attempt Attempt, view Snapshot) bool {
 // and its saved session need, so no review can select it again.
 func lostAttempt(attempt Attempt, view Snapshot) bool {
 	for _, stack := range view.Stacks {
-		if sameStack(attempt.Stack, stack) || sharesLineage(attempt.Stack, stack) {
+		if commitstack.SameStack(attempt.Stack, stack) || commitstack.SharesLineage(attempt.Stack, stack) {
 			return false
 		}
 	}
@@ -383,22 +367,3 @@ func extendsStack(old, current Stack) bool {
 	}
 	return slices.Equal(old.Commits, current.Commits[:len(old.Commits)])
 }
-
-func sameStack(a, b Stack) bool {
-	return [3]string{a.Repo, a.Base, a.Key} == [3]string{b.Repo, b.Base, b.Key} && slices.Equal(a.Commits, b.Commits)
-}
-
-func sharesLineage(a, b Stack) bool {
-	if a.Repo != b.Repo {
-		return false
-	}
-	if a.Commits[0] == b.Commits[0] {
-		return true
-	}
-	if a.ChangeID == "" {
-		return false
-	}
-	return a.ChangeID == b.ChangeID
-}
-
-var fullSHA = regexp.MustCompile(`^(?:[a-f0-9]{40}|[a-f0-9]{64})$`)

@@ -4,14 +4,13 @@ package review
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -20,97 +19,33 @@ import (
 
 	"charm.land/log/v2"
 
+	commitstack "github.com/nnutter/commitstack"
+
 	"github.com/nnutter/timber/internal/process"
 )
 
-// Stack identifies an original commit and its adjacent feedback commits.
-// Field names retain the Pi state format. ChangeID is optional lineage metadata.
-// PatchHash and MessageHash identify the reviewable content: the patch and the
-// message that a review shows. An attached fixup! commit carries no message, so
-// a fixup leaves the message fingerprint unchanged.
-type Stack struct {
-	Repo        string   `json:"repo"`
-	Commits     []string `json:"commits"`
-	Base        string   `json:"base"`
-	Tip         string   `json:"tip"`
-	Subject     string   `json:"subject"`
-	Key         string   `json:"key"`
-	ChangeID    string   `json:"changeId,omitempty"`
-	PatchHash   string   `json:"patchHash,omitempty"`
-	MessageHash string   `json:"messageHash,omitempty"`
-}
+// Stack is a commit stack from commitstack.
+type Stack = commitstack.Stack
 
-func (s Stack) validate() error {
-	if !filepath.IsAbs(s.Repo) {
-		return fmt.Errorf("stack requires an absolute repository path")
-	}
-	if err := validateCommits(s.Commits); err != nil {
-		return err
-	}
-	if !fullSHA.MatchString(s.Base) {
-		return fmt.Errorf("stack requires a full parent SHA")
-	}
-	if s.Tip != s.Commits[len(s.Commits)-1] {
-		return fmt.Errorf("stack tip does not match commits")
-	}
-	expected := s.Commits[0]
-	if len(s.Commits) > 1 {
-		expected += ".." + s.Tip
-	}
-	if s.Key != expected {
-		return fmt.Errorf("stack key does not match commits")
-	}
-	if s.Subject == "" {
-		return fmt.Errorf("stack requires a subject")
-	}
-	return s.validateMetadata()
-}
+// Snapshot holds the feature range and preserves Timber's review JSON format.
+type Snapshot commitstack.Snapshot
 
-func (s Stack) validateMetadata() error {
-	if s.PatchHash != "" && !patchHashPattern.MatchString(s.PatchHash) {
-		return fmt.Errorf("invalid stack patch hash")
-	}
-	if s.MessageHash != "" && !messageHashPattern.MatchString(s.MessageHash) {
-		return fmt.Errorf("invalid stack message hash")
-	}
-	if s.ChangeID != "" {
-		if !changeIDPattern.MatchString(s.ChangeID) {
-			return fmt.Errorf("invalid stack Change-Id")
-		}
-	}
-	return nil
-}
-
-func validateCommits(commits []string) error {
-	if len(commits) == 0 {
-		return fmt.Errorf("stack requires commits")
-	}
-	seen := map[string]bool{}
-	for _, sha := range commits {
-		if !fullSHA.MatchString(sha) {
-			return fmt.Errorf("stack requires full commit SHAs")
-		}
-		if seen[sha] {
-			return fmt.Errorf("duplicate stack commit")
-		}
-		seen[sha] = true
-	}
-	return nil
-}
-
-// Snapshot is an immutable view of a feature branch's review range.
-type Snapshot struct {
-	Branch string  `json:"branch"`
-	Target string  `json:"target"`
-	Base   string  `json:"base"`
-	Head   string  `json:"head"`
-	Stacks []Stack `json:"stacks"`
-	Path   string  `json:"statePath"`
-}
-
-// NewRepository creates command-scoped diagnostics for a source checkout.
-func NewRepository(dir string, logger *log.Logger) Repository {
-	return Repository{Dir: dir, Logger: logger, missingIDWarning: new(sync.Once)}
+func (s Snapshot) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Branch string  `json:"branch"`
+		Target string  `json:"target"`
+		Base   string  `json:"base"`
+		Head   string  `json:"head"`
+		Stacks []Stack `json:"stacks"`
+		Path   string  `json:"statePath"`
+	}{
+		Branch: s.Branch,
+		Target: s.Target,
+		Base:   s.Base,
+		Head:   s.Head,
+		Stacks: s.Stacks,
+		Path:   s.Path,
+	})
 }
 
 // Repository executes Git in the source checkout.
@@ -121,65 +56,38 @@ type Repository struct {
 	missingIDWarning *sync.Once
 }
 
-// PruneCache applies the maintenance retention limits to the shared cache.
-// Repository discovery does not require a branch, upstream, or review history.
-func (r Repository) PruneCache(ctx context.Context) error {
-	common, err := r.git(ctx, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil {
-		return err
-	}
-	return prunePatchCache(ctx, filepath.Join(common, "timber-review", "cache", "patch-v2"))
+var quietLogger = log.New(io.Discard)
+
+// NewRepository creates command-scoped diagnostics for a source checkout.
+func NewRepository(dir string, logger *log.Logger) Repository {
+	return Repository{Dir: dir, Logger: logger, missingIDWarning: new(sync.Once)}
 }
 
-// Resolve accepts a commit reference but never interprets it as an option.
+// PruneCache delegates to commitstack.
+func (r Repository) PruneCache(ctx context.Context) error {
+	return r.commitStack().PruneCache(ctx)
+}
+
+// Resolve delegates to commitstack.
 func (r Repository) Resolve(ctx context.Context, ref string) (string, error) {
-	return r.git(ctx, "rev-parse", "--verify", "--end-of-options", ref+"^{commit}")
+	return r.commitStack().Resolve(ctx, ref)
 }
 
 // Snapshot requires an upstream and a single, linear feature-branch range.
 func (r Repository) Snapshot(ctx context.Context) (Snapshot, error) {
 	started := time.Now()
 	defer func() { r.logger().Debug("Repository snapshot completed", "elapsed", time.Since(started)) }()
-	view, repo, err := r.stackView(ctx)
+	view, err := r.commitStack().Snapshot(ctx)
 	if err != nil {
-		return view, err
+		return Snapshot(view), err
 	}
-	cache := newPatchCache(ctx, r, view, repo)
-	for i := range view.Stacks {
-		stack := &view.Stacks[i]
-		stack.PatchHash, err = cache.hash(ctx, r, stack.Base, stack.Tip)
-		if err != nil {
-			return view, err
-		}
-	}
-	warnMissingChangeIDs(r, view)
-	return view, nil
+	warnMissingChangeIDs(r, Snapshot(view))
+	return Snapshot(view), nil
 }
 
-// WarmCache fingerprints only the current feature stack containing ref.
-// An empty ref selects HEAD. Missing entries for other stacks remain untouched.
+// WarmCache delegates to commitstack.
 func (r Repository) WarmCache(ctx context.Context, ref string) error {
-	if ref == "" {
-		ref = "HEAD"
-	}
-	sha, err := r.Resolve(ctx, ref)
-	if err != nil {
-		return err
-	}
-	view, repo, err := r.stackView(ctx)
-	if err != nil {
-		return err
-	}
-	for _, stack := range view.Stacks {
-		if !slices.Contains(stack.Commits, sha) {
-			continue
-		}
-		view.Stacks = []Stack{stack}
-		cache := newPatchCache(ctx, r, view, repo)
-		_, err := cache.hash(ctx, r, stack.Base, stack.Tip)
-		return err
-	}
-	return fmt.Errorf("commit %s is not in the current feature range", sha)
+	return r.commitStack().WarmCache(ctx, ref)
 }
 
 // autoGit bounds output in memory and disables interactive Git behavior.
@@ -193,7 +101,6 @@ func (r Repository) autoGit(ctx context.Context, limit int, args ...string) (str
 	diagnostics := autoDiagnostics{limit: 4096}
 	cmd.Stdout, cmd.Stderr = &out, &diagnostics
 	if err := cmd.Run(); err != nil {
-		// Report Git's own reason, as other review commands do.
 		if message := strings.TrimSpace(diagnostics.String()); message != "" {
 			return "", fmt.Errorf("read automatic review context: %w: %s", err, message)
 		}
@@ -205,36 +112,14 @@ func (r Repository) autoGit(ctx context.Context, limit int, args ...string) (str
 	return out.buffer.String(), nil
 }
 
-func (r Repository) branchView(ctx context.Context) (Snapshot, string, error) {
-	view, repo, err := r.checkoutView(ctx)
-	if err != nil {
-		return view, "", err
-	}
-	target, err := r.git(ctx, "rev-parse", "--symbolic-full-name", "@{upstream}")
-	if err != nil {
-		return view, "", fmt.Errorf("branch %s requires a configured Git upstream: %w", view.Branch, err)
-	}
-	view.Target = target
-	return view, repo, nil
+func (r Repository) checkoutView(ctx context.Context) (Snapshot, string, error) {
+	view, repo, err := r.commitStack().CheckoutView(ctx)
+	return Snapshot(view), repo, err
 }
 
-func (r Repository) checkoutView(ctx context.Context) (Snapshot, string, error) {
-	var view Snapshot
-	repo, err := r.git(ctx, "rev-parse", "--show-toplevel")
-	if err != nil {
-		return view, "", err
-	}
-	branch, err := r.git(ctx, "symbolic-ref", "--quiet", "--short", "HEAD")
-	if err != nil {
-		return view, "", fmt.Errorf("review requires a branch, not detached HEAD: %w", err)
-	}
-	common, err := r.git(ctx, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil {
-		return view, "", err
-	}
-	view.Branch = branch
-	view.Path = filepath.Join(common, "timber-review", "state", fmt.Sprintf("%x.json", sha256.Sum256([]byte(branch))))
-	return view, repo, nil
+func (r Repository) commitStack() commitstack.Repository {
+	repo := commitstack.NewWithLogger(r.Dir, r.Environment, r.logger())
+	return repo
 }
 
 func (r Repository) environment() []string {
@@ -257,7 +142,6 @@ func (r Repository) gitInput(ctx context.Context, input string, args ...string) 
 	cmd := process.Command(ctx, "git", args...)
 	cmd.Dir = r.Dir
 	cmd.Stdin = strings.NewReader(input)
-	// Keep Git diagnostics stable so repository discovery errors can be identified.
 	cmd.Env = append(slices.Clone(r.environment()), "LC_ALL=C")
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -282,39 +166,7 @@ func (r Repository) logger() *log.Logger {
 	return quietLogger
 }
 
-// patchHash fingerprints the aggregate diff, not commit metadata. Empty diffs
-// have no content identity, so unrelated empty commits cannot share approval.
-func (r Repository) patchHash(ctx context.Context, base, tip string) (string, error) {
-	patch, err := r.gitOutput(ctx, slices.Concat(diffOptions, []string{base, tip, "--"})...)
-	if err != nil {
-		return "", err
-	}
-	if patch == "" {
-		return "", nil
-	}
-	// Verbatim patch IDs preserve whitespace and context, but ignore text blob IDs
-	// and hunk line numbers so an unchanged patch can survive relocation.
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := process.Command(ctx, "git", "patch-id", "--verbatim")
-	cmd.Dir = r.Dir
-	cmd.Env = append(slices.Clone(r.environment()), "LC_ALL=C")
-	cmd.Stdin = strings.NewReader(patch)
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("git patch-id --verbatim: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	fields := strings.Fields(string(out))
-	if len(fields) != 2 || !fullSHA.MatchString(fields[0]) {
-		return "", fmt.Errorf("git patch-id --verbatim returned an invalid patch ID")
-	}
-	return "v2:" + fields[0], nil
-}
-
 // reviewBranch identifies the branch whose review lock applies during a replay.
-// Other review commands still require an attached HEAD through branchView.
 func (r Repository) reviewBranch(ctx context.Context) (string, error) {
 	branch, err := r.git(ctx, "symbolic-ref", "--quiet", "HEAD")
 	if err == nil {
@@ -347,37 +199,6 @@ func (r Repository) reviewBranch(ctx context.Context) (string, error) {
 	return "", err
 }
 
-func (r Repository) stackView(ctx context.Context) (Snapshot, string, error) {
-	view, repo, err := r.branchView(ctx)
-	if err != nil {
-		return view, repo, err
-	}
-	view.Head, err = r.Resolve(ctx, "HEAD")
-	if err != nil {
-		return view, repo, err
-	}
-	targetSHA, err := r.Resolve(ctx, view.Target)
-	if err != nil {
-		return view, repo, err
-	}
-	view.Base, err = r.git(ctx, "merge-base", "--all", view.Head, targetSHA)
-	if err != nil {
-		return view, repo, err
-	}
-	if strings.Contains(view.Base, "\n") {
-		return view, repo, fmt.Errorf("review requires one merge-base with upstream")
-	}
-	history, err := readHistory(ctx, r, repo, view.Base, view.Head)
-	if err != nil {
-		return view, repo, err
-	}
-	view.Stacks, err = stacks(repo, view.Base, history)
-	if err != nil {
-		return view, repo, err
-	}
-	return view, repo, nil
-}
-
 // tuicr runs with the same environment as the repository's Git commands.
 func (r Repository) tuicr(ctx context.Context, args ...string) (*exec.Cmd, error) {
 	name := "tuicr"
@@ -391,100 +212,6 @@ func (r Repository) tuicr(ctx context.Context, args ...string) (*exec.Cmd, error
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = r.Environment
 	return cmd, nil
-}
-
-func lookPathInEnvironment(name string, environment []string) (string, error) {
-	for dir := range strings.SplitSeq(environmentValue(environment, "PATH"), string(os.PathListSeparator)) {
-		if dir == "" {
-			dir = "."
-		}
-		// Joining can drop a leading "./"; keep a separator so LookPath
-		// checks this candidate rather than searching the process PATH.
-		path, err := exec.LookPath(dir + string(os.PathSeparator) + name)
-		if err != nil {
-			continue
-		}
-		if !filepath.IsAbs(path) {
-			return "", &exec.Error{Name: path, Err: exec.ErrDot}
-		}
-		return path, nil
-	}
-	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
-}
-
-func stacks(repo, base string, history []historyCommit) ([]Stack, error) {
-	stacks := []Stack{}
-	if len(history) == 0 {
-		return stacks, nil
-	}
-	parent := base
-	ids := map[string]bool{}
-	targets := map[string][]int{}
-	for _, commit := range history {
-		if commit.parent != parent {
-			return nil, fmt.Errorf("review requires linear feature history; resolve merges first")
-		}
-		sha, subject := commit.sha, commit.subject
-		if subject == "" {
-			return nil, fmt.Errorf("commit %s has an empty subject", sha)
-		}
-		if match := feedbackSubject.FindStringSubmatch(subject); match != nil {
-			if !tryAppendFeedback(stacks, targets, sha, match[2]) {
-				id, err := changeID(sha, commit.changeID, ids)
-				if err != nil {
-					return nil, err
-				}
-				stacks = append(stacks, Stack{Repo: repo, Commits: []string{sha}, Base: parent, Tip: sha, Subject: subject, Key: sha, ChangeID: id})
-			}
-		} else {
-			id, err := changeID(sha, commit.changeID, ids)
-			if err != nil {
-				return nil, err
-			}
-			stacks = append(stacks, Stack{Repo: repo, Commits: []string{sha}, Base: parent, Tip: sha, Subject: subject, Key: sha, ChangeID: id})
-		}
-		targets[subject] = append(targets[subject], len(stacks)-1)
-		parent = sha
-	}
-	if err := fingerprintMessages(stacks, history); err != nil {
-		return nil, err
-	}
-	return stacks, nil
-}
-
-// fingerprintMessages records the reviewed message of each stack. Stacks are
-// contiguous runs of the oldest-first history, so each stack's commits are the
-// next block of that history.
-func fingerprintMessages(stacks []Stack, history []historyCommit) error {
-	next := 0
-	for i := range stacks {
-		end := next + len(stacks[i].Commits)
-		if end > len(history) {
-			return fmt.Errorf("review stack does not match feature history")
-		}
-		stacks[i].MessageHash = messageFingerprint(history[next:end])
-		next = end
-	}
-	if next != len(history) {
-		return fmt.Errorf("review stack does not match feature history")
-	}
-	return nil
-}
-
-var quietLogger = log.New(io.Discard)
-
-func changeID(sha, id string, ids map[string]bool) (string, error) {
-	if id == "" {
-		return "", nil
-	}
-	if !changeIDPattern.MatchString(id) {
-		return "", fmt.Errorf("commit %s requires at most one valid Change-Id trailer", sha)
-	}
-	if ids[id] {
-		return "", fmt.Errorf("duplicate Change-Id %s on current original commits", id)
-	}
-	ids[id] = true
-	return id, nil
 }
 
 func environmentValue(environment []string, key string) string {
@@ -501,22 +228,35 @@ func environmentValue(environment []string, key string) string {
 	return value
 }
 
-// diffOptions pins every diff input that changes rendered patch bytes. Patch
-// fingerprints and model review must describe the same bytes, so neither reads
-// user diff configuration.
-var diffOptions = []string{
-	"-c", "core.quotePath=true", "-c", "diff.suppressBlankEmpty=false", "diff",
-	"--patch", "--binary", "--full-index", "--no-renames", "--no-ext-diff",
-	"--no-textconv", "--no-color", "--no-relative", "--ignore-submodules=none",
-	"--src-prefix=a/", "--dst-prefix=b/", "--output-indicator-new=+",
-	"--output-indicator-old=-", "--output-indicator-context= ",
-	"--unified=3", "--inter-hunk-context=0", "--diff-algorithm=myers",
-	"--no-indent-heuristic", "--submodule=short", "-O/dev/null",
+func lookPathInEnvironment(name string, environment []string) (string, error) {
+	for dir := range strings.SplitSeq(environmentValue(environment, "PATH"), string(os.PathListSeparator)) {
+		if dir == "" {
+			dir = "."
+		}
+		path, err := exec.LookPath(dir + string(os.PathSeparator) + name)
+		if err != nil {
+			continue
+		}
+		if !filepath.IsAbs(path) {
+			return "", &exec.Error{Name: path, Err: exec.ErrDot}
+		}
+		return path, nil
+	}
+	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
 }
 
-// An approval is bound to the exact commits that carry it, so asking for a
-// Change-Id on an approved stack would rewrite the commit and discard the
-// approval. Only stacks that still need review benefit from the reminder.
+func validateCommits(commits []string) error {
+	return commitstack.ValidateCommits(commits)
+}
+
+func detachedHEADExit(err error) bool {
+	exit, ok := errors.AsType[*exec.ExitError](err)
+	if !ok {
+		return false
+	}
+	return exit.ExitCode() == 1
+}
+
 func warnMissingChangeIDs(r Repository, view Snapshot) {
 	if r.missingIDWarning == nil {
 		return
@@ -542,33 +282,3 @@ func warnMissingChangeIDs(r Repository, view Snapshot) {
 		r.logger().Warn("Original commits lack Change-Id trailers; add them to improve lineage tracking after rewrites", "commits", missing)
 	})
 }
-
-func detachedHEADExit(err error) bool {
-	exit, ok := errors.AsType[*exec.ExitError](err)
-	if !ok {
-		return false
-	}
-	return exit.ExitCode() == 1
-}
-
-func tryAppendFeedback(stacks []Stack, targets map[string][]int, sha, subject string) bool {
-	matches := targets[subject]
-	if len(matches) != 1 {
-		return false
-	}
-	if matches[0] != len(stacks)-1 {
-		return false
-	}
-	last := &stacks[len(stacks)-1]
-	last.Commits = append(last.Commits, sha)
-	last.Tip = sha
-	last.Key = last.Commits[0] + ".." + sha
-	return true
-}
-
-var (
-	patchHashPattern   = regexp.MustCompile(`^(?:v1:[a-f0-9]{64}|v2:(?:[a-f0-9]{40}|[a-f0-9]{64}))$`)
-	messageHashPattern = regexp.MustCompile(`^v1:[a-f0-9]{64}$`)
-	feedbackSubject    = regexp.MustCompile(`^(fixup!|reword!|amend!) (.+)$`)
-	changeIDPattern    = regexp.MustCompile(`^I[0-9a-fA-F]{40}$`)
-)

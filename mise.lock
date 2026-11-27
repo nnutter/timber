@@ -195,6 +195,7 @@ url_api = "https://api.github.com/repos/mvdan/gofumpt/releases/assets/549473475"
 version = "2.12.0"
 backend = "packslip:github.com/jdx/hk"
 specifiers = ["2.12.0"]
+unsupported_platforms = ["macos-x64"]
 
 [tools.hk."platforms.linux-arm64"]
 checksum = "sha256:0f4e44802c3fcf98461b6608281353ae1944b82fd12f4a683f8e2e6683e562f3"
@@ -280,43 +281,44 @@ signer = "sigstore-oidc:https://github.com/jdx/jactionlint/.github/workflows/rel
 repository_ids = { repository = "1404951382" }
 
 [[tools."packslip:nnutter/constable"]]
-version = "0.9.5"
+version = "0.10.2"
 backend = "packslip:nnutter/constable"
 specifiers = ["latest"]
+unsupported_platforms = ["windows-x64"]
 
 [tools."packslip:nnutter/constable"."platforms.linux-arm64"]
-checksum = "sha256:41d7f41c35f2f2dd45666c8d7cda986ddccb9aa84ed36b836a4975df66755000"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_linux_arm64.tar.gz"
+checksum = "sha256:ebe687ddfa281a4f9753af134feb57d9152b559de15228e60dede3f9db43c5b2"
+url = "https://github.com/nnutter/constable/releases/download/v0.10.2/constable_v0.10.2_linux_arm64.tar.gz"
 signer = "sigstore-oidc:https://github.com/nnutter/constable/.github/workflows/release.yaml"
 repository_ids = { repository = "1251769953" }
 
 [tools."packslip:nnutter/constable"."platforms.linux-arm64-musl"]
-checksum = "sha256:41d7f41c35f2f2dd45666c8d7cda986ddccb9aa84ed36b836a4975df66755000"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_linux_arm64.tar.gz"
+checksum = "sha256:ebe687ddfa281a4f9753af134feb57d9152b559de15228e60dede3f9db43c5b2"
+url = "https://github.com/nnutter/constable/releases/download/v0.10.2/constable_v0.10.2_linux_arm64.tar.gz"
 signer = "sigstore-oidc:https://github.com/nnutter/constable/.github/workflows/release.yaml"
 repository_ids = { repository = "1251769953" }
 
 [tools."packslip:nnutter/constable"."platforms.linux-x64"]
-checksum = "sha256:c67522bfa29e0dd5a791c340699719deb2515153b2e4f7b93f7c8fd469cb81a1"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_linux_amd64.tar.gz"
+checksum = "sha256:fe494130ae68dc6e863875a78f90045e1919ba99c771c8ff46dd7508cc629794"
+url = "https://github.com/nnutter/constable/releases/download/v0.10.2/constable_v0.10.2_linux_amd64.tar.gz"
 signer = "sigstore-oidc:https://github.com/nnutter/constable/.github/workflows/release.yaml"
 repository_ids = { repository = "1251769953" }
 
 [tools."packslip:nnutter/constable"."platforms.linux-x64-musl"]
-checksum = "sha256:c67522bfa29e0dd5a791c340699719deb2515153b2e4f7b93f7c8fd469cb81a1"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_linux_amd64.tar.gz"
+checksum = "sha256:fe494130ae68dc6e863875a78f90045e1919ba99c771c8ff46dd7508cc629794"
+url = "https://github.com/nnutter/constable/releases/download/v0.10.2/constable_v0.10.2_linux_amd64.tar.gz"
 signer = "sigstore-oidc:https://github.com/nnutter/constable/.github/workflows/release.yaml"
 repository_ids = { repository = "1251769953" }
 
 [tools."packslip:nnutter/constable"."platforms.macos-arm64"]
-checksum = "sha256:0ad670bc74fb365677a39470eb1bacd8587849d9704a5796a72375db95c90dca"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_darwin_arm64.tar.gz"
+checksum = "sha256:f9b20ac4e5b2c98433f93d6287b02110688b078c102e92951fa350287f2e7ce2"
+url = "https://github.com/nnutter/constable/releases/download/v0.10.2/constable_v0.10.2_darwin_arm64.tar.gz"
 signer = "sigstore-oidc:https://github.com/nnutter/constable/.github/workflows/release.yaml"
 repository_ids = { repository = "1251769953" }
 
 [tools."packslip:nnutter/constable"."platforms.macos-x64"]
-checksum = "sha256:858a1e95c6ad782425a797bb511a1322ca60ddeee266e492270eedc2afe351a4"
-url = "https://github.com/nnutter/constable/releases/download/v0.9.5/constable_v0.9.5_darwin_amd64.tar.gz"
+checksum = "sha256:1a9d6f943ab0ea9dd773ada744c4e393342c10d50632e0be03ed9bcfb71eca9b"
+url = "https://github.com/nnutter/constable/releases/download/v0.10.2/constable_v0.10.2_darwin_amd64.tar.gz"
 signer = "sigstore-oidc:https://github.com/nnutter/constable/.github/workflows/release.yaml"
 repository_ids = { repository = "1251769953" }
 

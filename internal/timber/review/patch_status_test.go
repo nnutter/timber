@@ -33,8 +33,7 @@ func TestAppendedFeedbackWithUnchangedPatchRequiresReview(t *testing.T) {
 		}},
 		// An amend! that repeats the message asks nothing new of the reviewer.
 		{name: "amend with the same message", want: "approved", append: func(t *testing.T, dir string) {
-			t.Setenv("GIT_EDITOR", "true")
-			gitTest(t, dir, "commit", "--allow-empty", "--fixup=amend:HEAD")
+			gitTestEnv(t, dir, "GIT_EDITOR=true", "commit", "--allow-empty", "--fixup=amend:HEAD")
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

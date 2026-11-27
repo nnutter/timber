@@ -14,13 +14,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nnutter/timber/internal/display"
+	"github.com/nnutter/timber/internal/testenv"
 	"github.com/nnutter/timber/internal/timber/review"
 )
 
 func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "git", args...)
-	cmd.Dir = dir
+	return gitTestEnv(t, dir, "", args...)
+}
+
+func gitTestEnv(t *testing.T, dir, override string, args ...string) string {
+	t.Helper()
+	cmd := testenv.GitCommand(t, dir, args...)
+	if override != "" {
+		cmd.Env = append(cmd.Env, override)
+	}
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "%s", out)
 	return strings.TrimSpace(string(out))

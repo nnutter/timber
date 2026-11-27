@@ -7,12 +7,14 @@ import (
 	"time"
 )
 
+const exhaustedPercent = 99.8
+
 // Standing drops the limits that a used-up longer window makes moot.
 // A limit whose window the service does not give stays.
 func Standing(limits []Limit) []Limit {
 	var full []Limit
 	for _, limit := range limits {
-		if limit.Percent >= 100 {
+		if limit.Percent >= exhaustedPercent {
 			full = append(full, limit)
 		}
 	}

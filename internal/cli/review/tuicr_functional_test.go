@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nnutter/gittest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +29,7 @@ func realTuicrEnvironment(t *testing.T) []string {
 		"TERM": "xterm-256color", "COLORTERM": "truecolor", "GIT_CONFIG_GLOBAL": os.DevNull, "GIT_CONFIG_NOSYSTEM": "1",
 	}
 	env := []string{}
-	for _, value := range os.Environ() {
+	for _, value := range gittest.WithEnviron() {
 		key, _, _ := strings.Cut(value, "=")
 		if _, ok := overrides[key]; !ok {
 			env = append(env, value)

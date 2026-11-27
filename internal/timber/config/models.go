@@ -18,7 +18,7 @@ const ResponseAPI = "openai-responses"
 
 // securityBinary is the only command a models file can run. Values never
 // reach a shell, so shell metacharacters stay literal arguments.
-var securityBinary = "/usr/bin/security"
+const securityBinary = "/usr/bin/security"
 
 // commandTimeout leaves room for a keychain prompt or a slow secret manager.
 const commandTimeout = 30 * time.Second
@@ -217,8 +217,12 @@ func Values(values map[string]string) (map[string]string, error) {
 // mark. Any other leading "!" is rejected, so a models file cannot run an
 // arbitrary command.
 func Value(value string) (string, error) {
+	return resolveValue(value, securityBinary)
+}
+
+func resolveValue(value, securityPath string) (string, error) {
 	if rest, ok := strings.CutPrefix(value, "!"); ok {
-		return securityOutput(value, rest)
+		return securityOutput(value, rest, securityPath)
 	}
 	var expanded strings.Builder
 	for i := 0; i < len(value); {
@@ -293,7 +297,7 @@ func variable(name string) (string, error) {
 	return value, nil
 }
 
-func securityOutput(value, rest string) (string, error) {
+func securityOutput(value, rest, securityPath string) (string, error) {
 	arguments, ok := strings.CutPrefix(rest, "security")
 	if !ok || (len(arguments) > 0 && !isSame(arguments[0], ' ') && !isSame(arguments[0], '\t')) {
 		return "", fmt.Errorf("unsupported command in %q: only \"!security ...\" may run %s", value, securityBinary)
@@ -307,7 +311,7 @@ func securityOutput(value, rest string) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, securityBinary, args...)
+	cmd := exec.CommandContext(ctx, securityPath, args...)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
