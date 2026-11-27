@@ -12,10 +12,14 @@ import (
 
 // Install adds cache maintenance commands to parent.
 func Install(parent *cobra.Command, repository review.Repository, out io.Writer) {
-	cmd := &cobra.Command{Use: "cache", Short: "Maintain the disposable patch fingerprint cache"}
+	cmd := &cobra.Command{
+		Use:   "cache",
+		Short: "Maintain the disposable patch fingerprint cache",
+	}
 	warm := &cobra.Command{
-		Use: "warm [<commit>]", Short: "Warm the current feature stack containing a commit (default HEAD)",
-		Args: cobra.MaximumNArgs(1),
+		Use:   "warm [<commit>]",
+		Short: "Warm the current feature stack containing a commit (default HEAD)",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ref := ""
 			if len(args) > 0 {

@@ -41,7 +41,14 @@ func (c *Command) RunE(cmd *cobra.Command, args []string) error {
 // Install.
 func New(svc review.Service, out io.Writer) *cobra.Command {
 	c := &Command{Service: svc, Output: out}
-	return &cobra.Command{Use: "reset [<commit_stack>]", Aliases: []string{"clear"}, Short: "Clear the review state of stacks", Long: "Clear the saved review state without launching tuicr. A commit reference or\ninclusive commit_stack endpoints select one stack, and an invocation without an\nargument clears every stack in the feature range. Saved sessions for the cleared\nstacks are deleted, so tuicr and the agent start from the same empty state.", Args: cobra.MaximumNArgs(1), RunE: c.RunE}
+	return &cobra.Command{
+		Use:     "reset [<commit_stack>]",
+		Aliases: []string{"clear"},
+		Short:   "Clear the review state of stacks",
+		Long:    "Clear the saved review state without launching tuicr. A commit reference or\ninclusive commit_stack endpoints select one stack, and an invocation without an\nargument clears every stack in the feature range. Saved sessions for the cleared\nstacks are deleted, so tuicr and the agent start from the same empty state.",
+		Args:    cobra.MaximumNArgs(1),
+		RunE:    c.RunE,
+	}
 }
 
 // Install adds the reset sub-command to parent.

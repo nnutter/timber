@@ -33,7 +33,12 @@ func (c *Command) RunE(cmd *cobra.Command, _ []string) error {
 // with Install.
 func New(svc review.Service, out io.Writer) *cobra.Command {
 	c := &Command{Service: svc, Output: out}
-	cmd := &cobra.Command{Use: "feedback", Short: "Read current and historical saved feedback without launching tuicr", Args: cobra.NoArgs, RunE: c.RunE}
+	cmd := &cobra.Command{
+		Use:   "feedback",
+		Short: "Read current and historical saved feedback without launching tuicr",
+		Args:  cobra.NoArgs,
+		RunE:  c.RunE,
+	}
 	return cmd
 }
 
