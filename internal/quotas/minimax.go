@@ -28,8 +28,7 @@ func fetchMiniMax(ctx context.Context, source Source, client *http.Client) (Repo
 	if err := miniMaxRefusal(body, credentialSource); err != nil {
 		return Report{}, err
 	}
-	limits, notes := miniMaxCollect(body)
-	return Report{Name: miniMaxName, Limits: limits, Notes: notes}, nil
+	return Report{Name: miniMaxName, Limits: miniMaxCollect(body), Notes: []string{"From Hermes's MiniMax key."}}, nil
 }
 
 func miniMaxRefusal(body map[string]any, credentialSource string) error {
@@ -48,32 +47,23 @@ func miniMaxRefusal(body map[string]any, credentialSource string) error {
 	return SaidError{Text: fmt.Sprintf("It refused to read the plan (code %s).", shown)}
 }
 
-func miniMaxCollect(body map[string]any) ([]Limit, []string) {
+func miniMaxCollect(body map[string]any) []Limit {
 	var limits []Limit
 	var others []Limit
-	notes := []string{"From Hermes's MiniMax key."}
 	for _, lane := range asRecords(body["model_remains"]) {
-		laneLimits, laneOthers, laneNotes := miniMaxLane(lane)
+		laneLimits, laneOthers := miniMaxLane(lane)
 		limits = append(limits, laneLimits...)
 		others = append(others, laneOthers...)
-		notes = append(notes, laneNotes...)
 	}
-	return append(limits, others...), notes
+	return append(limits, others...)
 }
 
-func miniMaxLane(lane map[string]any) ([]Limit, []Limit, []string) {
+func miniMaxLane(lane map[string]any) ([]Limit, []Limit) {
 	textLane := lane["model_name"] == "general"
 	var limits []Limit
 	var others []Limit
-	var notes []string
 	for _, window := range miniMaxWindows(lane) {
-		limit, note, skip := miniMaxWindow(lane, window, textLane)
-		if note != "" {
-			notes = append(notes, note)
-		}
-		if skip {
-			continue
-		}
+		limit := miniMaxWindow(lane, window, textLane)
 		if limit == nil {
 			continue
 		}
@@ -83,19 +73,18 @@ func miniMaxLane(lane map[string]any) ([]Limit, []Limit, []string) {
 			others = append(others, *limit)
 		}
 	}
-	return limits, others, notes
+	return limits, others
 }
 
-func miniMaxWindow(lane, window map[string]any, textLane bool) (*Limit, string, bool) {
+func miniMaxWindow(lane, window map[string]any, textLane bool) *Limit {
 	minutes := miniMaxMinutes(window)
 	if minutes <= 0 {
-		return nil, "", true
+		return nil
 	}
-	label := WindowLabel(minutes)
 	if miniMaxUnlimited(window) {
-		return nil, miniMaxWeekNote(textLane, label), true
+		return nil
 	}
-	return miniMaxLimit(lane, window, textLane, label, minutes), "", false
+	return miniMaxLimit(lane, window, textLane, WindowLabel(minutes), minutes)
 }
 
 func miniMaxUnlimited(window map[string]any) bool {
@@ -109,13 +98,6 @@ func miniMaxUnlimited(window map[string]any) bool {
 		return false
 	}
 	return unusedWeek(left)
-}
-
-func miniMaxWeekNote(textLane bool, label string) string {
-	if textLane && weekLabel(label) {
-		return "Text has no weekly limit."
-	}
-	return ""
 }
 
 func miniMaxWindows(lane map[string]any) []map[string]any {
@@ -182,5 +164,3 @@ func refusedCode(code float64) bool { return code != 0 }
 func emptyCount(total float64) bool { return total <= 0 }
 
 func unusedWeek(left float64) bool { return left >= 100 }
-
-func weekLabel(label string) bool { return label == "Week" }

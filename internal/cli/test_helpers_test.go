@@ -25,6 +25,17 @@ func newRootCommand(runtime timber.Runtime) *cobra.Command {
 	return root.New(runtime.HomeDirectory, runtime.SkillContent, Commands(runtime)...)
 }
 
+func newRootCommandWithAliases(runtime timber.Runtime, args []string) (*cobra.Command, error) {
+	command := newRootCommand(runtime)
+	expand := root.ConfigureAliases(command, runtime.ReadConfig)
+	expanded, err := expand(args)
+	if err != nil {
+		return nil, err
+	}
+	command.SetArgs(expanded)
+	return command, nil
+}
+
 type commandResult struct {
 	stdout string
 	stderr string
@@ -38,13 +49,15 @@ func runTimberCommand(t *testing.T, args ...string) commandResult {
 
 func runTimberCommandWithRuntime(t *testing.T, runtime timber.Runtime, args ...string) commandResult {
 	t.Helper()
-	command := newRootCommand(runtime)
-	command.SetArgs(args)
+	command, err := newRootCommandWithAliases(runtime, args)
+	if err != nil {
+		return commandResult{err: err}
+	}
 	command.SetIn(bytes.NewReader(nil))
 	var stdout, stderr bytes.Buffer
 	command.SetOut(&stdout)
 	command.SetErr(&stderr)
-	err := command.Execute()
+	err = command.Execute()
 	return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 
@@ -56,8 +69,8 @@ func runTimberFromWithRuntime(t *testing.T, runtime timber.Runtime, directory st
 
 func runCompleteWithRuntime(t *testing.T, runtime timber.Runtime, args ...string) string {
 	t.Helper()
-	command := newRootCommand(runtime)
-	command.SetArgs(append([]string{"__complete"}, args...))
+	command, err := newRootCommandWithAliases(runtime, append([]string{"__complete"}, args...))
+	require.NoError(t, err)
 	var stdout bytes.Buffer
 	command.SetOut(&stdout)
 	command.SetErr(io.Discard)

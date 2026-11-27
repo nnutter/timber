@@ -2,7 +2,9 @@ package todo
 
 import (
 	"context"
+	_ "embed"
 	json "encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +17,9 @@ import (
 	tododata "github.com/nnutter/timber/internal/timber/todo"
 )
 
+//go:embed template.md
+var todoTemplate string
+
 // fallbackEditors is tried in order when EDITOR is unset.
 var fallbackEditors = []string{"nvim", "nano", "vim", "vi"}
 
@@ -24,7 +29,7 @@ type Dependencies struct {
 	Environment       []string
 	SkillContent      string
 	ResolveGitDir     func(io.Reader, []string) (string, error)
-	ResolveRepoGitDir func(io.Reader, []string) (string, error)
+	ResolveRepoGitDir func(string) (string, error)
 	Command           func(context.Context, string, ...string) *exec.Cmd
 	Complete          func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
 	RenderStatus      func(string) string
@@ -36,19 +41,20 @@ type todoCommandOptions struct {
 	installSkill bool
 	force        bool
 	jsonOutput   bool
-	repo         bool
+	worktree     bool
+	both         bool
 }
 
 func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) error {
 	if x.installSkill {
 		return installTodoOnly(x, command, args)
 	}
-	todoPath, err := ensureTodoFile(x, command, args)
+	paths, err := resolveTodoFiles(x, command, args)
 	if err != nil {
 		return err
 	}
 
-	if handled, err := reportTodoCommand(x, command, todoPath); handled || hasError(err) {
+	if handled, err := reportTodoCommand(x, command, paths[0]); handled || hasError(err) {
 		return err
 	}
 
@@ -57,7 +63,7 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return err
 	}
 	fields := strings.Fields(editorLine)
-	editorArgs := append(fields[1:], todoPath)
+	editorArgs := append(fields[1:], paths...)
 
 	editorCommand := x.deps.Command(command.Context(), fields[0], editorArgs...)
 	editorCommand.Dir = x.deps.CurrentDirectory
@@ -111,19 +117,19 @@ func New(deps Dependencies) *cobra.Command {
 
 	command := &cobra.Command{
 		Use:               "todo [name[@repo]]",
-		Aliases:           []string{"td"},
-		Short:             "Open the worktree or repository TODO list",
+		Short:             "Open the repository or worktree TODO list",
 		Args:              cobra.MaximumNArgs(1),
 		RunE:              options.Execute,
 		ValidArgsFunction: deps.Complete,
 	}
-	command.Flags().BoolVar(&options.repo, "repo", false, "Use the repository TODO list instead of the worktree list")
+	command.Flags().BoolVar(&options.worktree, "worktree", false, "Use the worktree TODO list instead of the repository list")
 	command.Flags().BoolVar(&options.pathOnly, "path", false, "Print the TODO list path instead of opening it")
 	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
 	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
 	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO items as JSON instead of opening the file")
-	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
-	command.MarkFlagsMutuallyExclusive("repo", "install-skill")
+	command.Flags().BoolVar(&options.both, "both", false, "Open the repository and worktree TODO lists together")
+	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json", "both")
+	command.MarkFlagsMutuallyExclusive("worktree", "install-skill", "both")
 	return command
 }
 
@@ -187,27 +193,101 @@ func installTodoOnly(x *todoCommandOptions, command *cobra.Command, args []strin
 	return x.installTodoSkill(command)
 }
 
-func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string) (string, error) {
-	resolveGitDir := x.deps.ResolveGitDir
-	if x.repo {
-		resolveGitDir = x.deps.ResolveRepoGitDir
-	}
-	gitDir, err := resolveGitDir(command.InOrStdin(), args)
+func resolveTodoFiles(x *todoCommandOptions, command *cobra.Command, args []string) ([]string, error) {
+	worktreeDir, err := x.deps.ResolveGitDir(command.InOrStdin(), args)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	dirs := []string{worktreeDir}
+	if !x.worktree {
+		repoDir, err := x.deps.ResolveRepoGitDir(worktreeDir)
+		if err != nil {
+			return nil, err
+		}
+		dirs[0] = repoDir
+		if x.both && differentGitDirs(repoDir, worktreeDir) {
+			dirs = append(dirs, worktreeDir)
+		}
+	}
+	paths := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		path, err := ensureTodoFile(dir)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+func differentGitDirs(left, right string) bool { return left != right }
+
+func ensureTodoFile(gitDir string) (string, error) {
 	todoPath := tododata.Path(gitDir)
-	if x.repo {
-		todoPath = filepath.Join(gitDir, "TODO.repo.md")
+	if err := migrateRepoTodo(tododata.LegacyRepoPath(gitDir), todoPath); err != nil {
+		return "", fmt.Errorf("migrate repository TODO file: %w", err)
 	}
-	file, err := os.OpenFile(todoPath, os.O_CREATE|os.O_RDONLY, 0o644)
-	if err != nil {
-		return "", fmt.Errorf("create TODO file: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return "", fmt.Errorf("create TODO file: %w", err)
+	if err := initializeTodoFile(todoPath); err != nil {
+		return "", fmt.Errorf("initialize TODO file: %w", err)
 	}
 	return todoPath, nil
+}
+
+func initializeTodoFile(path string) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	info, err := file.Stat()
+	closeErr := file.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if info.Size() != 0 {
+		return nil
+	}
+	file, err = os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString(todoTemplate)
+	return errors.Join(err, file.Close())
+}
+
+// migrateRepoTodo preserves notes from both scopes when the main worktree
+// already has its own TODO.md.
+func migrateRepoTodo(legacy, path string) error {
+	contents, err := os.ReadFile(legacy)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return os.Rename(legacy, path)
+	}
+	if err != nil {
+		return err
+	}
+	if len(contents) != 0 {
+		if info.Size() != 0 {
+			contents = append([]byte("\n\n"), contents...)
+		}
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(contents)
+		if err := errors.Join(err, file.Close()); err != nil {
+			return err
+		}
+	}
+	return os.Remove(legacy)
 }
 
 func reportTodoCommand(x *todoCommandOptions, command *cobra.Command, todoPath string) (bool, error) {

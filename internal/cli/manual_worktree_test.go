@@ -39,7 +39,7 @@ func TestManualWorktreeLifecycle(t *testing.T) {
 	assert.Contains(t, runCompleteWithRuntime(t, repo.runtime, "switch", "check"), "checkout\n")
 	assert.Contains(t, runCompleteWithRuntime(t, repo.runtime, "switch", "checkout@"), at(testRepoName, "checkout"))
 
-	todo := repo.runTimber(t, "todo", "--path", "checkout")
+	todo := repo.runTimber(t, "todo", "--worktree", "--path", "checkout")
 	require.NoError(t, todo.err, todo.stderr)
 	gitDir := strings.TrimSpace(runGitCommand(t, path, "rev-parse", "--absolute-git-dir"))
 	assert.Equal(t, filepath.Join(gitDir, "TODO.md"), strings.TrimSpace(todo.stdout))

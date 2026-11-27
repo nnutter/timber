@@ -45,7 +45,7 @@ func TestTodoJSONCommandEmitsFileAsJSON(t *testing.T) {
 
 	// EDITOR=false would fail if the editor were launched.
 	runtime := withTestEnvironment(testRepository.runtime, "EDITOR=false")
-	result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--json")
+	result := runTimberFromWithRuntime(t, runtime, worktreePath, "todo", "--worktree", "--json")
 	require.NoError(t, result.err, result.stderr)
 
 	var output todoJSONOutput

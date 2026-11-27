@@ -10,10 +10,9 @@ import (
 // New builds the hooks command tree for one checkout.
 func New(directory string) *cobra.Command {
 	command := &cobra.Command{
-		Use:     "hooks",
-		Aliases: []string{"hk"},
-		Short:   "Run Git hooks that Timber provides",
-		Args:    cobra.NoArgs,
+		Use:   "hooks",
+		Short: "Run Git hooks that Timber provides",
+		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			return command.Help()
 		},

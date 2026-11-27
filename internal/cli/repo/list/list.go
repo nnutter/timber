@@ -41,15 +41,15 @@ func New(query func(bool) ([]repo.Repo, error)) *cobra.Command {
 				}
 				return nil
 			}
-			tableView := display.NewOutputTable("Name", "Alias", "Origin")
+			tableView := display.NewOutputTable("Name", "Origin Alias", "Origin", "Todo")
 			for _, repo := range repos {
-				tableView.Row(repo.Name, repo.Alias, repo.Origin)
+				tableView.Row(repo.Name, repo.Alias, repo.Origin, repo.Todo.String())
 			}
 			_, err = fmt.Fprintln(command.OutOrStdout(), tableView.String())
 			return err
 		},
 	}
 	command.Flags().BoolVarP(&quiet, "quiet", "q", false, "Print repository names only")
-	command.Flags().BoolVar(&sortName, "sort-name", false, "Sort by repository name instead of alias")
+	command.Flags().BoolVar(&sortName, "sort-name", false, "Sort by repository name instead of origin alias")
 	return command
 }

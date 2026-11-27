@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"io"
 	"os"
 
@@ -43,20 +44,26 @@ func run() int {
 	runtime.SkillContent = skillContent
 	runtime.ReviewSkillContent = reviewSkillContent
 
-	root := root.New(runtime.HomeDirectory, runtime.SkillContent, cli.Commands(runtime)...)
+	command := root.New(runtime.HomeDirectory, runtime.SkillContent, cli.Commands(runtime)...)
+	expand := root.ConfigureAliases(command, runtime.ReadConfig)
+	args, err := expand(os.Args[1:])
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	command.SetArgs(args)
 	if err := fang.Execute(
 		ctx,
-		root,
+		command,
 		fang.WithVersion(version),
 		fang.WithErrorHandler(func(w io.Writer, styles fang.Styles, err error) {
-			args := os.Args[1:]
 			if len(args) > 0 && isSame(args[0], "review") && display.WantsJSON(args[1:]) {
-				failed, _, _ := root.Find(args)
+				failed, _, _ := command.Find(args)
 				name := "review"
 				if failed != nil {
 					name = failed.Name()
 				}
-				_ = display.WriteJSON(root.OutOrStdout(), display.ErrorResult{Version: 1, Command: name, Status: "error", Error: err.Error()})
+				_ = display.WriteJSON(command.OutOrStdout(), display.ErrorResult{Version: 1, Command: name, Status: "error", Error: err.Error()})
 				return
 			}
 			fang.DefaultErrorHandler(w, styles, err)

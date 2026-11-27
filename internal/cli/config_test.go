@@ -49,6 +49,26 @@ func TestConfigSetAndGet(t *testing.T) {
 	assert.Equal(t, "nnutter\n", get.stdout)
 }
 
+func TestConfigAliasCanBeInvokedAndRemoved(t *testing.T) {
+	t.Parallel()
+	runtime := testRuntime(t)
+	result := runTimberCommandWithRuntime(t, runtime, "config", "alias.settings", "config get")
+	require.NoError(t, result.err, result.stderr)
+
+	result = runTimberCommandWithRuntime(t, runtime, "settings", "auto_mise_trust")
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, "false\n", result.stdout)
+
+	result = runTimberCommandWithRuntime(t, runtime, "config", "get", "alias.settings")
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, "config get\n", result.stdout)
+
+	result = runTimberCommandWithRuntime(t, runtime, "config", "remove", "alias.settings")
+	require.NoError(t, result.err, result.stderr)
+	result = runTimberCommandWithRuntime(t, runtime, "settings", "auto_mise_trust")
+	require.ErrorContains(t, result.err, "settings")
+}
+
 func TestConfigAppendAndRemoveListValues(t *testing.T) {
 	runtime := testRuntime(t)
 	require.NoError(t, runTimberCommandWithRuntime(t, runtime, "config", "append", "strip_github_owners", "nnutter", "acme").err)

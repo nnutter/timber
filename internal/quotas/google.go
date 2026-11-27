@@ -136,11 +136,14 @@ func parseGoogleReports(output []byte) ([]Report, error) {
 	usedIDs := make(map[string]int, len(groups))
 	reports := make([]Report, 0, len(groups))
 	for index, group := range groups {
+		groupName, _ := asText(group["name"])
+		if strings.EqualFold(groupName, "Claude and GPT models") {
+			continue
+		}
 		limits := googleLimits(asRecords(group["buckets"]))
 		if len(limits) == 0 {
 			continue
 		}
-		groupName, _ := asText(group["name"])
 		reports = append(reports, Report{
 			ID:     googleGroupID(groupName, index, usedIDs),
 			Name:   googleGroupName(groupName),

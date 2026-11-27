@@ -52,6 +52,22 @@ func TestRemoveWithNoArgsRemovesCurrentWorktree(t *testing.T) {
 	testRepository.assertPathMissing(t, testRepository.worktreePath(branchName))
 }
 
+func TestRemoveWarnsAboutUnresolvedWorktreeTODOs(t *testing.T) {
+	t.Parallel()
+	repository := newTestRepository(t)
+	const name = "feature/unresolved-todos"
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, name)).err)
+	path := repository.worktreePath(name)
+	writeTodoFile(t, todoPathForWorktree(t, path), "- [ ] Local task\n- [x] Done\n")
+	writeTodoFile(t, filepath.Join(repository.barePath, "TODO.md"), "- [ ] Repo task\n")
+
+	result := repository.runTimberFrom(t, path, "remove")
+	require.NoError(t, result.err, result.stderr)
+	assert.Contains(t, result.stderr, "1 unresolved TODO")
+	repository.assertPathMissing(t, path)
+	repository.assertPathPresent(t, filepath.Join(repository.barePath, "TODO.md"))
+}
+
 func TestRemoveWithNoArgsFromSubdirectoryRemovesCurrentWorktree(t *testing.T) {
 	t.Parallel()
 	const branchName = "feature/subdir"

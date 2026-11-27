@@ -202,7 +202,7 @@ _%[1]s()
 
     # A short alias expands to the command it stands for: timber returns the
     # canonical command name when the typed word is an alias (for example
-    # 'rp' for 'repo'). zsh drops a match that does not start with the typed
+    # 'ls' for 'list'). zsh drops a match that does not start with the typed
     # word, so hold those matches back and add them unconditionally below.
     local -a expansions prefixed
     local completion
@@ -226,7 +226,7 @@ _%[1]s()
     esac
 
     # The 'switch' subcommand is hidden from 'timber --help' (the wrapper
-    # handles 'switch|sw' itself so it can cd), which also hides it from
+    # handles 'switch' itself so it can cd), which also hides it from
     # 'timber __complete', so offer it alongside Cobra's completions when
     # completing the subcommand name.
     if (( CURRENT == 2 )); then
@@ -368,6 +368,17 @@ func (x *zshCommandOptions) writeFunctionFile(target string, root *cobra.Command
 # DO NOT EDIT. Regenerate with timber generate zsh
 
 ` + x.name + `() {
+    case "$1" in
+    ''|-*|` + knownCommandCasePattern(root) + `) ;;
+    *)
+        local expansion
+        expansion=$(command timber __expand-alias "$1") || return $?
+        if [[ -n "$expansion" ]]; then
+            shift
+            set -- "${(@f)expansion}" "$@"
+        fi
+        ;;
+    esac
     case "$1" in
     ` + commandCasePattern(root, "create") + `)
         shift
@@ -624,6 +635,15 @@ func commandNames(root *cobra.Command, name string, subcommands ...string) []str
 
 func commandCasePattern(root *cobra.Command, name string, subcommands ...string) string {
 	return strings.Join(commandNames(root, name, subcommands...), "|")
+}
+
+func knownCommandCasePattern(root *cobra.Command) string {
+	names := []string{"help"}
+	for _, command := range root.Commands() {
+		names = append(names, command.Name())
+		names = append(names, command.Aliases...)
+	}
+	return strings.Join(names, "|")
 }
 
 func switchCompletionChecks(root *cobra.Command) string {

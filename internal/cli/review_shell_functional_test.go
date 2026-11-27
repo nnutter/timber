@@ -43,7 +43,8 @@ func TestGeneratedZshReviewAndCompletion(t *testing.T) {
 		err := command.Run()
 		return commandResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 	}
-	for _, args := range [][]string{{"review", "status", "--json"}, {"review", "--json", "status"}, {"rv", "status", "--json"}} {
+	require.NoError(t, repository.runTimber(t, "config", "alias.rs", "review status").err)
+	for _, args := range [][]string{{"review", "status", "--json"}, {"review", "--json", "status"}, {"rs", "--json"}} {
 		result := run(`source "$1/t"; shift; t "$@"`, args...)
 		require.NoError(t, result.err, result.stderr)
 		assert.NotContains(t, result.stderr, "ERROR")
@@ -76,6 +77,7 @@ func TestGeneratedZshReviewAndCompletion(t *testing.T) {
 		{args: []string{"review", "status", "--needs-"}, want: "--needs-review:"},
 		{args: []string{"review", "log", "--one"}, want: "--oneline:"},
 		{args: []string{"review", "status", "--js"}, want: "--json:"},
+		{args: []string{"rs", "--js"}, want: "--json:"},
 	} {
 		result := run(`source "$1/_t"
 shift
@@ -97,4 +99,11 @@ _t`, testCase.args...)
 	require.NoError(t, json.Unmarshal([]byte(failed.stdout), &failure))
 	assert.Equal(t, "error", failure.Status)
 	assert.Contains(t, failure.Error, "unknown")
+
+	const other = "feature/alias-switch"
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, other)).err)
+	require.NoError(t, repository.runTimber(t, "config", "alias.hop", "switch").err)
+	changed := run(`source "$1/t"; t hop "$2" >/dev/null && pwd -P`, at(testRepoName, other))
+	require.NoError(t, changed.err, changed.stderr)
+	assert.Equal(t, shellCanonicalPath(repository.worktreePath(other)), strings.TrimSpace(changed.stdout))
 }

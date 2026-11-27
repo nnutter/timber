@@ -135,7 +135,7 @@ func TestRepoAddAlias(t *testing.T) {
 				lines := strings.Split(strings.TrimSpace(list.stdout), "\n")
 				require.Len(t, lines, 5)
 				cells := strings.Split(lines[3], "│")
-				require.Len(t, cells, 5)
+				require.GreaterOrEqual(t, len(cells), 5)
 				assert.Equal(t, "demo", strings.TrimSpace(cells[1]))
 				assert.Equal(t, wantAlias, strings.TrimSpace(cells[2]))
 				assert.Equal(t, wantOrigin, strings.TrimSpace(cells[3]))

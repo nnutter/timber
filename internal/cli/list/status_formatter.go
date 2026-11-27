@@ -21,6 +21,13 @@ type listStatusFormatter struct {
 }
 
 func (x listStatusFormatter) format(worktree timber.ListWorktreeView) string {
+	if worktree.StatusError {
+		return "error"
+	}
+	return x.formatGitStatus(worktree)
+}
+
+func (x listStatusFormatter) formatGitStatus(worktree timber.ListWorktreeView) string {
 	// Merged work needs no divergence detail; name the state instead.
 	if worktree.Merged {
 		if worktree.Upstream != "" && !isSame(worktree.Upstream, worktree.DefaultUpstream) {

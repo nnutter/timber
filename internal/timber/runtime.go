@@ -447,6 +447,9 @@ func (x Runtime) ListRepos(details bool) ([]repomodel.Repo, error) {
 		if details {
 			item.Origin = repo.originURL(x)
 			item.Alias = repo.alias(x, item.Origin)
+			if progress, err := todo.ReadRepoProgress(repo.BarePath); err == nil {
+				item.Todo = progress
+			}
 		}
 		result = append(result, item)
 	}
@@ -681,11 +684,17 @@ func (runtime Runtime) RemoveRepo(repoName string) error {
 
 // RemoveWorktree resolves a worktree selector and removes it. It returns the
 // data the CLI reports and avoids Timber command types in its signature.
-func (runtime Runtime) RemoveWorktree(input io.Reader, raw string, force bool) (string, string, string, bool, error) {
+func (runtime Runtime) RemoveWorktree(input io.Reader, raw string, force bool, warn func(string) error) (string, string, string, bool, error) {
 	selection := repoSelection{runtime: runtime}
 	_, repository, worktree, err := selection.resolveQualifiedWorktree(input, raw)
 	if err != nil {
 		return "", "", "", false, err
+	}
+	progress := runtime.todoProgressForWorktree(worktree, true, false)
+	if open := progress.Total - progress.Done; open > 0 {
+		if err := warn(fmt.Sprintf("worktree %q has %d unresolved TODO item(s)", worktree.Name, open)); err != nil {
+			return "", "", "", false, err
+		}
 	}
 	result, err := runtime.removeResolvedWorktree(repository, worktree, force)
 	if err != nil {
@@ -856,11 +865,7 @@ func (x Runtime) ResolveTodoGitDir(input io.Reader, args []string) (string, erro
 	return filepath.Clean(repository.GitDir), nil
 }
 
-func (x Runtime) ResolveTodoRepoGitDir(input io.Reader, args []string) (string, error) {
-	gitDir, err := x.ResolveTodoGitDir(input, args)
-	if err != nil {
-		return "", err
-	}
+func (x Runtime) ResolveTodoRepoGitDir(gitDir string) (string, error) {
 	result, err := gitOutput(x, gitDir, "--git-dir", gitDir, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", fmt.Errorf("resolve common git dir: %w", err)
@@ -906,6 +911,31 @@ func (runtime Runtime) RunTUI(ctx context.Context, input io.Reader, output, stdo
 // SaveConfig saves the persistent Timber settings.
 func (x Runtime) SaveConfig(settings coreconfig.Settings) error {
 	return writeConfig(x.configPath(), settings)
+}
+
+// WorktreeStatus gathers the current worktree's list fields and its repository's TODO progress.
+func (runtime Runtime) WorktreeStatus(ctx context.Context, input io.Reader) (WorktreeStatusView, error) {
+	selection := repoSelection{runtime: runtime}
+	repo, repository, worktree, err := selection.resolveQualifiedWorktree(input, "")
+	if err != nil {
+		return WorktreeStatusView{}, err
+	}
+	enrich := listWorktreeEnricher(runtime, listSortWorktree, ListOptions{Todo: true})
+	worktree, err = enrich(repository, worktree)
+	if err != nil {
+		return WorktreeStatusView{}, err
+	}
+	worktrees := []managedWorktree{worktree}
+	runtime.enrichListedWorktreesWithReviews(ctx, worktrees, true, false)
+	if err := runtime.enrichListedWorktreesWithPullRequests(ctx, worktrees); err != nil {
+		return WorktreeStatusView{}, err
+	}
+	// Like the list commands, show zero progress if the TODO file cannot be read.
+	repoTodo, _ := todo.ReadRepoProgress(repo.BarePath)
+	return WorktreeStatusView{
+		Worktree: runtime.worktreesToListTable(worktrees, false)[0],
+		RepoTodo: repoTodo.String(),
+	}, nil
 }
 
 func (x Runtime) absolutePath(path string) (string, error) {
@@ -2225,11 +2255,30 @@ func (runtime Runtime) resolveBumpTarget(input io.Reader, raw string) (bumpTarge
 	return bumpTarget{directory: worktree.Path, branch: worktree.branchName(), ref: "HEAD"}, nil
 }
 
-func (x Runtime) resolveCreateWorktreeName(repoName string, name string) (string, error) {
+func (x Runtime) resolveCreateWorktreeName(repository *Repository, repoName string, name string) (string, error) {
 	if name != "" {
 		return name, nil
 	}
-	return x.unusedWorktreeName(repoName)
+	if repoName == "" {
+		return x.unusedWorktreeName(repoName)
+	}
+	if err := ValidateWorktreeName(repoName); err != nil {
+		return x.unusedWorktreeName(repoName)
+	}
+	taken, err := x.worktreeDirectoryExists(repoName, repoName)
+	if err != nil {
+		return "", err
+	}
+	if !taken {
+		taken, err = repository.branchExists(repoName)
+		if err != nil {
+			return "", err
+		}
+	}
+	if taken {
+		return x.unusedWorktreeName(repoName)
+	}
+	return repoName, nil
 }
 
 func (x Runtime) runGh(ctx context.Context, directory string, args ...string) ([]byte, error) {

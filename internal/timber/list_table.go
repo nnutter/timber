@@ -1,5 +1,11 @@
 package timber
 
+// WorktreeStatusView adds repository TODO progress to the current worktree.
+type WorktreeStatusView struct {
+	Worktree ListWorktreeView
+	RepoTodo string
+}
+
 // ListWorktreeView contains the data needed to present a worktree in a table.
 type ListWorktreeView struct {
 	Name            string

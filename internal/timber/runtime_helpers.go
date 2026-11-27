@@ -171,7 +171,7 @@ func resolveCreateBranch(runtime Runtime, input io.Reader, repoName, raw string)
 	if err != nil {
 		return registeredRepo{}, nil, "", err
 	}
-	branchName, err := runtime.resolveCreateWorktreeName(repo.Name, qualified.Name)
+	branchName, err := runtime.resolveCreateWorktreeName(repository, repo.Name, qualified.Name)
 	if err != nil {
 		return registeredRepo{}, nil, "", err
 	}

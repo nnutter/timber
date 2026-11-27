@@ -13,29 +13,23 @@ import (
 func TestFunctionalZshCreateChangesDirectoryToReportedPath(t *testing.T) {
 	t.Parallel()
 	type testCase struct {
-		name       string
-		subcommand string
-		custom     bool
+		name   string
+		custom bool
 	}
 	for _, tc := range []testCase{
-		{name: "create default", subcommand: "create"},
-		{name: "create custom", subcommand: "create", custom: true},
-		{name: "alias default", subcommand: "c"},
-		{name: "alias custom", subcommand: "c", custom: true},
+		{name: "create default"},
+		{name: "create custom", custom: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			target := filepath.Join(resolvedTempDir(t), "worktree with spaces")
 			require.NoError(t, os.Mkdir(target, 0o755))
-			invocation := `source "$1"; t ` + tc.subcommand + ` feature@repo >/dev/null || exit $?; pwd -P`
+			invocation := `source "$1"; t create feature@repo >/dev/null || exit $?; pwd -P`
 			if tc.custom {
-				invocation = `source "$1"; t ` + tc.subcommand + ` feature@repo "$TARGET_DIR" >/dev/null || exit $?; pwd -P`
+				invocation = `source "$1"; t create feature@repo "$TARGET_DIR" >/dev/null || exit $?; pwd -P`
 			}
 			command := generatedZshCommand(t, `#!/bin/sh
-case "$1" in
-create|c) ;;
-*) exit 98 ;;
-esac
+[ "$1" = create ] || exit 98
 [ "$2" = feature@repo ] || exit 98
 if [ "$CUSTOM_PATH" = true ]; then
     [ "$#" = 3 ] && [ "$3" = "$TARGET_DIR" ] || exit 97

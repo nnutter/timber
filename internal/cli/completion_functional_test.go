@@ -80,16 +80,16 @@ func TestAliasCompletionExpandsToCommandName(t *testing.T) {
 	testRepository := newTestRepository(t)
 
 	for _, testCase := range []struct{ alias, name string }{
-		{"rp", "repo"},
-		{"hk", "hooks"},
-		{"td", "todo"},
+		{"ls", "list"},
+		{"rm", "remove"},
+		{"mv", "move"},
 	} {
 		stdout := runCompleteWithRuntime(t, testRepository.runtime, testCase.alias)
 		assert.Contains(t, stdout, testCase.name+"\n", "alias=%s", testCase.alias)
 		assert.NotContains(t, stdout, testCase.name+"\t", "alias=%s", testCase.alias)
 	}
 
-	nested := runCompleteWithRuntime(t, testRepository.runtime, "rp", "mv")
+	nested := runCompleteWithRuntime(t, testRepository.runtime, "repo", "mv")
 	assert.Contains(t, nested, "rename\n")
 }
 
@@ -103,7 +103,7 @@ func TestAliasCompletionYieldsToCommandNamePrefixes(t *testing.T) {
 	assert.NotContains(t, stdout, "review\n")
 	assert.Contains(t, stdout, "repo\t")
 
-	// 'c' is the alias for create, but 'config' and 'create' share the prefix.
+	// 'config' and 'create' also share a prefix.
 	stdout = runCompleteWithRuntime(t, testRepository.runtime, "c")
 	assert.NotContains(t, stdout, "create\n")
 	assert.Contains(t, stdout, "create\t")

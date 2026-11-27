@@ -371,7 +371,7 @@ The generated function:
 t repo add nnutter/timber
 t create feature/login@timber   # then cd into it
 t create feature/custom@timber ../checkout # custom location, then cd
-t create @timber                # random name, then cd into it
+t create @timber                # use the repository name if available, then cd into it
 t switch feature/login@timber
 t switch feature/login          # unique name across repositories
 t switch -c feature/new@timber  # create then cd
@@ -392,30 +392,36 @@ The following aliases are available for the commands below:
 
 | Command | Alias |
 | --- | --- |
-| `create` | `c` |
-| `hooks` | `hk` |
 | `list` | `ls` |
 | `prune` | `clean` |
 | `remove` | `rm` |
-| `repo` | `rp` |
-| `review` | `rv` |
-| `todo` | `td` |
+| `move` | `mv` |
 
 The nested command groups have these aliases as well:
 
-- `hooks commit-msg` → `hooks cm`
-- `pr create` → `pr c`
 - `repo list` → `repo ls`
 - `repo remove` → `repo rm`
 - `repo rename` → `repo mv`
-- `review approve` → `review a` (`review confirm` also works)
-- `review commits` → `review c` (`review run` and `review challenge` also work)
-- `review files` → `review f`
-- `review log` → `review l`
-- `review status` → `review s`
+- `review approve` → `review confirm`
+- `review reset` → `review clear`
 
-Zsh completion expands an alias to the command it stands for: `t rp<tab>` becomes `t repo` with a trailing space.
+Zsh completion expands an alias to the command it stands for: `t ls<tab>` becomes `t list` with a trailing space.
 The expansion waits while a command name shares the typed prefix, so `t r<tab>` still lists `review`, `repo`, and `remove`.
+
+### Custom command aliases
+
+Define a command alias in your Timber config:
+
+```bash
+timber config alias.rs 'review status'
+timber rs --json
+t rs --json
+timber config remove alias.rs
+```
+
+Timber splits the alias value on whitespace and appends the arguments you pass at invocation.
+Built-in command names take precedence over configured aliases.
+Regenerate the zsh wrapper with `timber generate zsh --force` so aliases for commands such as `switch` can change the shell's current directory.
 
 ### Repository selection
 
@@ -423,7 +429,7 @@ Worktree commands take an optional `<worktree>@<repo>` qualifier on the name arg
 
 - `feature/login@timber` selects that worktree in the `timber` repository
 - `feature/login` is enough when the name exists in exactly one registered repository
-- `@timber` selects the repository with no worktree name (`create` generates a random name; `list` and `prune` pin that repository)
+- `@timber` selects the repository with no worktree name (`create` uses the repository name if available and picks a random name otherwise; `list` and `prune` pin that repository)
 
 `list` and `prune` use every registered repository unless `@<repo>` pins one.
 
@@ -459,9 +465,11 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `remove` | Remove one worktree and delete its branch (`--force` overrides safety) |
 | `move` | Move a worktree checkout to a new path (`name[@repo] <path>`) |
 | `pr create` | Open a GitHub pull request for a pushed worktree branch (`--title`, `--body`, `--base`, `--draft`) |
+| `status` | Show Git, review, and pull request status alongside worktree and repository TODO progress |
+| `check` | Validate commit messages in a Git revision range (`@{upstream}..HEAD` by default) |
 | `bump` | Create and push the next semantic version tag (`--major`/`--minor`/`--patch`, `--pattern`, `--no-push`, `--release`, `--no-open`) |
 | `hooks commit-msg` | Add a Gerrit-compatible `Change-Id` to a commit message (`timber review commit-msg` stays as a hidden alias) |
-| `todo` | Open the current worktree's `TODO.md` in `$EDITOR` |
+| `todo` | Open the repository's `TODO.md` in `$EDITOR` (`--worktree` for the current worktree's list, `--both` to open both lists) |
 | `quotas` | Show AI subscription usage, soonest waste first (`--tui` refreshes every 5 minutes, keys 1/5/0 choose 1/5/10, `--json` prints the report, `--rolling` includes OpenCode Go's 5-hour window) |
 | `generate zsh` | Generate the `t` wrapper, completion, and autoload helper |
 

@@ -243,17 +243,13 @@ func codexCreditNote(snapshots []map[string]any) []string {
 		if !ok || !asBool(credits["hasCredits"]) {
 			continue
 		}
-		return []string{codexCreditLine(credits)}
+		if asBool(credits["unlimited"]) {
+			continue
+		}
+		balance, _ := asNumber(credits["balance"])
+		return []string{fmt.Sprintf("Credits: %g.", balance)}
 	}
 	return nil
-}
-
-func codexCreditLine(credits map[string]any) string {
-	if asBool(credits["unlimited"]) {
-		return "Credits: unlimited."
-	}
-	balance, _ := asNumber(credits["balance"])
-	return fmt.Sprintf("Credits: %g.", balance)
 }
 
 func codexResetNote(answer map[string]any) []string {

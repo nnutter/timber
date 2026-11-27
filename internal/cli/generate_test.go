@@ -84,11 +84,10 @@ func TestGeneratedCompletionOffersHiddenSwitchSubcommand(t *testing.T) {
 	require.NoError(t, err)
 	completion := string(completionContents)
 	// 'switch' is hidden from 'timber --help' (and therefore from
-	// 'timber __complete'), but the 't' wrapper handles 'switch|sw'
+	// 'timber __complete'), but the 't' wrapper handles 'switch'
 	// itself, so the generated completion must offer them when completing
 	// the subcommand name.
 	assert.Contains(t, completion, "switch:Resolve a managed worktree path")
-	assert.Contains(t, completion, "sw:Resolve a managed worktree path")
 }
 
 func TestListFlagCompletionOffersPrJsonSort(t *testing.T) {
@@ -420,10 +419,6 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 	assert.Contains(t, unique, "t switch feature/login")
 	assert.NotContains(t, unique, "feature/login@")
 
-	uniqueAlias := runComplete("t sw feature/l")
-	assert.Contains(t, uniqueAlias, "t sw feature/login")
-	assert.NotContains(t, uniqueAlias, "feature/login@")
-
 	makeWorktree("other", "feature/login")
 	ambiguous := runComplete("t switch feature/l")
 	assert.Contains(t, ambiguous, "t switch feature/login@")
@@ -541,7 +536,7 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 		return string(output)
 	}
 
-	// 'swi' matches only 'switch', not the 'sw' alias, so zsh expands the line.
+	// 'swi' matches only 'switch', so zsh expands the line.
 	subcommand := runComplete("t swi", "switch")
 	assert.Contains(t, subcommand, "t switch")
 }
@@ -666,11 +661,9 @@ sys.stdout.write(log.decode("utf-8", "replace"))
 	sortValue := runComplete("t list --sort rec", "recency")
 	assert.Contains(t, sortValue, "t list --sort recency")
 
-	for _, command := range []string{"create", "c"} {
-		wrapperFlags := runComplete("t "+command+" --no-", "--no-cd", "--no-herdr")
-		assert.Contains(t, wrapperFlags, "--no-cd", "command=%s", command)
-		assert.Contains(t, wrapperFlags, "--no-herdr", "command=%s", command)
-	}
+	wrapperFlags := runComplete("t create --no-", "--no-cd", "--no-herdr")
+	assert.Contains(t, wrapperFlags, "--no-cd")
+	assert.Contains(t, wrapperFlags, "--no-herdr")
 }
 
 func TestGeneratedZshWrapperAutoloadsAfterCompinit(t *testing.T) {
@@ -721,8 +714,6 @@ func TestGeneratedZshWrapperChangesToRenamedCurrentWorktree(t *testing.T) {
 	for _, tc := range []testCase{
 		{name: "repo rename", invocation: "repo rename"},
 		{name: "repo mv", invocation: "repo mv"},
-		{name: "rp rename", invocation: "rp rename"},
-		{name: "rp mv", invocation: "rp mv"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -886,7 +877,7 @@ cd / && rm -rf "$2"
 
 func TestGeneratedZshWrapperChangesDirectoryOnSwitch(t *testing.T) {
 	t.Parallel()
-	for _, subcommand := range []string{"switch", "sw"} {
+	for _, subcommand := range []string{"switch"} {
 		t.Run(subcommand, func(t *testing.T) {
 			t.Parallel()
 			targetDir := resolvedTempDir(t)
@@ -915,7 +906,7 @@ func TestGeneratedZshWrapperLeavesImportedSourceDirectory(t *testing.T) {
 	outDir := resolvedTempDir(t)
 	require.NoError(t, runTimberCommand(t, "generate", "zsh", "--out", outDir, "--force").err)
 
-	for _, subcommand := range []string{"repo", "rp"} {
+	for _, subcommand := range []string{"repo"} {
 		t.Run(subcommand, func(t *testing.T) {
 			t.Parallel()
 			startDir := resolvedTempDir(t)

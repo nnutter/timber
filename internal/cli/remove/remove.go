@@ -1,6 +1,7 @@
 package remove
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/spf13/cobra"
@@ -10,7 +11,7 @@ import (
 
 // Dependencies connects the remove CLI to worktree removal and process state.
 type Dependencies struct {
-	Remove        func(io.Reader, string, bool) (name, shortHash, path string, removingCurrentDirectory bool, err error)
+	Remove        func(io.Reader, string, bool, func(string) error) (name, shortHash, path string, removingCurrentDirectory bool, err error)
 	Complete      func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
 	RenderStatus  func(string) string
 	RenderWarning func(string) string
@@ -37,7 +38,11 @@ func run(deps Dependencies, force *bool) func(*cobra.Command, []string) error {
 		if len(args) == 1 {
 			raw = args[0]
 		}
-		name, shortHash, path, removingCurrentDirectory, err := deps.Remove(command.InOrStdin(), raw, *force)
+		warn := func(message string) error {
+			_, err := fmt.Fprintln(command.ErrOrStderr(), deps.RenderWarning("warning: "+message))
+			return err
+		}
+		name, shortHash, path, removingCurrentDirectory, err := deps.Remove(command.InOrStdin(), raw, *force, warn)
 		if err != nil {
 			return err
 		}

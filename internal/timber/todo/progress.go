@@ -24,17 +24,34 @@ func (x Progress) String() string {
 // worktree's TODO.md. A missing TODO.md is an empty checklist, not an error,
 // because `timber todo` creates the file lazily.
 func ReadProgress(gitDir string) (Progress, error) {
-	file, err := os.Open(Path(gitDir))
+	return readProgress(Path(gitDir))
+}
+
+// ReadRepoProgress counts shared TODOs, including any notes not yet migrated.
+func ReadRepoProgress(gitDir string) (Progress, error) {
+	current, err := ReadProgress(gitDir)
+	if err != nil {
+		return Progress{}, err
+	}
+	legacy, err := readProgress(LegacyRepoPath(gitDir))
+	if err != nil {
+		return Progress{}, err
+	}
+	return Progress{Done: current.Done + legacy.Done, Total: current.Total + legacy.Total}, nil
+}
+
+func readProgress(path string) (Progress, error) {
+	file, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return Progress{}, nil
 	}
 	if err != nil {
-		return Progress{}, fmt.Errorf("open %s: %w", Path(gitDir), err)
+		return Progress{}, fmt.Errorf("open %s: %w", path, err)
 	}
 	progress, parseErr := parseTodoProgress(file)
 	// A close failure on a read-only file carries no information.
 	if err := file.Close(); err != nil && isSame(parseErr, nil) {
-		parseErr = fmt.Errorf("close %s: %w", Path(gitDir), err)
+		parseErr = fmt.Errorf("close %s: %w", path, err)
 	}
 	return progress, parseErr
 }
