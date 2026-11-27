@@ -29,7 +29,7 @@ type Dependencies struct {
 	Environment       []string
 	SkillContent      string
 	ResolveGitDir     func(io.Reader, []string) (string, error)
-	ResolveRepoGitDir func(io.Reader, []string) (string, error)
+	ResolveRepoGitDir func(string) (string, error)
 	Command           func(context.Context, string, ...string) *exec.Cmd
 	Complete          func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
 	RenderStatus      func(string) string
@@ -42,18 +42,19 @@ type todoCommandOptions struct {
 	force        bool
 	jsonOutput   bool
 	worktree     bool
+	both         bool
 }
 
 func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) error {
 	if x.installSkill {
 		return installTodoOnly(x, command, args)
 	}
-	todoPath, err := ensureTodoFile(x, command, args)
+	paths, err := resolveTodoFiles(x, command, args)
 	if err != nil {
 		return err
 	}
 
-	if handled, err := reportTodoCommand(x, command, todoPath); handled || hasError(err) {
+	if handled, err := reportTodoCommand(x, command, paths[0]); handled || hasError(err) {
 		return err
 	}
 
@@ -62,7 +63,7 @@ func (x *todoCommandOptions) Execute(command *cobra.Command, args []string) erro
 		return err
 	}
 	fields := strings.Fields(editorLine)
-	editorArgs := append(fields[1:], todoPath)
+	editorArgs := append(fields[1:], paths...)
 
 	editorCommand := x.deps.Command(command.Context(), fields[0], editorArgs...)
 	editorCommand.Dir = x.deps.CurrentDirectory
@@ -127,8 +128,9 @@ func New(deps Dependencies) *cobra.Command {
 	command.Flags().BoolVar(&options.installSkill, "install-skill", false, "Install the timber-todo skill to ~/.agents/skills")
 	command.Flags().BoolVarP(&options.force, "force", "f", false, "Overwrite an existing installed skill")
 	command.Flags().BoolVar(&options.jsonOutput, "json", false, "Print TODO items as JSON instead of opening the file")
-	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json")
-	command.MarkFlagsMutuallyExclusive("worktree", "install-skill")
+	command.Flags().BoolVar(&options.both, "both", false, "Open the repository and worktree TODO lists together")
+	command.MarkFlagsMutuallyExclusive("path", "install-skill", "json", "both")
+	command.MarkFlagsMutuallyExclusive("worktree", "install-skill", "both")
 	return command
 }
 
@@ -192,15 +194,36 @@ func installTodoOnly(x *todoCommandOptions, command *cobra.Command, args []strin
 	return x.installTodoSkill(command)
 }
 
-func ensureTodoFile(x *todoCommandOptions, command *cobra.Command, args []string) (string, error) {
-	resolveGitDir := x.deps.ResolveRepoGitDir
-	if x.worktree {
-		resolveGitDir = x.deps.ResolveGitDir
-	}
-	gitDir, err := resolveGitDir(command.InOrStdin(), args)
+func resolveTodoFiles(x *todoCommandOptions, command *cobra.Command, args []string) ([]string, error) {
+	worktreeDir, err := x.deps.ResolveGitDir(command.InOrStdin(), args)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	dirs := []string{worktreeDir}
+	if !x.worktree {
+		repoDir, err := x.deps.ResolveRepoGitDir(worktreeDir)
+		if err != nil {
+			return nil, err
+		}
+		dirs[0] = repoDir
+		if x.both && differentGitDirs(repoDir, worktreeDir) {
+			dirs = append(dirs, worktreeDir)
+		}
+	}
+	paths := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		path, err := ensureTodoFile(dir)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+func differentGitDirs(left, right string) bool { return left != right }
+
+func ensureTodoFile(gitDir string) (string, error) {
 	todoPath := tododata.Path(gitDir)
 	if err := migrateRepoTodo(tododata.LegacyRepoPath(gitDir), todoPath); err != nil {
 		return "", fmt.Errorf("migrate repository TODO file: %w", err)

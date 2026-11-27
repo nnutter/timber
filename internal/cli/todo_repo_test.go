@@ -68,6 +68,26 @@ func TestTodoRepoSharedAcrossWorktrees(t *testing.T) {
 	assert.Equal(t, [2]int{1, 2}, counts[b])
 }
 
+func TestTodoBothOpensRepoAndWorktreeFilesTogether(t *testing.T) {
+	t.Parallel()
+	repository := newTestRepository(t)
+	const name = "feature/both"
+	require.NoError(t, repository.runTimber(t, "create", at(testRepoName, name)).err)
+	worktree := repository.worktreePath(name)
+	log := filepath.Join(resolvedTempDir(t), "editor.log")
+	editor := installFakeEditor(t, log)
+	runtime := withTestEnvironment(repository.runtime, "EDITOR="+editor)
+
+	result := runTimberFromWithRuntime(t, runtime, worktree, "todo", "--both")
+	require.NoError(t, result.err, result.stderr)
+	args, err := os.ReadFile(log)
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		filepath.Join(repository.barePath, "TODO.md"),
+		todoPathForWorktree(t, worktree),
+	}, strings.Split(strings.TrimSpace(string(args)), "\n"))
+}
+
 func TestTodoRepoSharesFileWithMainWorktree(t *testing.T) {
 	t.Parallel()
 

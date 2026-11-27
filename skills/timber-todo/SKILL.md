@@ -27,6 +27,7 @@ This prints the absolute path of the selected TODO file.
 A missing or empty file is initialized with a pull request stack template.
 The positional selector identifies a worktree in either scope.
 Without `--worktree`, Timber uses the selected worktree's repository.
+Run `timber todo --both` to open both lists in the same editor invocation.
 Do not guess the path; always resolve it with `--path` first.
 
 ## Edit items as Markdown checkboxes

@@ -462,7 +462,7 @@ For full flags and examples, see `timber --help` and `timber <command> --help`.
 | `check` | Validate commit messages in a Git revision range (`@{upstream}..HEAD` by default) |
 | `bump` | Create and push the next semantic version tag (`--major`/`--minor`/`--patch`, `--pattern`, `--no-push`, `--release`, `--no-open`) |
 | `hooks commit-msg` | Add a Gerrit-compatible `Change-Id` to a commit message (`timber review commit-msg` stays as a hidden alias) |
-| `todo` | Open the repository's `TODO.md` in `$EDITOR` (`--worktree` for the current worktree's list) |
+| `todo` | Open the repository's `TODO.md` in `$EDITOR` (`--worktree` for the current worktree's list, `--both` to open both lists) |
 | `quotas` | Show AI subscription usage, soonest waste first (`--tui` refreshes every 5 minutes, keys 1/5/0 choose 1/5/10, `--json` prints the report, `--rolling` includes OpenCode Go's 5-hour window) |
 | `generate zsh` | Generate the `t` wrapper, completion, and autoload helper |
 

@@ -865,11 +865,7 @@ func (x Runtime) ResolveTodoGitDir(input io.Reader, args []string) (string, erro
 	return filepath.Clean(repository.GitDir), nil
 }
 
-func (x Runtime) ResolveTodoRepoGitDir(input io.Reader, args []string) (string, error) {
-	gitDir, err := x.ResolveTodoGitDir(input, args)
-	if err != nil {
-		return "", err
-	}
+func (x Runtime) ResolveTodoRepoGitDir(gitDir string) (string, error) {
 	result, err := gitOutput(x, gitDir, "--git-dir", gitDir, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", fmt.Errorf("resolve common git dir: %w", err)
