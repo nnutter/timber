@@ -4,3 +4,7 @@ root = true
 [herdr/**]
 indent_style = space
 indent_size = 4
+
+[scripts/upgrade-tools]
+indent_style = space
+indent_size = 2

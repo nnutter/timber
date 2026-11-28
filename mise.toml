@@ -65,8 +65,8 @@ go tool cover -func=coverage-process.out
 '''
 
 [tasks.upgrade]
-description = "Upgrade the tools to their newest releases"
-run = ["mise upgrade --local", "mise lock"]
+description = "Upgrade and commit mise tools and shared hk config"
+run = "scripts/upgrade-tools"
 
 [tasks.install]
 description = "Install hk git hooks"
