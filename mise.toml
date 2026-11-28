@@ -68,9 +68,13 @@ go tool cover -func=coverage-process.out
 description = "Upgrade the tools to their newest releases"
 run = ["mise upgrade --local", "mise lock"]
 
+[tasks.install]
+description = "Install hk git hooks"
+run = "hk install --mise"
+
 [tasks.setup]
 description = "Install Pi extension types and hk Git hooks"
-run = ["npm ci --ignore-scripts", "hk install --mise"]
+run = ["npm ci --ignore-scripts", { task = "install" }]
 
 [tasks.test]
 description = "Run tests with coverage"
@@ -90,6 +94,10 @@ fi
 [tasks.check]
 description = "Check all files without writing fixes"
 run = "hk check --all"
+
+[tasks.validate]
+description = "Run checks and tests without applying fixes"
+run = [{ task = "check" }, { task = "test" }]
 
 [tasks.on-start]
 description = "Pi mise-hooks: run fixes, tests, and checks before agent starts"
