@@ -33,6 +33,8 @@ jobs:
           restore-keys: go-build-${{ runner.os }}-
       - name: Install the tools
         run: mise install
+      - name: Install Pi extension types
+        run: npm ci --ignore-scripts
       - name: Run check
         run: mise run check
   test:

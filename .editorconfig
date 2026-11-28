@@ -1,0 +1,6 @@
+root = true
+
+# Match the indentation already used by the bundled shell plugin.
+[herdr/**]
+indent_style = space
+indent_size = 4

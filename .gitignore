@@ -3,4 +3,5 @@
 coverage.html
 coverage.out
 coverage-process.out
+/node_modules/
 tmp/

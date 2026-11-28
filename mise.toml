@@ -11,8 +11,14 @@ go = "latest"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
 "go:golang.org/x/vuln/cmd/govulncheck" = "latest"
 gofumpt = "latest"
-hk = "2.12.0"
+hk = "2.14.0"
+node = "latest"
+oxfmt = "latest"
+oxlint = "latest"
+"npm:typescript" = "latest"
 pkl = "latest"
+shellcheck = "latest"
+shfmt = "latest"
 "pipx:agentskills-tools" = "latest"
 staticcheck = "latest"
 tombi = "latest"
@@ -63,8 +69,8 @@ description = "Upgrade the tools to their newest releases"
 run = ["mise upgrade --local", "mise lock"]
 
 [tasks.setup]
-description = "Install hk git hooks"
-run = "hk install --mise"
+description = "Install Pi extension types and hk Git hooks"
+run = ["npm ci --ignore-scripts", "hk install --mise"]
 
 [tasks.test]
 description = "Run tests with coverage"
