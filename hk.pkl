@@ -3,18 +3,19 @@
 // target the hk pin in mise.toml. The revision is the newest one released for
 // that hk version.
 amends
-  "package://github.com/nnutter/hk-config/releases/download/v2.12.0-0/hk-config@2.12.0-0#/Config.pkl"
+  "package://github.com/nnutter/hk-config/releases/download/v2.14.0-0/hk-config@2.14.0-0#/Config.pkl"
 
 import
-  "package://github.com/nnutter/hk-config/releases/download/v2.12.0-0/hk-config@2.12.0-0#/Hooks.pkl"
+  "package://github.com/nnutter/hk-config/releases/download/v2.14.0-0/hk-config@2.14.0-0#/Hooks.pkl"
   as Hooks
 
-/// Fixtures hold deliberately broken files, so every step skips them.
-exclude = List("**/testdata/**")
+// Fixtures contain deliberately broken files. Mise records a digest for its
+// generated sidecars, so formatting those files breaks locked installs.
+exclude = List("**/testdata/**", ".mise/locks")
 
 // The templates build the check, fix, pre-commit, and commit-msg hooks, and
 // they order the steps of each hook that fixes: the steps that rewrite files
 // run in the order their edits must land, and every step that only reads waits
 // for the last fixer, so the readers run together. `check` sets no order.
-// `go`, `toml`, `yaml`, and `agentskills` are the groups this repository needs.
-hooks = Hooks.all(List("go", "toml", "yaml", "agentskills"))
+// Include the shell plugin and the Pi extension alongside Go and skills.
+hooks = Hooks.all(List("go", "toml", "yaml", "agentskills", "shell", "json", "ts-backend"))
